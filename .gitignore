@@ -53,7 +53,8 @@ npm-debug.log*
 tmp
 
 # IDEs
-.vscode
+.vscode/*
+!.vscode/settings.json
 
 # Playwright
 playwright-report
