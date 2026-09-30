@@ -11,12 +11,13 @@
     "head_sampling_rate": 1
   },
   "preview_urls": true,
-  // Transition domain — will be replaced by wallet.fims.fi at V3 cutover
-  "routes": [
-    {
-      "custom_domain": true,
-      "pattern": "wallet-v3.fims.fi"
-    }
-  ],
+  // Requires the fims.fi zone on Cloudflare (currently OVH DNS).
+  // Until then the app is served at https://fims-wallet-web.workers.dev
+  // "routes": [
+  //   {
+  //     "custom_domain": true,
+  //     "pattern": "wallet-v3.fims.fi"
+  //   }
+  // ],
   "send_metrics": false
 }

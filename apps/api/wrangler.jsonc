@@ -9,17 +9,18 @@
     "head_sampling_rate": 1
   },
   "preview_urls": true,
-  // Transition domain — will be replaced by api.fims.fi at V3 cutover
-  "routes": [
-    {
-      "custom_domain": true,
-      "pattern": "api-v3.fims.fi"
-    }
-  ],
+  // Requires the fims.fi zone on Cloudflare (currently OVH DNS).
+  // Until then the API is served at https://fims-wallet-api.workers.dev
+  // "routes": [
+  //   {
+  //     "custom_domain": true,
+  //     "pattern": "api-v3.fims.fi"
+  //   }
+  // ],
   "send_metrics": false,
   "vars": {
     // Comma-separated base58 public keys allowed to mutate any /fims resource
     "ADMIN_ADDRESSES": "",
-    "CORS_ORIGINS": "https://wallet-v3.fims.fi"
+    "CORS_ORIGINS": "https://fims-wallet-web.workers.dev"
   }
 }
