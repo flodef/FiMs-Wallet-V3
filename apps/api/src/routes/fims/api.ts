@@ -1,6 +1,7 @@
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from '@effect/platform'
 import { Schema } from 'effect'
 import { DatabaseError, DatabaseNotConfigured } from '../../db/service.ts'
+import { AuthForbidden, AuthUnauthorized } from '../../services/auth/service.ts'
 
 const TransactionType = Schema.Literal(
   'deposit',
@@ -132,6 +133,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'Create user')
       .setPayload(CreateUserBody)
       .addSuccess(User)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 400 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -142,6 +145,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .setPath(Schema.Struct({ id: Schema.NumberFromString }))
       .setPayload(UpdateUserBody)
       .addSuccess(User)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -151,6 +156,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'Delete user')
       .setPath(Schema.Struct({ id: Schema.NumberFromString }))
       .addSuccess(Schema.String)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -173,6 +180,9 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'Create transaction')
       .setPayload(CreateTransactionBody)
       .addSuccess(Transaction)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )
@@ -182,6 +192,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .setPath(Schema.Struct({ id: Schema.NumberFromString }))
       .setPayload(UpdateTransactionBody)
       .addSuccess(Transaction)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -191,6 +203,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'Delete transaction')
       .setPath(Schema.Struct({ id: Schema.NumberFromString }))
       .addSuccess(Schema.String)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),

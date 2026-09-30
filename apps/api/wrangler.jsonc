@@ -18,6 +18,8 @@
   ],
   "send_metrics": false,
   "vars": {
+    // Comma-separated base58 public keys allowed to mutate any /fims resource
+    "ADMIN_ADDRESSES": "",
     "CORS_ORIGINS": "https://wallet-v3.fims.fi"
   }
 }

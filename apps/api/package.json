@@ -2,6 +2,8 @@
   "dependencies": {
     "@effect/platform": "catalog:",
     "@neondatabase/serverless": "catalog:",
+    "@noble/curves": "catalog:",
+    "@solana/codecs-strings": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:"
   },
