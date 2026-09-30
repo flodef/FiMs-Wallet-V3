@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "compatibility_date": "2025-10-24",
+  "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
   "name": "fims-wallet-api",
   "observability": {
@@ -8,16 +9,15 @@
     "head_sampling_rate": 1
   },
   "preview_urls": true,
-  // TODO: enable the custom domain once configured on Cloudflare
-  // "routes": [
-  //   {
-  //     "custom_domain": true,
-  //     "pattern": "api.fims.fi",
-  //   },
-  // ],
+  // Transition domain — will be replaced by api.fims.fi at V3 cutover
+  "routes": [
+    {
+      "custom_domain": true,
+      "pattern": "api-v3.fims.fi"
+    }
+  ],
   "send_metrics": false,
   "vars": {
-    // TODO: restrict to the deployed web origin once known
-    "CORS_ORIGINS": "*"
+    "CORS_ORIGINS": "https://wallet-v3.fims.fi"
   }
 }

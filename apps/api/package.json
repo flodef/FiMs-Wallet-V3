@@ -1,12 +1,17 @@
 {
   "dependencies": {
     "@effect/platform": "catalog:",
+    "@neondatabase/serverless": "catalog:",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@types/bun": "catalog:",
     "@workspace/config-typescript": "workspace:*",
+    "drizzle-kit": "catalog:",
+    "firebase": "catalog:",
+    "postgres": "catalog:",
     "typescript": "catalog:",
     "wrangler": "catalog:"
   },

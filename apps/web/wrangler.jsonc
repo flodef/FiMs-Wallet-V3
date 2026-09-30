@@ -11,12 +11,12 @@
     "head_sampling_rate": 1
   },
   "preview_urls": true,
-  // TODO: enable the custom domain once configured on Cloudflare
-  // "routes": [
-  //   {
-  //     "custom_domain": true,
-  //     "pattern": "wallet.fims.fi",
-  //   },
-  // ],
+  // Transition domain — will be replaced by wallet.fims.fi at V3 cutover
+  "routes": [
+    {
+      "custom_domain": true,
+      "pattern": "wallet-v3.fims.fi"
+    }
+  ],
   "send_metrics": false
 }
