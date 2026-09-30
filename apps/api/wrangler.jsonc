@@ -2,20 +2,22 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "compatibility_date": "2025-10-24",
   "main": "src/index.ts",
-  "name": "samui-wallet-api",
+  "name": "fims-wallet-api",
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
   },
   "preview_urls": true,
-  "routes": [
-    {
-      "custom_domain": true,
-      "pattern": "api.samui.build"
-    }
-  ],
+  // TODO: enable the custom domain once configured on Cloudflare
+  // "routes": [
+  //   {
+  //     "custom_domain": true,
+  //     "pattern": "api.fims.fi",
+  //   },
+  // ],
   "send_metrics": false,
   "vars": {
-    "CORS_ORIGINS": "https://wallet.samui.build"
+    // TODO: restrict to the deployed web origin once known
+    "CORS_ORIGINS": "*"
   }
 }

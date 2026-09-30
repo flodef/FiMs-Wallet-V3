@@ -1,3 +1,21 @@
+# FiMs Wallet V3
+
+FiMs community wallet — portfolio, donations & tontine on Solana.
+
+Based on [samui-wallet](https://github.com/samui-build/samui-wallet) (MIT license, kept in `LICENSE`),
+initialized as a standalone repo. Upstream is available as the `upstream` git remote for
+selective merges:
+
+```bash
+git fetch upstream
+git merge upstream/main   # or cherry-pick specific commits
+```
+
+---
+
+<details>
+<summary>Original Samui README (for reference)</summary>
+
 <p align="center">
   <a href="https://samui.build">
     <picture>
@@ -9,15 +27,6 @@
 </p>
 
 <p align="center">Open Source Solana wallet and toolbox for builders 🏟 Cypherpunk Hackathon</p>
-
-<p align="center">
-    <a href="https://samui.build/go/discord">
-        <img alt="Discord" src="https://img.shields.io/discord/1426222948162863275?style=flat-square&label=discord" />
-    </a>
-    <a href="https://github.com/samui-build/samui-wallet/actions/workflows/ci.yaml">
-        <img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/samui-build/samui-wallet/ci.yaml?style=flat-square&branch=main" />
-    </a>
-</p>
 
 [![Samui Wallet UI](demo.gif)](https://samui.build)
 
@@ -56,3 +65,5 @@ Samui is currently maintained by [beeman](https://x.com/beeman_nl) and [tobeycod
 ---
 
 **Join our community** [Discord](https://samui.build/go/discord) | [X.com](https://samui.build/go/x)
+
+</details>

@@ -49,6 +49,7 @@ const config: CSpellSettings = {
     'devnet',
     'dklen',
     'ellipsify',
+    'fims',
     'hackathon',
     'hdkey',
     'helius',

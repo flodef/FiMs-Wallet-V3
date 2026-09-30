@@ -5,17 +5,18 @@
     "not_found_handling": "single-page-application"
   },
   "compatibility_date": "2025-10-17",
-  "name": "samui-wallet-web",
+  "name": "fims-wallet-web",
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
   },
   "preview_urls": true,
-  "routes": [
-    {
-      "custom_domain": true,
-      "pattern": "wallet.samui.build"
-    }
-  ],
+  // TODO: enable the custom domain once configured on Cloudflare
+  // "routes": [
+  //   {
+  //     "custom_domain": true,
+  //     "pattern": "wallet.fims.fi",
+  //   },
+  // ],
   "send_metrics": false
 }
