@@ -69,7 +69,7 @@ for (const [key, cfg] of Object.entries(SHEET_RANGES) as [SheetKey, { range: str
   console.log(`sheet ${key}: ${sheets[key].length} rows`)
 }
 
-const pg = postgres(env('POSTGRES_URL'), { max: 1 })
+const pg = postgres(env('POSTGRES_URL'), { max: 1, ssl: 'require' })
 const pgUsers = (await pg`SELECT * FROM users`) as {
   id: number
   name: string
@@ -365,10 +365,14 @@ for (const u of usersByName.values()) {
 console.log(`users written: ${keyToNewId.size}`)
 
 const CHUNK = 200
-const batch = async <T>(rows: T[], fn: (chunk: T[]) => Promise<unknown>, label: string) => {
-  if (!rows.length) return
-  for (let i = 0; i < rows.length; i += CHUNK) await fn(rows.slice(i, i + CHUNK))
-  console.log(`${label} written: ${rows.length}`)
+const batch = async <T>(rows: T[], fn: (chunk: T[]) => Promise<unknown>, label: string, key?: (row: T) => string) => {
+  // ON CONFLICT cannot touch the same key twice in one statement: dedupe first (last wins)
+  const deduped = key ? [...new Map(rows.map((r) => [key(r), r])).values()] : rows
+  const dupes = rows.length - deduped.length
+  if (dupes > 0) console.log(`${label}: skipped ${dupes} duplicate key(s)`)
+  if (!deduped.length) return
+  for (let i = 0; i < deduped.length; i += CHUNK) await fn(deduped.slice(i, i + CHUNK))
+  console.log(`${label} written: ${deduped.length}`)
 }
 
 await batch(
@@ -398,6 +402,7 @@ await batch(
         target: [s.userHistoric.userId, s.userHistoric.date],
       }),
   'user_historic',
+  (r) => `${r.userKey}|${r.date}`,
 )
 
 await batch(
@@ -422,6 +427,7 @@ await batch(
         target: s.tokens.symbol,
       }),
   'tokens',
+  (r) => r.symbol,
 )
 
 await batch(
@@ -435,6 +441,7 @@ await batch(
         target: s.dashboardMetrics.label,
       }),
   'dashboard_metrics',
+  (r) => r.label,
 )
 
 await batch(
@@ -448,6 +455,7 @@ await batch(
         target: s.historic.date,
       }),
   'historic',
+  (r) => `${r.date}`,
 )
 
 await batch(
@@ -461,6 +469,7 @@ await batch(
         target: [s.prices.token, s.prices.date],
       }),
   'prices',
+  (r) => `${r.token}|${r.date}`,
 )
 
 console.log('migration done')
