@@ -2,6 +2,7 @@ import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useAccountGetTransactionSigner } from '@workspace/db-react/use-account-get-transaction-signer'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useTranslation } from '@workspace/i18n'
+import type { UiGroupedComboboxInputGroup } from '@workspace/ui/components/ui-grouped-combobox-input'
 import { UiNotFound } from '@workspace/ui/components/ui-not-found'
 import { useRoutes } from 'react-router'
 import { PortfolioFeatureModalBurn } from './portfolio-feature-modal-burn.tsx'
@@ -12,8 +13,13 @@ import { PortfolioFeatureModalSelectAmount } from './portfolio-feature-modal-sel
 import { PortfolioFeatureModalSelectDestination } from './portfolio-feature-modal-select-destination.tsx'
 import { PortfolioFeatureModalSelectTokens } from './portfolio-feature-modal-select-tokens.tsx'
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
+import type { DestinationAccount } from './ui/portfolio-ui-send-destination.tsx'
 
-export default function PortfolioModals() {
+export default function PortfolioModals({
+  extraDestinationGroups,
+}: {
+  extraDestinationGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
+}) {
   const { t } = useTranslation('ui')
   const account = useAccountActive()
   const network = useNetworkActive()
@@ -40,7 +46,13 @@ export default function PortfolioModals() {
     { element: <PortfolioFeatureModalReceive account={account} />, path: 'receive' },
     { element: <PortfolioFeatureModalSelectTokens account={account} network={network} />, path: 'send' },
     {
-      element: <PortfolioFeatureModalSelectDestination address={account.publicKey} network={network} />,
+      element: (
+        <PortfolioFeatureModalSelectDestination
+          address={account.publicKey}
+          extraGroups={extraDestinationGroups}
+          network={network}
+        />
+      ),
       path: 'send/:token',
     },
     {

@@ -20,7 +20,7 @@ import { z } from 'zod'
 import type { TokenBalance } from '../data-access/use-get-token-balances.ts'
 import { PortfolioUiTokenBalanceItem } from './portfolio-ui-token-balance-item.tsx'
 
-type DestinationAccount = {
+export type DestinationAccount = {
   address: string
   id: string
   isSource: boolean
@@ -60,11 +60,13 @@ function uniqueAccounts(accounts: Account[] = []): Account[] {
 }
 
 export function PortfolioUiSendDestination({
+  extraGroups = [],
   isLoading,
   mint,
   sourceAddress,
   submit,
 }: {
+  extraGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
   isLoading: boolean
   mint: TokenBalance
   sourceAddress: string
@@ -109,8 +111,8 @@ export function PortfolioUiSendDestination({
     [sourceAddress, wallets],
   )
   const destinationAccountGroups = useMemo(
-    () => bookmarkAccountGroups.concat(walletAccountGroups),
-    [bookmarkAccountGroups, walletAccountGroups],
+    () => bookmarkAccountGroups.concat(walletAccountGroups, extraGroups),
+    [bookmarkAccountGroups, walletAccountGroups, extraGroups],
   )
   const destinationAccounts = useMemo(
     () => destinationAccountGroups.flatMap((group) => group.items),

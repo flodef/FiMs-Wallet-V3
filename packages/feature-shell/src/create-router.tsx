@@ -18,7 +18,7 @@ const ExplorerRoutes = lazy(() => import('@workspace/feature-explorer/explorer-r
 const FimsRoutes = lazy(() => import('@workspace/feature-fims/fims-routes'))
 const OnboardingRoutes = lazy(() => import('@workspace/feature-onboarding/onboarding-routes'))
 const PortfolioRoutes = lazy(() => import('@workspace/feature-portfolio/portfolio-routes'))
-const PortfolioModals = lazy(() => import('@workspace/feature-portfolio/portfolio-modals'))
+const FimsModals = lazy(() => import('@workspace/feature-fims/fims-modals'))
 const ToolsRoutes = lazy(() => import('@workspace/feature-tools/tools-routes'))
 const SettingsFeatureReset = lazy(() => import('@workspace/feature-settings/settings-feature-reset'))
 const SettingsRoutes = lazy(() => import('@workspace/feature-settings/settings-routes'))
@@ -69,7 +69,7 @@ function getAppRoutes(): RouteObject[] {
       ],
       element: <ShellUiLayout />,
     },
-    { element: <PortfolioModals />, path: 'modals/*' },
+    { element: <FimsModals />, path: 'modals/*' },
     { element: <OnboardingRoutes redirectTo="/portfolio" />, path: 'onboarding/*' },
     { element: <SettingsFeatureReset />, path: 'reset' },
   ]

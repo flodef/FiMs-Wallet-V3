@@ -2,13 +2,22 @@ import type { Address } from '@solana/kit'
 import type { Network } from '@workspace/db/network/network'
 import { useTranslation } from '@workspace/i18n'
 import { UiError } from '@workspace/ui/components/ui-error'
+import type { UiGroupedComboboxInputGroup } from '@workspace/ui/components/ui-grouped-combobox-input'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { usePortfolioTokenMint } from './data-access/use-portfolio-token-mint.tsx'
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
-import { PortfolioUiSendDestination } from './ui/portfolio-ui-send-destination.tsx'
+import { type DestinationAccount, PortfolioUiSendDestination } from './ui/portfolio-ui-send-destination.tsx'
 
-export function PortfolioFeatureModalSelectDestination({ address, network }: { address: Address; network: Network }) {
+export function PortfolioFeatureModalSelectDestination({
+  address,
+  extraGroups,
+  network,
+}: {
+  address: Address
+  extraGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
+  network: Network
+}) {
   const { t } = useTranslation('portfolio')
   const { token } = useParams<{ token: string }>()
   const location = useLocation()
@@ -25,6 +34,7 @@ export function PortfolioFeatureModalSelectDestination({ address, network }: { a
   return (
     <PortfolioUiModal title={t(($) => $.actionSelectDestination)}>
       <PortfolioUiSendDestination
+        extraGroups={extraGroups}
         isLoading={false}
         mint={mint}
         sourceAddress={address}

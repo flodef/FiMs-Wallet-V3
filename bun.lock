@@ -307,6 +307,7 @@
         "@workspace/db": "workspace:*",
         "@workspace/db-react": "workspace:*",
         "@workspace/env": "workspace:*",
+        "@workspace/feature-portfolio": "workspace:*",
         "@workspace/i18n": "workspace:*",
         "@workspace/keypair": "workspace:*",
         "@workspace/ui": "workspace:*",
