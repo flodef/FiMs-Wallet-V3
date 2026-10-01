@@ -11,6 +11,9 @@ import {
   transactions,
   userHistoric,
   users,
+  voteBallots,
+  voteOptions,
+  votes,
 } from '../../db/schema.ts'
 import { DatabaseError, DatabaseService, withDb } from '../../db/service.ts'
 import {
@@ -101,6 +104,66 @@ const ownerAddressOfTransaction = (id: number) =>
       rows[0] ? Effect.succeed(rows[0].address ?? '') : Effect.fail(notFound(`transaction ${id}`)),
     ),
   )
+
+// Vote weight: a tontine ballot weighs the member's total tontine
+// contributions; an investment ballot weighs the member's latest invested
+// amount (same weighting rule as the legacy spreadsheet).
+const loadVoteWeights = Effect.gen(function* () {
+  const investedRows = (yield* withDb((db) =>
+    db.execute(
+      sql`SELECT DISTINCT ON (user_id) user_id, invested::float AS invested FROM user_historic ORDER BY user_id, date DESC`,
+    ),
+  )).rows as { invested: number; user_id: number }[]
+  const tontineRows = (yield* withDb((db) =>
+    db.execute(
+      sql`SELECT user_id, SUM(movement)::float AS weight FROM transactions WHERE type = 'tontine' AND movement > 0 GROUP BY user_id`,
+    ),
+  )).rows as { user_id: number; weight: number }[]
+  const invested = new Map(investedRows.map((r) => [r.user_id, Number(r.invested)]))
+  const tontine = new Map(tontineRows.map((r) => [r.user_id, Number(r.weight)]))
+  return { invested, tontine }
+})
+
+const loadVotesWithResults = (signer: Option.Option<string>) =>
+  Effect.gen(function* () {
+    const [voteRows, optionRows, ballotRows, weights, signerUser] = yield* Effect.all([
+      withDb((db) => db.select().from(votes).orderBy(desc(votes.createdAt))),
+      withDb((db) => db.select().from(voteOptions).orderBy(asc(voteOptions.sortOrder), asc(voteOptions.id))),
+      withDb((db) => db.select().from(voteBallots)),
+      loadVoteWeights,
+      Option.match(signer, {
+        onNone: () => Effect.succeed(null),
+        onSome: (address) =>
+          withDb((db) => db.select({ id: users.id }).from(users).where(eq(users.address, address))).pipe(
+            Effect.map((rows) => rows[0] ?? null),
+          ),
+      }),
+    ])
+    const signerUserId = signerUser?.id ?? null
+    return voteRows.map((vote) => {
+      const weightOf = (userId: number) =>
+        (vote.kind === 'tontine' ? weights.tontine : weights.invested).get(userId) ?? 0
+      const ballots = ballotRows.filter((b) => b.voteId === vote.id)
+      const options = optionRows
+        .filter((o) => o.voteId === vote.id)
+        .map((o) => {
+          const optionBallots = ballots.filter((b) => b.optionId === o.id)
+          return {
+            ballots: optionBallots.length,
+            id: o.id,
+            label: o.label,
+            sortOrder: o.sortOrder,
+            weight: optionBallots.reduce((sum, b) => sum + weightOf(b.userId), 0),
+          }
+        })
+      return {
+        ...vote,
+        myOptionId: ballots.find((b) => b.userId === signerUserId)?.optionId ?? null,
+        options,
+        totalWeight: options.reduce((sum, o) => sum + o.weight, 0),
+      }
+    })
+  })
 
 export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
   Effect.gen(function* () {
@@ -375,6 +438,93 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             if (!rows[0]) return yield* Effect.fail(notFound(`address book entry ${path.id}`))
             return `deleted address book entry ${path.id}`
+          }),
+        )
+        .handle('votes', () =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* optionalWalletRequest(request)
+            return yield* loadVotesWithResults(signer)
+          }),
+        )
+        .handle('createVote', ({ payload }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* verifyWalletRequest(request)
+            yield* requireAdmin(signer)
+            const created = yield* withDb((db) =>
+              db
+                .insert(votes)
+                .values({
+                  closesAt: payload.closesAt ?? null,
+                  description: payload.description ?? null,
+                  kind: payload.kind,
+                  title: payload.title,
+                })
+                .returning(),
+            )
+            const vote = created[0]
+            if (!vote) return yield* Effect.fail(insertFailed())
+            yield* withDb((db) =>
+              db
+                .insert(voteOptions)
+                .values(payload.options.map((label, sortOrder) => ({ label, sortOrder, voteId: vote.id }))),
+            )
+            const list = yield* loadVotesWithResults(Option.some(signer))
+            const found = list.find((v) => v.id === vote.id)
+            if (!found) return yield* Effect.fail(notFound(`vote ${vote.id}`))
+            return found
+          }),
+        )
+        .handle('updateVote', ({ path, payload }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* verifyWalletRequest(request)
+            yield* requireAdmin(signer)
+            const rows = yield* withDb((db) =>
+              db.update(votes).set({ status: payload.status }).where(eq(votes.id, path.id)).returning(),
+            )
+            if (!rows[0]) return yield* Effect.fail(notFound(`vote ${path.id}`))
+            const list = yield* loadVotesWithResults(Option.some(signer))
+            const found = list.find((v) => v.id === path.id)
+            if (!found) return yield* Effect.fail(notFound(`vote ${path.id}`))
+            return found
+          }),
+        )
+        .handle('castBallot', ({ path, payload }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* verifyWalletRequest(request)
+            const voteRows = yield* withDb((db) => db.select().from(votes).where(eq(votes.id, path.id)))
+            const vote = voteRows[0]
+            if (!vote) return yield* Effect.fail(notFound(`vote ${path.id}`))
+            if (vote.status !== 'open' || (vote.closesAt && vote.closesAt.getTime() < Date.now()))
+              return yield* Effect.fail(new BadRequest({ reason: 'vote is not open' }))
+            const memberRows = yield* withDb((db) =>
+              db.select({ id: users.id }).from(users).where(eq(users.address, signer)),
+            )
+            const member = memberRows[0]
+            if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+            const optionRows = yield* withDb((db) =>
+              db.select({ id: voteOptions.id }).from(voteOptions).where(eq(voteOptions.voteId, path.id)),
+            )
+            if (!optionRows.some((o) => o.id === payload.optionId))
+              return yield* Effect.fail(
+                new BadRequest({ reason: `option ${payload.optionId} is not part of this vote` }),
+              )
+            yield* withDb((db) =>
+              db
+                .insert(voteBallots)
+                .values({ optionId: payload.optionId, userId: member.id, voteId: path.id })
+                .onConflictDoUpdate({
+                  set: { optionId: payload.optionId },
+                  target: [voteBallots.voteId, voteBallots.userId],
+                }),
+            )
+            const list = yield* loadVotesWithResults(Option.some(signer))
+            const found = list.find((v) => v.id === path.id)
+            if (!found) return yield* Effect.fail(notFound(`vote ${path.id}`))
+            return found
           }),
         )
     )

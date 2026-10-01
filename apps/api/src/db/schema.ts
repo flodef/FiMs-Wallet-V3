@@ -26,6 +26,10 @@ export const addressBookType = pgEnum('address_book_type', ['nexo', 'coinbase', 
 
 export const voteStatus = pgEnum('vote_status', ['draft', 'open', 'closed'])
 
+// Vote kind decides the ballot weight: a tontine vote weights members by
+// their tontine transfers, an investment vote by their invested amount.
+export const voteKind = pgEnum('vote_kind', ['investment', 'tontine'])
+
 export const users = pgTable('users', {
   // One row per wallet — duplicate addresses would break member resolution and
   // allow address squatting (a squatter's address book could poison the
@@ -122,6 +126,7 @@ export const votes = pgTable('votes', {
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   description: text('description'),
   id: serial('id').primaryKey(),
+  kind: voteKind('kind').notNull().default('investment'),
   status: voteStatus('status').notNull().default('draft'),
   title: text('title').notNull(),
 })

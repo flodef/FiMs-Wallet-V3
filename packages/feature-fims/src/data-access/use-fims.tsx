@@ -15,6 +15,9 @@ import type {
   FimsTransaction,
   FimsUser,
   FimsUserHistoricPoint,
+  FimsVote,
+  FimsVoteKind,
+  FimsVoteStatus,
 } from '../fims-api.ts'
 import { FimsApiError, fimsGet, fimsGetAll, fimsSignedFetch, fimsSignedGet, fimsSignedGetAll } from '../fims-api.ts'
 
@@ -184,6 +187,48 @@ export function useFimsUserUpdate(account: Account, userId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fims', 'users'] })
     },
+  })
+}
+
+// Signed when possible so the API can answer myOptionId for the caller.
+export function useFimsVotes(account?: Account) {
+  const signedGet = useFimsSignedGet(account)
+  return useQuery({
+    queryFn: () => signedGet<FimsVote[]>('/votes'),
+    queryKey: ['fims', 'votes', account?.publicKey ?? 'anon'],
+  })
+}
+
+export function useFimsCastBallot(account: Account, voteId: number) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (optionId: number) => signedFetch<FimsVote>('POST', `/votes/${voteId}/ballot`, { optionId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'votes'] }),
+  })
+}
+
+export function useFimsVoteCreate(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      closesAt?: string | undefined
+      description?: string | undefined
+      kind: FimsVoteKind
+      options: string[]
+      title: string
+    }) => signedFetch<FimsVote>('POST', '/votes', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'votes'] }),
+  })
+}
+
+export function useFimsVoteUpdate(account: Account, voteId: number) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { status: FimsVoteStatus }) => signedFetch<FimsVote>('PATCH', `/votes/${voteId}`, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'votes'] }),
   })
 }
 

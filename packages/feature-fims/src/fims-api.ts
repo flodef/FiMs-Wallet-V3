@@ -87,6 +87,30 @@ export interface FimsAddressBookEntry {
   userId: number
 }
 
+export type FimsVoteKind = 'investment' | 'tontine'
+export type FimsVoteStatus = 'closed' | 'draft' | 'open'
+
+export interface FimsVoteOption {
+  ballots: number
+  id: number
+  label: string
+  sortOrder: number
+  weight: number
+}
+
+export interface FimsVote {
+  closesAt: null | string
+  createdAt: string
+  description: null | string
+  id: number
+  kind: FimsVoteKind
+  myOptionId: null | number
+  options: FimsVoteOption[]
+  status: FimsVoteStatus
+  title: string
+  totalWeight: number
+}
+
 export class FimsApiError extends Error {
   readonly status: number
 

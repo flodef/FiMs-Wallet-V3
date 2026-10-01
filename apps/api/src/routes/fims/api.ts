@@ -166,7 +166,92 @@ const PaginationParams = {
   offset: Schema.optional(Schema.NumberFromString),
 }
 
+const VoteKind = Schema.Literal('investment', 'tontine')
+const VoteStatus = Schema.Literal('draft', 'open', 'closed')
+
+export class VoteOption extends Schema.Class<VoteOption>('VoteOption')({
+  ballots: Schema.Number,
+  id: Schema.Number,
+  label: Schema.String,
+  sortOrder: Schema.Number,
+  weight: Schema.Number,
+}) {}
+
+export class Vote extends Schema.Class<Vote>('Vote')({
+  closesAt: Schema.NullOr(Schema.Date),
+  createdAt: Schema.Date,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.Number,
+  kind: VoteKind,
+  myOptionId: Schema.NullOr(Schema.Number),
+  options: Schema.Array(VoteOption),
+  status: VoteStatus,
+  title: Schema.String,
+  totalWeight: Schema.Number,
+}) {}
+
+const CreateVoteBody = Schema.Struct({
+  closesAt: Schema.optional(Schema.Date),
+  description: Schema.optional(Schema.String),
+  kind: VoteKind,
+  options: Schema.Array(Schema.String).pipe(Schema.minItems(2)),
+  title: Schema.String,
+})
+
+const UpdateVoteBody = Schema.Struct({
+  status: VoteStatus,
+})
+
+const CastBallotBody = Schema.Struct({
+  optionId: Schema.Number,
+})
+
 export class FimsApi extends HttpApiGroup.make('Fims')
+  .add(
+    HttpApiEndpoint.get('votes', '/fims/votes')
+      .annotate(OpenApi.Summary, 'List votes with weighted results')
+      .addSuccess(Schema.Array(Vote))
+      .addError(AuthForbidden, { status: 403 })
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('createVote', '/fims/votes')
+      .annotate(OpenApi.Summary, 'Create vote (admin)')
+      .setPayload(CreateVoteBody)
+      .addSuccess(Vote)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.patch('updateVote', '/fims/votes/:id')
+      .annotate(OpenApi.Summary, 'Update vote status (admin)')
+      .setPath(Schema.Struct({ id: Schema.NumberFromString }))
+      .setPayload(UpdateVoteBody)
+      .addSuccess(Vote)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('castBallot', '/fims/votes/:id/ballot')
+      .annotate(OpenApi.Summary, 'Cast or change a ballot')
+      .setPath(Schema.Struct({ id: Schema.NumberFromString }))
+      .setPayload(CastBallotBody)
+      .addSuccess(Vote)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(BadRequest, { status: 400 })
+      .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
   .add(
     HttpApiEndpoint.get('users', '/fims/users')
       .annotate(OpenApi.Summary, 'List users')

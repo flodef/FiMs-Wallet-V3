@@ -1,0 +1,686 @@
+{
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  },
+  "dialect": "postgresql",
+  "enums": {
+    "public.address_book_type": {
+      "name": "address_book_type",
+      "schema": "public",
+      "values": ["nexo", "coinbase", "binance", "fimseur", "other"]
+    },
+    "public.transaction_type": {
+      "name": "transaction_type",
+      "schema": "public",
+      "values": ["deposit", "withdrawal", "donation", "payment", "tontine", "conversion", "cex_in", "cex_out"]
+    },
+    "public.vote_kind": {
+      "name": "vote_kind",
+      "schema": "public",
+      "values": ["investment", "tontine"]
+    },
+    "public.vote_status": {
+      "name": "vote_status",
+      "schema": "public",
+      "values": ["draft", "open", "closed"]
+    }
+  },
+  "id": "b26e1254-4e36-49cf-94ff-a6cccaa74d36",
+  "policies": {},
+  "prevId": "3182a6ad-44e7-4d03-88d1-1c7ce3c8489d",
+  "roles": {},
+  "schemas": {},
+  "sequences": {},
+  "tables": {
+    "public.address_book": {
+      "checkConstraints": {},
+      "columns": {
+        "address": {
+          "name": "address",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "default": "now()",
+          "name": "created_at",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "id": {
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "serial"
+        },
+        "label": {
+          "name": "label",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "type": {
+          "default": "'other'",
+          "name": "type",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "address_book_type",
+          "typeSchema": "public"
+        },
+        "user_id": {
+          "name": "user_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "address_book_user_id_users_id_fk": {
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "name": "address_book_user_id_users_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "address_book",
+          "tableTo": "users"
+        }
+      },
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "address_book",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.dashboard_metrics": {
+      "checkConstraints": {},
+      "columns": {
+        "label": {
+          "name": "label",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "ratio": {
+          "name": "ratio",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "value": {
+          "name": "value",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "numeric"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "dashboard_metrics",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.historic": {
+      "checkConstraints": {},
+      "columns": {
+        "date": {
+          "name": "date",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "timestamp"
+        },
+        "invested": {
+          "name": "invested",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "treasury": {
+          "name": "treasury",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "historic",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.prices": {
+      "checkConstraints": {},
+      "columns": {
+        "date": {
+          "name": "date",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "price": {
+          "name": "price",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "token": {
+          "name": "token",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        }
+      },
+      "compositePrimaryKeys": {
+        "prices_token_date_pk": {
+          "columns": ["token", "date"],
+          "name": "prices_token_date_pk"
+        }
+      },
+      "foreignKeys": {},
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "prices",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.tokens": {
+      "checkConstraints": {},
+      "columns": {
+        "address": {
+          "name": "address",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "description": {
+          "name": "description",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "duration": {
+          "name": "duration",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "inception_price": {
+          "name": "inception_price",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "inception_ratio": {
+          "name": "inception_ratio",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "label": {
+          "name": "label",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "symbol": {
+          "name": "symbol",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "text"
+        },
+        "updated_at": {
+          "default": "now()",
+          "name": "updated_at",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "value": {
+          "name": "value",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "volatility": {
+          "name": "volatility",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "yearly_yield": {
+          "name": "yearly_yield",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "tokens",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.transactions": {
+      "checkConstraints": {},
+      "columns": {
+        "address": {
+          "name": "address",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "amount": {
+          "name": "amount",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "cost": {
+          "default": 0,
+          "name": "cost",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "created_at": {
+          "default": "now()",
+          "name": "created_at",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "date": {
+          "name": "date",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "donation_target": {
+          "name": "donation_target",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "id": {
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "serial"
+        },
+        "movement": {
+          "default": 0,
+          "name": "movement",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "signature": {
+          "name": "signature",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "token": {
+          "name": "token",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "type": {
+          "name": "type",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "transaction_type",
+          "typeSchema": "public"
+        },
+        "user_id": {
+          "name": "user_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "transactions_user_id_users_id_fk": {
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "name": "transactions_user_id_users_id_fk",
+          "onDelete": "set null",
+          "onUpdate": "no action",
+          "tableFrom": "transactions",
+          "tableTo": "users"
+        }
+      },
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "transactions",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.user_historic": {
+      "checkConstraints": {},
+      "columns": {
+        "date": {
+          "name": "date",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "invested": {
+          "name": "invested",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "total": {
+          "name": "total",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "numeric"
+        },
+        "user_id": {
+          "name": "user_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_historic_user_id_date_pk": {
+          "columns": ["user_id", "date"],
+          "name": "user_historic_user_id_date_pk"
+        }
+      },
+      "foreignKeys": {
+        "user_historic_user_id_users_id_fk": {
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "name": "user_historic_user_id_users_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "user_historic",
+          "tableTo": "users"
+        }
+      },
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "user_historic",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.users": {
+      "checkConstraints": {},
+      "columns": {
+        "address": {
+          "name": "address",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "created_at": {
+          "default": "now()",
+          "name": "created_at",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "id": {
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "serial"
+        },
+        "is_pro": {
+          "default": false,
+          "name": "is_pro",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "boolean"
+        },
+        "is_public": {
+          "default": true,
+          "name": "is_public",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "boolean"
+        },
+        "name": {
+          "name": "name",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "profile_updated_at": {
+          "name": "profile_updated_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "updated_at": {
+          "default": "now()",
+          "name": "updated_at",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "users",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {
+        "users_address_unique": {
+          "columns": ["address"],
+          "name": "users_address_unique",
+          "nullsNotDistinct": false
+        },
+        "users_name_unique": {
+          "columns": ["name"],
+          "name": "users_name_unique",
+          "nullsNotDistinct": false
+        }
+      }
+    },
+    "public.vote_ballots": {
+      "checkConstraints": {},
+      "columns": {
+        "created_at": {
+          "default": "now()",
+          "name": "created_at",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "option_id": {
+          "name": "option_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "user_id": {
+          "name": "user_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "vote_id": {
+          "name": "vote_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {
+        "vote_ballots_vote_id_user_id_pk": {
+          "columns": ["vote_id", "user_id"],
+          "name": "vote_ballots_vote_id_user_id_pk"
+        }
+      },
+      "foreignKeys": {
+        "vote_ballots_option_id_vote_options_id_fk": {
+          "columnsFrom": ["option_id"],
+          "columnsTo": ["id"],
+          "name": "vote_ballots_option_id_vote_options_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "vote_ballots",
+          "tableTo": "vote_options"
+        },
+        "vote_ballots_user_id_users_id_fk": {
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "name": "vote_ballots_user_id_users_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "vote_ballots",
+          "tableTo": "users"
+        },
+        "vote_ballots_vote_id_votes_id_fk": {
+          "columnsFrom": ["vote_id"],
+          "columnsTo": ["id"],
+          "name": "vote_ballots_vote_id_votes_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "vote_ballots",
+          "tableTo": "votes"
+        }
+      },
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "vote_ballots",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.vote_options": {
+      "checkConstraints": {},
+      "columns": {
+        "id": {
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "serial"
+        },
+        "label": {
+          "name": "label",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "sort_order": {
+          "default": 0,
+          "name": "sort_order",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        },
+        "vote_id": {
+          "name": "vote_id",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "integer"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {
+        "vote_options_vote_id_votes_id_fk": {
+          "columnsFrom": ["vote_id"],
+          "columnsTo": ["id"],
+          "name": "vote_options_vote_id_votes_id_fk",
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "tableFrom": "vote_options",
+          "tableTo": "votes"
+        }
+      },
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "vote_options",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    },
+    "public.votes": {
+      "checkConstraints": {},
+      "columns": {
+        "closes_at": {
+          "name": "closes_at",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "created_at": {
+          "default": "now()",
+          "name": "created_at",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "timestamp"
+        },
+        "description": {
+          "name": "description",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "id": {
+          "name": "id",
+          "notNull": true,
+          "primaryKey": true,
+          "type": "serial"
+        },
+        "kind": {
+          "default": "'investment'",
+          "name": "kind",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "vote_kind",
+          "typeSchema": "public"
+        },
+        "status": {
+          "default": "'draft'",
+          "name": "status",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "vote_status",
+          "typeSchema": "public"
+        },
+        "title": {
+          "name": "title",
+          "notNull": true,
+          "primaryKey": false,
+          "type": "text"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "indexes": {},
+      "isRLSEnabled": false,
+      "name": "votes",
+      "policies": {},
+      "schema": "",
+      "uniqueConstraints": {}
+    }
+  },
+  "version": "7",
+  "views": {}
+}
