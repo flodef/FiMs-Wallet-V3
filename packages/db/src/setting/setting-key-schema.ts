@@ -4,6 +4,7 @@ export const settingKeySchema = z.enum([
   'activeAccountId',
   'activeNetworkId',
   'apiEndpoint',
+  'fimsLastSeenTransaction',
   'language',
   'theme',
   'vaultKey',

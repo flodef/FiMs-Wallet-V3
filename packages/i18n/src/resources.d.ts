@@ -111,6 +111,7 @@ export default interface Resources {
     memberNotFoundCommunityLink: 'View the community dashboard'
     memberNotFoundDescription: 'No FiMs member is linked to this wallet address.'
     memberNotFoundTitle: 'Not a FiMs member'
+    newTransactions: 'newTransactions' | '{{count}} new transactions on your FiMs account'
     noSolDescription: 'This wallet has no SOL. You need a small amount of SOL to pay network fees when sending tokens.'
     noSolTitle: 'No SOL for fees'
     positionsTitle: 'Positions'

@@ -12,6 +12,7 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
+import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
 import type { FimsTransaction } from './fims-api.ts'
 import { formatCurrency, formatDate, formatPercent } from './fims-format.ts'
 import { computeFimsPositions } from './fims-positions.ts'
@@ -29,6 +30,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
     () => computeFimsPositions(transactions.data ?? [], tokens.data ?? []),
     [transactions.data, tokens.data],
   )
+  useFimsNewTransactions(member?.id, transactions.data)
   const donations = useMemo(() => {
     const list = (transactions.data ?? []).filter((tx) => ['donation', 'tontine'].includes(getFimsTransactionType(tx)))
     return { count: list.length, total: list.reduce((sum, tx) => sum + (tx.movement ?? 0), 0) }
