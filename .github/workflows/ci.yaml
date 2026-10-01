@@ -36,9 +36,11 @@ jobs:
         run: bun run build
 
       - name: Publish to pkg.pr.new
+        if: github.repository == 'samui-build/samui-wallet'
         run: bun pkg-pr-new publish --packageManager=bun './packages/*' --comment=off
 
       - name: BundleMon
+        if: github.repository == 'samui-build/samui-wallet'
         uses: lironer/bundlemon-action@cadbdd58f86faf1900725ef69d455444124b3748 # v1.3.0
 
   check-types:
