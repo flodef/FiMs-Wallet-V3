@@ -5,6 +5,7 @@ import { UiTabRoutes } from '@workspace/ui/components/ui-tab-routes'
 import { useSnsResolveDomain } from './data-access/use-sns-domain.tsx'
 import { FIMS_AUDIT_URL, FIMS_TREASURY_ADDRESS, FIMS_TREASURY_DOMAIN } from './fims-constants.ts'
 import { FimsFeatureCommunity } from './fims-feature-community.tsx'
+import { FimsFeatureLearn } from './fims-feature-learn.tsx'
 import { FimsFeatureMember } from './fims-feature-member.tsx'
 import { FimsFeatureSwap } from './fims-feature-swap.tsx'
 
@@ -31,6 +32,11 @@ export default function FimsRoutes() {
             element: <FimsFeatureCommunity />,
             label: t(($) => $.tabCommunity),
             path: 'community',
+          },
+          {
+            element: <FimsFeatureLearn />,
+            label: t(($) => $.tabLearn),
+            path: 'learn',
           },
         ]}
       />

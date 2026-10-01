@@ -59,6 +59,7 @@ const config: CSpellSettings = {
     'dklen',
     'dyor',
     'ellipsify',
+    'EURC',
     'fims',
     'fimsfi',
     'fimseur',
@@ -98,6 +99,7 @@ const config: CSpellSettings = {
     'wordlists',
     'worklets',
     // Spanish
+    'cripto',
     'mnemónica',
     'redirecciona',
   ],
