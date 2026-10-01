@@ -1,7 +1,7 @@
 // cspell:ignore unstub
 import { getBase64Decoder, type KeyPairSigner } from '@solana/kit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fimsSignedFetch } from '../src/fims-api.ts'
+import { FIMS_PAGE_SIZE, fimsGetAll, fimsSignedFetch } from '../src/fims-api.ts'
 
 const TEST_ADDRESS = '58kZikEcpFe2TZCfiomV5vP6EenGAfPsBbKazASaHbToh'
 const SIGNATURE_BYTES = new Uint8Array(64).fill(7)
@@ -91,6 +91,46 @@ describe('fims-signed-fetch', () => {
       await expect(
         fimsSignedFetch('https://api.example.com', testSigner(), 'DELETE', '/address-book/1'),
       ).rejects.toMatchObject({ status: 403 })
+    })
+  })
+})
+
+describe('fims-get-all', () => {
+  describe('expected behavior', () => {
+    it('should collect every page until a short page is returned', async () => {
+      // ARRANGE
+      expect.assertions(3)
+      const pages = [
+        Array.from({ length: FIMS_PAGE_SIZE }, (_, index) => index),
+        Array.from({ length: FIMS_PAGE_SIZE }, (_, index) => index + FIMS_PAGE_SIZE),
+        [FIMS_PAGE_SIZE * 2],
+      ]
+      const calls: Record<string, string>[] = []
+      const fetchPage = vi.fn(async (params: Record<string, string>) => {
+        calls.push(params)
+        return pages[calls.length - 1] ?? []
+      })
+
+      // ACT
+      const result = await fimsGetAll<number>('https://api.example.com', '/prices', {}, fetchPage)
+
+      // ASSERT
+      expect(result).toHaveLength(FIMS_PAGE_SIZE * 2 + 1)
+      expect(calls).toHaveLength(3)
+      expect(calls[1]).toMatchObject({ limit: String(FIMS_PAGE_SIZE), offset: String(FIMS_PAGE_SIZE) })
+    })
+
+    it('should stop after the first page when the page is short', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      const fetchPage = vi.fn(async () => [1, 2, 3])
+
+      // ACT
+      const result = await fimsGetAll<number>('https://api.example.com', '/tokens', {}, fetchPage)
+
+      // ASSERT
+      expect(result).toEqual([1, 2, 3])
+      expect(fetchPage).toHaveBeenCalledTimes(1)
     })
   })
 })

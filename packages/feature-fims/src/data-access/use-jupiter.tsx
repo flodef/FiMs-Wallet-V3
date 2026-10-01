@@ -1,3 +1,4 @@
+import type { Address } from '@solana/kit'
 import {
   getBase64Encoder,
   getSignatureFromTransaction,
@@ -11,17 +12,25 @@ import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
 import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
 import { createKeyPairSignerFromJson } from '@workspace/keypair/create-key-pair-signer-from-json'
+import { inspectWireTransaction } from '@workspace/solana-client/inspect-wire-transaction'
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { useCallback } from 'react'
 import { z } from 'zod'
+import { assertJupiterTransactionSafe } from './inspect-jupiter-transaction.ts'
 
 const JUPITER_API = 'https://lite-api.jup.ag'
 
+// Every transaction Jupiter hands us is inspected locally before signing:
+// fee payer / signers / program allowlist are checked statically, and the
+// transaction is simulated to cap what can leave the wallet. A tampered or
+// malicious Jupiter response is rejected instead of being signed blindly.
 function useSignAndSendTransaction({ account, network }: { account: Account; network: Network }) {
   const client = useSolanaClient({ network })
   const accountSecretKey = useAccountSecretKey()
   return useCallback(
-    async (base64Transaction: string): Promise<Signature> => {
+    async (base64Transaction: string, expectedSpend?: { amount: bigint; mint: Address }): Promise<Signature> => {
+      const inspection = await inspectWireTransaction(client, base64Transaction)
+      assertJupiterTransactionSafe({ account: account.publicKey, expectedSpend, inspection })
       const decoded = getTransactionDecoder().decode(getBase64Encoder().encode(base64Transaction))
       const json = await accountSecretKey({ account })
       const signer = await createKeyPairSignerFromJson({ json })
@@ -30,7 +39,7 @@ function useSignAndSendTransaction({ account, network }: { account: Account; net
       await sendTransaction(signed, { commitment: 'confirmed' })
       return getSignatureFromTransaction(signed)
     },
-    [account, accountSecretKey, client.rpc],
+    [account, accountSecretKey, client],
   )
 }
 
@@ -97,7 +106,10 @@ export function useFimsSwap({ account, network }: { account: Account; network: N
         throw new Error(`Jupiter swap failed: ${res.status}`)
       }
       const { swapTransaction } = z.object({ swapTransaction: z.string() }).parse(await res.json())
-      return signAndSendBase64Transaction(swapTransaction)
+      return signAndSendBase64Transaction(swapTransaction, {
+        amount: BigInt(quote.inAmount),
+        mint: quote.inputMint as Address,
+      })
     },
   })
 }
@@ -165,7 +177,10 @@ export function useFimsTriggerCreateOrder({ account, network }: { account: Accou
         throw new Error(`Jupiter trigger order failed: ${res.status}`)
       }
       const { transaction } = z.object({ transaction: z.string() }).parse(await res.json())
-      return signAndSendBase64Transaction(transaction)
+      return signAndSendBase64Transaction(transaction, {
+        amount: makingAmount,
+        mint: inputMint as Address,
+      })
     },
   })
 }

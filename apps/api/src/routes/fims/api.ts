@@ -149,11 +149,24 @@ const UpdateTransactionBody = Schema.Struct({
   type: Schema.optional(TransactionType),
 })
 
+// Pagination is bounded server-side: unbounded list reads would let a single
+// request scan/return entire tables (Neon cost + oversized responses).
+const PaginationParams = {
+  limit: Schema.optional(Schema.NumberFromString),
+  offset: Schema.optional(Schema.NumberFromString),
+}
+
 export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.get('users', '/fims/users')
       .annotate(OpenApi.Summary, 'List users')
-      .setUrlParams(Schema.Struct({ address: Schema.optional(Schema.String), name: Schema.optional(Schema.String) }))
+      .setUrlParams(
+        Schema.Struct({
+          address: Schema.optional(Schema.String),
+          name: Schema.optional(Schema.String),
+          ...PaginationParams,
+        }),
+      )
       .addSuccess(Schema.Array(User))
       .addError(AuthForbidden, { status: 403 })
       .addError(AuthUnauthorized, { status: 401 })
@@ -201,6 +214,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
         Schema.Struct({
           address: Schema.optional(Schema.String),
           userId: Schema.optional(Schema.NumberFromString),
+          ...PaginationParams,
         }),
       )
       .addSuccess(Schema.Array(Transaction))
@@ -246,6 +260,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.get('tokens', '/fims/tokens')
       .annotate(OpenApi.Summary, 'List tokens')
+      .setUrlParams(Schema.Struct(PaginationParams))
       .addSuccess(Schema.Array(Token))
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -253,6 +268,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.get('historic', '/fims/historic')
       .annotate(OpenApi.Summary, 'Global portfolio history')
+      .setUrlParams(Schema.Struct(PaginationParams))
       .addSuccess(Schema.Array(HistoricPoint))
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -260,7 +276,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.get('userHistoric', '/fims/user-historic')
       .annotate(OpenApi.Summary, 'Per-user portfolio history')
-      .setUrlParams(Schema.Struct({ userId: Schema.optional(Schema.NumberFromString) }))
+      .setUrlParams(Schema.Struct({ userId: Schema.optional(Schema.NumberFromString), ...PaginationParams }))
       .addSuccess(Schema.Array(UserHistoricPoint))
       .addError(AuthForbidden, { status: 403 })
       .addError(AuthUnauthorized, { status: 401 })
@@ -270,7 +286,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.get('prices', '/fims/prices')
       .annotate(OpenApi.Summary, 'Token price history')
-      .setUrlParams(Schema.Struct({ token: Schema.optional(Schema.String) }))
+      .setUrlParams(Schema.Struct({ token: Schema.optional(Schema.String), ...PaginationParams }))
       .addSuccess(Schema.Array(PricePoint))
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -285,7 +301,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.get('addressBook', '/fims/address-book')
       .annotate(OpenApi.Summary, 'List address book entries')
-      .setUrlParams(Schema.Struct({ userId: Schema.optional(Schema.NumberFromString) }))
+      .setUrlParams(Schema.Struct({ userId: Schema.optional(Schema.NumberFromString), ...PaginationParams }))
       .addSuccess(Schema.Array(AddressBookEntry))
       .addError(AuthForbidden, { status: 403 })
       .addError(AuthUnauthorized, { status: 401 })

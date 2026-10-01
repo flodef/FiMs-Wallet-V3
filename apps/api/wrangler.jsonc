@@ -20,7 +20,7 @@
   "send_metrics": false,
   "vars": {
     // Comma-separated base58 public keys allowed to mutate any /fims resource
-    "ADMIN_ADDRESSES": "",
+    "ADMIN_ADDRESSES": "CCLcWAJX6fubUqGyZWz8dyUGEddRj8h4XZZCNSDzMVx4",
     "CORS_ORIGINS": "https://fims-wallet-web.fims-fi.workers.dev"
   }
 }

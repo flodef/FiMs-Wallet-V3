@@ -20,7 +20,6 @@ import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiConfirm } from '@workspace/ui/components/ui-confirm'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
-import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import { type SyntheticEvent, useId, useState } from 'react'
 import {
   useFimsAddressBook,
@@ -29,6 +28,7 @@ import {
   useFimsAddressBookUpdate,
 } from './data-access/use-fims.tsx'
 import type { FimsAddressBookEntry, FimsAddressBookType } from './fims-api.ts'
+import { FimsUiSnsAddress } from './fims-ui-sns-address.tsx'
 
 const TYPES: FimsAddressBookType[] = ['nexo', 'coinbase', 'binance', 'fimseur', 'other']
 
@@ -164,7 +164,9 @@ export function FimsUiAddressBook({ account, userId }: { account: Account; userI
             {(entries.data ?? []).map((entry) => (
               <TableRow key={entry.id}>
                 <TableCell className="font-medium">{entry.label}</TableCell>
-                <TableCell className="font-mono text-xs">{ellipsify(entry.address)}</TableCell>
+                <TableCell>
+                  <FimsUiSnsAddress address={entry.address} />
+                </TableCell>
                 <TableCell>
                   <Badge variant="outline">
                     <AddressBookTypeLabel type={entry.type} />

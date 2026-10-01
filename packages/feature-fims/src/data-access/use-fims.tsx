@@ -15,7 +15,7 @@ import type {
   FimsUser,
   FimsUserHistoricPoint,
 } from '../fims-api.ts'
-import { FimsApiError, fimsGet, fimsSignedFetch, fimsSignedGet } from '../fims-api.ts'
+import { FimsApiError, fimsGet, fimsGetAll, fimsSignedFetch, fimsSignedGet, fimsSignedGetAll } from '../fims-api.ts'
 
 export function useFimsEndpoint() {
   const [apiEndpoint] = useSetting('apiEndpoint')
@@ -25,7 +25,7 @@ export function useFimsEndpoint() {
 export function useFimsUsers(params?: { address?: string }) {
   const apiEndpoint = useFimsEndpoint()
   return useQuery({
-    queryFn: () => fimsGet<FimsUser[]>(apiEndpoint, '/users', params),
+    queryFn: () => fimsGetAll<FimsUser>(apiEndpoint, '/users', params),
     queryKey: ['fims', 'users', params?.address],
   })
 }
@@ -49,6 +49,24 @@ export function useFimsSignedGet(account: Account | undefined) {
   }
 }
 
+// Same fallback logic as useFimsSignedGet, but walks every page so callers
+// keep receiving full datasets now that list endpoints are paginated.
+export function useFimsSignedGetAll(account: Account | undefined) {
+  const apiEndpoint = useFimsEndpoint()
+  const accountSecretKey = useAccountSecretKey()
+  return async <T,>(path: string, params?: Record<string, string>): Promise<T[]> => {
+    if (!account || account.type === 'Watched') return fimsGetAll<T>(apiEndpoint, path, params)
+    try {
+      const json = await accountSecretKey({ account })
+      const signer = await createKeyPairSignerFromJson({ json })
+      return await fimsSignedGetAll<T>(apiEndpoint, signer, path, params)
+    } catch (error) {
+      if (error instanceof FimsApiError) throw error
+      return fimsGetAll<T>(apiEndpoint, path, params)
+    }
+  }
+}
+
 export function useFimsMember(address: string, account?: Account) {
   const signedGet = useFimsSignedGet(account)
   const users = useQuery({
@@ -59,10 +77,10 @@ export function useFimsMember(address: string, account?: Account) {
 }
 
 export function useFimsTransactions(params?: { userId?: number }, account?: Account) {
-  const signedGet = useFimsSignedGet(account)
+  const signedGetAll = useFimsSignedGetAll(account)
   return useQuery({
     queryFn: () =>
-      signedGet<FimsTransaction[]>('/transactions', {
+      signedGetAll<FimsTransaction>('/transactions', {
         ...(params?.userId ? { userId: String(params.userId) } : {}),
       }),
     queryKey: ['fims', 'transactions', params?.userId, account?.publicKey ?? 'anon'],
@@ -80,7 +98,7 @@ export function useFimsDashboard() {
 export function useFimsTokens() {
   const apiEndpoint = useFimsEndpoint()
   return useQuery({
-    queryFn: () => fimsGet<FimsToken[]>(apiEndpoint, '/tokens'),
+    queryFn: () => fimsGetAll<FimsToken>(apiEndpoint, '/tokens'),
     queryKey: ['fims', 'tokens'],
   })
 }
@@ -88,16 +106,16 @@ export function useFimsTokens() {
 export function useFimsHistoric() {
   const apiEndpoint = useFimsEndpoint()
   return useQuery({
-    queryFn: () => fimsGet<FimsHistoricPoint[]>(apiEndpoint, '/historic'),
+    queryFn: () => fimsGetAll<FimsHistoricPoint>(apiEndpoint, '/historic'),
     queryKey: ['fims', 'historic'],
   })
 }
 
 export function useFimsUserHistoric(userId: number | undefined, account?: Account) {
-  const signedGet = useFimsSignedGet(account)
+  const signedGetAll = useFimsSignedGetAll(account)
   return useQuery({
     enabled: userId != null,
-    queryFn: () => signedGet<FimsUserHistoricPoint[]>('/user-historic', { userId: String(userId) }),
+    queryFn: () => signedGetAll<FimsUserHistoricPoint>('/user-historic', { userId: String(userId) }),
     queryKey: ['fims', 'user-historic', userId, account?.publicKey ?? 'anon'],
   })
 }
@@ -105,16 +123,16 @@ export function useFimsUserHistoric(userId: number | undefined, account?: Accoun
 export function useFimsPrices(token?: string) {
   const apiEndpoint = useFimsEndpoint()
   return useQuery({
-    queryFn: () => fimsGet<FimsPricePoint[]>(apiEndpoint, '/prices', token ? { token } : {}),
+    queryFn: () => fimsGetAll<FimsPricePoint>(apiEndpoint, '/prices', token ? { token } : {}),
     queryKey: ['fims', 'prices', token],
   })
 }
 
 export function useFimsAddressBook(userId: number | undefined, account?: Account) {
-  const signedGet = useFimsSignedGet(account)
+  const signedGetAll = useFimsSignedGetAll(account)
   return useQuery({
     enabled: userId != null,
-    queryFn: () => signedGet<FimsAddressBookEntry[]>('/address-book', { userId: String(userId) }),
+    queryFn: () => signedGetAll<FimsAddressBookEntry>('/address-book', { userId: String(userId) }),
     queryKey: ['fims', 'address-book', userId, account?.publicKey ?? 'anon'],
   })
 }

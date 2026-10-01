@@ -1,5 +1,5 @@
 import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
-import { and, asc, desc, eq, ilike, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, isNull, or, type SQL } from 'drizzle-orm'
 import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.ts'
 import {
@@ -25,6 +25,16 @@ import {
 const notFound = (what: string) => `not found: ${what}`
 const insertFailed = () => new DatabaseError({ cause: 'insert returned no row' })
 
+// All list reads are bounded: a single unbounded query would scan a whole
+// table (Neon cost) and produce oversized responses.
+const DEFAULT_PAGE_SIZE = 500
+const MAX_PAGE_SIZE = 2000
+
+const pageParams = ({ limit, offset }: { limit?: number | undefined; offset?: number | undefined }) => ({
+  limit: Math.min(Math.max(1, Math.floor(limit ?? DEFAULT_PAGE_SIZE)), MAX_PAGE_SIZE),
+  offset: Math.max(0, Math.floor(offset ?? 0)),
+})
+
 interface UserAccess {
   address: string
   isPublic: boolean
@@ -32,8 +42,13 @@ interface UserAccess {
 
 // A non-public user's data is only visible to that user (signed) or an admin.
 // Any other signer is just a keypair — same visibility as anonymous.
-const canSeeUser = (signer: Option.Option<string>, access: UserAccess) =>
-  access.isPublic || Option.exists(signer, (s) => s === access.address || isAdminAddress(s))
+// The filter lives in the WHERE clause: filtering after LIMIT/OFFSET would
+// silently truncate pages.
+const visibilityFilter = (signer: Option.Option<string>) =>
+  Option.match(signer, {
+    onNone: () => eq(users.isPublic, true),
+    onSome: (s) => (isAdminAddress(s) ? undefined : or(eq(users.isPublic, true), eq(users.address, s))),
+  })
 
 const userAccessOfId = (userId: number) =>
   withDb((db) =>
@@ -79,7 +94,8 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* optionalWalletRequest(request)
-            const rows = yield* withDb((db) =>
+            const { limit, offset } = pageParams(urlParams)
+            return yield* withDb((db) =>
               db
                 .select()
                 .from(users)
@@ -87,11 +103,13 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                   and(
                     urlParams.name ? ilike(users.name, urlParams.name) : undefined,
                     urlParams.address ? eq(users.address, urlParams.address) : undefined,
+                    visibilityFilter(signer),
                   ),
                 )
-                .orderBy(asc(users.id)),
+                .orderBy(asc(users.id))
+                .limit(limit)
+                .offset(offset),
             )
-            return rows.filter((u) => canSeeUser(signer, u))
           }),
         )
         .handle('createUser', ({ payload }) =>
@@ -147,25 +165,29 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* optionalWalletRequest(request)
+            const { limit, offset } = pageParams(urlParams)
             const filters: SQL[] = []
             if (urlParams.address) filters.push(eq(transactions.address, urlParams.address))
             if (urlParams.userId !== undefined) filters.push(eq(transactions.userId, urlParams.userId))
+            // Rows without an owner (userId null → leftJoin yields null users.id)
+            // are community-level data and stay public.
+            const privacy = Option.match(signer, {
+              onNone: () => or(isNull(users.id), eq(users.isPublic, true)),
+              onSome: (s) =>
+                isAdminAddress(s) ? undefined : or(isNull(users.id), eq(users.isPublic, true), eq(users.address, s)),
+            })
+            if (privacy) filters.push(privacy)
             const rows = yield* withDb((db) =>
               db
-                .select({ ownerAddress: users.address, ownerPublic: users.isPublic, tx: transactions })
+                .select({ tx: transactions })
                 .from(transactions)
                 .leftJoin(users, eq(transactions.userId, users.id))
                 .where(filters.length ? and(...filters) : undefined)
-                .orderBy(desc(transactions.date)),
+                .orderBy(desc(transactions.date), desc(transactions.id))
+                .limit(limit)
+                .offset(offset),
             )
-            // Rows without an owner (userId null) are community-level data and stay public.
-            return rows
-              .filter(
-                (r) =>
-                  r.ownerAddress === null ||
-                  canSeeUser(signer, { address: r.ownerAddress, isPublic: r.ownerPublic ?? false }),
-              )
-              .map((r) => r.tx)
+            return rows.map((r) => r.tx)
           }),
         )
         // Community accounting data is written by the ETL only — member-writable
@@ -209,31 +231,48 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             return `deleted transaction ${path.id}`
           }),
         )
-        .handle('tokens', () => withDb((db) => db.select().from(tokens).orderBy(asc(tokens.symbol))))
-        .handle('historic', () => withDb((db) => db.select().from(historic).orderBy(asc(historic.date))))
+        .handle('tokens', ({ urlParams }) => {
+          const { limit, offset } = pageParams(urlParams)
+          return withDb((db) => db.select().from(tokens).orderBy(asc(tokens.symbol)).limit(limit).offset(offset))
+        })
+        .handle('historic', ({ urlParams }) => {
+          const { limit, offset } = pageParams(urlParams)
+          return withDb((db) => db.select().from(historic).orderBy(asc(historic.date)).limit(limit).offset(offset))
+        })
         .handle('userHistoric', ({ urlParams }) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* optionalWalletRequest(request)
+            const { limit, offset } = pageParams(urlParams)
+            const filters: SQL[] = []
+            if (urlParams.userId !== undefined) filters.push(eq(userHistoric.userId, urlParams.userId))
+            const privacy = visibilityFilter(signer)
+            if (privacy) filters.push(privacy)
             const rows = yield* withDb((db) =>
               db
-                .select({ ownerAddress: users.address, ownerPublic: users.isPublic, point: userHistoric })
+                .select({ point: userHistoric })
                 .from(userHistoric)
                 .innerJoin(users, eq(userHistoric.userId, users.id))
-                .where(urlParams.userId !== undefined ? eq(userHistoric.userId, urlParams.userId) : undefined)
-                .orderBy(asc(userHistoric.date)),
+                .where(filters.length ? and(...filters) : undefined)
+                .orderBy(asc(userHistoric.date), asc(userHistoric.userId))
+                .limit(limit)
+                .offset(offset),
             )
-            return rows
-              .filter((r) => canSeeUser(signer, { address: r.ownerAddress, isPublic: r.ownerPublic }))
-              .map((r) => r.point)
+            return rows.map((r) => r.point)
           }),
         )
-        .handle('prices', ({ urlParams }) =>
-          withDb((db) => {
-            const q = db.select().from(prices).orderBy(asc(prices.date)).$dynamic()
-            return urlParams.token ? q.where(eq(prices.token, urlParams.token)) : q
-          }),
-        )
+        .handle('prices', ({ urlParams }) => {
+          const { limit, offset } = pageParams(urlParams)
+          return withDb((db) =>
+            db
+              .select()
+              .from(prices)
+              .where(urlParams.token ? eq(prices.token, urlParams.token) : undefined)
+              .orderBy(asc(prices.date), asc(prices.token))
+              .limit(limit)
+              .offset(offset),
+          )
+        })
         .handle('dashboard', () =>
           withDb((db) => db.select().from(dashboardMetrics).orderBy(asc(dashboardMetrics.label))),
         )
@@ -241,17 +280,22 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* optionalWalletRequest(request)
+            const { limit, offset } = pageParams(urlParams)
+            const filters: SQL[] = []
+            if (urlParams.userId !== undefined) filters.push(eq(addressBook.userId, urlParams.userId))
+            const privacy = visibilityFilter(signer)
+            if (privacy) filters.push(privacy)
             const rows = yield* withDb((db) =>
               db
-                .select({ entry: addressBook, ownerAddress: users.address, ownerPublic: users.isPublic })
+                .select({ entry: addressBook })
                 .from(addressBook)
                 .innerJoin(users, eq(addressBook.userId, users.id))
-                .where(urlParams.userId !== undefined ? eq(addressBook.userId, urlParams.userId) : undefined)
-                .orderBy(asc(addressBook.label)),
+                .where(filters.length ? and(...filters) : undefined)
+                .orderBy(asc(addressBook.label), asc(addressBook.id))
+                .limit(limit)
+                .offset(offset),
             )
-            return rows
-              .filter((r) => canSeeUser(signer, { address: r.ownerAddress, isPublic: r.ownerPublic }))
-              .map((r) => r.entry)
+            return rows.map((r) => r.entry)
           }),
         )
         .handle('createAddressBookEntry', ({ payload }) =>

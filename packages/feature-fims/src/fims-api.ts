@@ -109,6 +109,27 @@ export async function fimsGet<T>(apiEndpoint: string, path: string, params?: Rec
   return (await res.json()) as T
 }
 
+// The API bounds every list response (MAX_PAGE_SIZE server-side). This helper
+// walks limit/offset pages until a short page marks the end, so callers keep
+// getting the full dataset.
+export const FIMS_PAGE_SIZE = 2000
+
+export async function fimsGetAll<T>(
+  apiEndpoint: string,
+  path: string,
+  params?: Record<string, string>,
+  fetchPage: (params: Record<string, string>) => Promise<T[]> = (p) => fimsGet<T[]>(apiEndpoint, path, p),
+): Promise<T[]> {
+  const rows: T[] = []
+  let offset = 0
+  for (;;) {
+    const page = await fetchPage({ ...params, limit: String(FIMS_PAGE_SIZE), offset: String(offset) })
+    rows.push(...page)
+    if (page.length < FIMS_PAGE_SIZE) return rows
+    offset += FIMS_PAGE_SIZE
+  }
+}
+
 async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return Array.from(new Uint8Array(digest))
@@ -164,6 +185,15 @@ export async function fimsSignedGet<T>(
     throw new FimsApiError(res.status, text.slice(0, 200))
   }
   return (await res.json()) as T
+}
+
+export async function fimsSignedGetAll<T>(
+  apiEndpoint: string,
+  signer: KeyPairSigner,
+  path: string,
+  params?: Record<string, string>,
+): Promise<T[]> {
+  return fimsGetAll<T>(apiEndpoint, path, params, (p) => fimsSignedGet<T[]>(apiEndpoint, signer, path, p))
 }
 
 export async function fimsSignedFetch<T>(

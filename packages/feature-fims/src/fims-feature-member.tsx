@@ -14,6 +14,7 @@ import { Link } from 'react-router'
 import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
+import { useSnsDomain } from './data-access/use-sns-domain.tsx'
 import type { FimsTransaction } from './fims-api.ts'
 import { formatDate, formatPercent } from './fims-format.ts'
 import { computeFimsPositions } from './fims-positions.ts'
@@ -28,6 +29,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
   const { t } = useTranslation('fims')
   const { format } = useFimsCurrency()
   const { isLoading, member } = useFimsMember(address, account)
+  const snsDomain = useSnsDomain(address)
   const historic = useFimsUserHistoric(member?.id, account)
   const transactions = useFimsTransactions(member ? { userId: member.id } : undefined, account)
   const tokens = useFimsTokens()
@@ -75,6 +77,9 @@ export function FimsFeatureMember({ account }: { account: Account }) {
         }
         title={member.name}
       >
+        <p className="mb-3 font-mono text-muted-foreground text-xs" title={address}>
+          {snsDomain.data ?? address}
+        </p>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <div className="text-muted-foreground text-xs">{t(($) => $.labelInvested)}</div>
