@@ -3,15 +3,22 @@ import { Badge } from '@workspace/ui/components/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
+import { useMemo } from 'react'
 import { Link } from 'react-router'
-import { useFimsMember, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
-import { formatCurrency, formatDate } from './fims-format.ts'
+import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
+import { formatCurrency, formatDate, formatPercent } from './fims-format.ts'
+import { computeFimsPositions } from './fims-positions.ts'
 
 export function FimsFeatureMember({ address }: { address: string }) {
   const { t } = useTranslation('fims')
   const { isLoading, member } = useFimsMember(address)
   const historic = useFimsUserHistoric(member?.id)
   const transactions = useFimsTransactions(member ? { userId: member.id } : undefined)
+  const tokens = useFimsTokens()
+  const positions = useMemo(
+    () => computeFimsPositions(transactions.data ?? [], tokens.data ?? []),
+    [transactions.data, tokens.data],
+  )
 
   if (isLoading) return <UiLoader />
 
@@ -60,6 +67,46 @@ export function FimsFeatureMember({ address }: { address: string }) {
           </div>
         </div>
       </UiCard>
+
+      {positions.length ? (
+        <UiCard title={t(($) => $.positionsTitle)}>
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader className="sticky top-0 bg-background">
+                <TableRow>
+                  <TableHead>{t(($) => $.columnToken)}</TableHead>
+                  <TableHead className="text-right">{t(($) => $.columnUnits)}</TableHead>
+                  <TableHead className="text-right">{t(($) => $.columnAvgPrice)}</TableHead>
+                  <TableHead className="text-right">{t(($) => $.columnValue)}</TableHead>
+                  <TableHead className="text-right">{t(($) => $.columnPnl)}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {positions.map((p) => (
+                  <TableRow key={p.symbol}>
+                    <TableCell className="font-medium">{p.symbol}</TableCell>
+                    <TableCell className="text-right">
+                      {p.units.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {p.avgBuyPrice != null ? formatCurrency(p.avgBuyPrice) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {p.currentValue != null ? formatCurrency(p.currentValue) : '—'}
+                    </TableCell>
+                    <TableCell className={`text-right ${p.pnl < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                      {formatCurrency(p.pnl)}
+                      {p.pnlRatio != null ? (
+                        <span className="text-muted-foreground text-xs"> ({formatPercent(p.pnlRatio)})</span>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </UiCard>
+      ) : null}
 
       <UiCard title={t(($) => $.transactionsTitle)}>
         {transactions.isLoading ? (
