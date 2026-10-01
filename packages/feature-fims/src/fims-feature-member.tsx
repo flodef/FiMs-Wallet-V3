@@ -1,3 +1,4 @@
+import type { Account } from '@workspace/db/account/account'
 import { useTranslation } from '@workspace/i18n'
 import { Badge } from '@workspace/ui/components/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
@@ -8,8 +9,10 @@ import { Link } from 'react-router'
 import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
 import { formatCurrency, formatDate, formatPercent } from './fims-format.ts'
 import { computeFimsPositions } from './fims-positions.ts'
+import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 
-export function FimsFeatureMember({ address }: { address: string }) {
+export function FimsFeatureMember({ account }: { account: Account }) {
+  const address = account.publicKey
   const { t } = useTranslation('fims')
   const { isLoading, member } = useFimsMember(address)
   const historic = useFimsUserHistoric(member?.id)
@@ -107,6 +110,8 @@ export function FimsFeatureMember({ address }: { address: string }) {
           </div>
         </UiCard>
       ) : null}
+
+      <FimsUiAddressBook account={account} userId={member.id} />
 
       <UiCard title={t(($) => $.transactionsTitle)}>
         {transactions.isLoading ? (

@@ -78,6 +78,30 @@ export class DashboardMetric extends Schema.Class<DashboardMetric>('DashboardMet
   value: Schema.Number,
 }) {}
 
+export const AddressBookType = Schema.Literal('nexo', 'coinbase', 'binance', 'fimseur', 'other')
+
+export class AddressBookEntry extends Schema.Class<AddressBookEntry>('AddressBookEntry')({
+  address: Schema.String,
+  createdAt: Schema.Date,
+  id: Schema.Number,
+  label: Schema.String,
+  type: AddressBookType,
+  userId: Schema.Number,
+}) {}
+
+const CreateAddressBookEntryBody = Schema.Struct({
+  address: Schema.String,
+  label: Schema.String,
+  type: Schema.optional(AddressBookType),
+  userId: Schema.Number,
+})
+
+const UpdateAddressBookEntryBody = Schema.Struct({
+  address: Schema.optional(Schema.String),
+  label: Schema.optional(Schema.String),
+  type: Schema.optional(AddressBookType),
+})
+
 const NotFound = Schema.String
 
 const CreateUserBody = Schema.Struct({
@@ -243,6 +267,48 @@ export class FimsApi extends HttpApiGroup.make('Fims')
     HttpApiEndpoint.get('dashboard', '/fims/dashboard')
       .annotate(OpenApi.Summary, 'Dashboard metrics')
       .addSuccess(Schema.Array(DashboardMetric))
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.get('addressBook', '/fims/address-book')
+      .annotate(OpenApi.Summary, 'List address book entries')
+      .setUrlParams(Schema.Struct({ userId: Schema.optional(Schema.NumberFromString) }))
+      .addSuccess(Schema.Array(AddressBookEntry))
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('createAddressBookEntry', '/fims/address-book')
+      .annotate(OpenApi.Summary, 'Create address book entry')
+      .setPayload(CreateAddressBookEntryBody)
+      .addSuccess(AddressBookEntry)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.patch('updateAddressBookEntry', '/fims/address-book/:id')
+      .annotate(OpenApi.Summary, 'Update address book entry')
+      .setPath(Schema.Struct({ id: Schema.NumberFromString }))
+      .setPayload(UpdateAddressBookEntryBody)
+      .addSuccess(AddressBookEntry)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.del('deleteAddressBookEntry', '/fims/address-book/:id')
+      .annotate(OpenApi.Summary, 'Delete address book entry')
+      .setPath(Schema.Struct({ id: Schema.NumberFromString }))
+      .addSuccess(Schema.String)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   ) {}

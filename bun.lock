@@ -302,10 +302,13 @@
       "name": "@workspace/feature-fims",
       "version": "0.0.0",
       "dependencies": {
+        "@solana/kit": "catalog:",
         "@tanstack/react-query": "catalog:",
+        "@workspace/db": "workspace:*",
         "@workspace/db-react": "workspace:*",
         "@workspace/env": "workspace:*",
         "@workspace/i18n": "workspace:*",
+        "@workspace/keypair": "workspace:*",
         "@workspace/ui": "workspace:*",
         "react-router": "catalog:",
       },

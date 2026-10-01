@@ -2,7 +2,16 @@ import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
 import { and, asc, desc, eq, ilike, type SQL } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
 import { Api } from '../../api.ts'
-import { dashboardMetrics, historic, prices, tokens, transactions, userHistoric, users } from '../../db/schema.ts'
+import {
+  addressBook,
+  dashboardMetrics,
+  historic,
+  prices,
+  tokens,
+  transactions,
+  userHistoric,
+  users,
+} from '../../db/schema.ts'
 import { DatabaseError, DatabaseService, withDb } from '../../db/service.ts'
 import { requireOwnerOrAdmin, verifyWalletRequest } from '../../services/auth/service.ts'
 
@@ -12,6 +21,19 @@ const insertFailed = () => new DatabaseError({ cause: 'insert returned no row' }
 const ownerAddressOfUser = (userId: number) =>
   withDb((db) => db.select({ address: users.address }).from(users).where(eq(users.id, userId))).pipe(
     Effect.flatMap((rows) => (rows[0] ? Effect.succeed(rows[0].address) : Effect.fail(notFound(`user ${userId}`)))),
+  )
+
+const ownerAddressOfAddressBookEntry = (id: number) =>
+  withDb((db) =>
+    db
+      .select({ address: users.address })
+      .from(addressBook)
+      .leftJoin(users, eq(addressBook.userId, users.id))
+      .where(eq(addressBook.id, id)),
+  ).pipe(
+    Effect.flatMap((rows) =>
+      rows[0] ? Effect.succeed(rows[0].address ?? '') : Effect.fail(notFound(`address book entry ${id}`)),
+    ),
   )
 
 // Transactions with userId = null are admin-only (empty owner never matches a signer)
@@ -149,6 +171,56 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
       )
       .handle('dashboard', () =>
         withDb((db) => db.select().from(dashboardMetrics).orderBy(asc(dashboardMetrics.label))),
+      )
+      .handle('addressBook', ({ urlParams }) =>
+        withDb((db) => {
+          const q = db.select().from(addressBook).orderBy(asc(addressBook.label)).$dynamic()
+          return urlParams.userId !== undefined ? q.where(eq(addressBook.userId, urlParams.userId)) : q
+        }),
+      )
+      .handle('createAddressBookEntry', ({ payload }) =>
+        Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const signer = yield* verifyWalletRequest(request)
+          const owner = yield* ownerAddressOfUser(payload.userId)
+          yield* requireOwnerOrAdmin(signer, owner)
+          const rows = yield* withDb((db) =>
+            db
+              .insert(addressBook)
+              .values({ ...payload, type: payload.type ?? 'other' })
+              .returning(),
+          )
+          const created = rows[0]
+          if (!created) return yield* Effect.fail(insertFailed())
+          return created
+        }),
+      )
+      .handle('updateAddressBookEntry', ({ path, payload }) =>
+        Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const signer = yield* verifyWalletRequest(request)
+          const owner = yield* ownerAddressOfAddressBookEntry(path.id)
+          yield* requireOwnerOrAdmin(signer, owner)
+          const rows = yield* withDb((db) =>
+            db.update(addressBook).set(payload).where(eq(addressBook.id, path.id)).returning(),
+          )
+          const updated = rows[0]
+          if (!updated) return yield* Effect.fail(notFound(`address book entry ${path.id}`))
+          return updated
+        }),
+      )
+      .handle('deleteAddressBookEntry', ({ path }) =>
+        Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const signer = yield* verifyWalletRequest(request)
+          const owner = yield* ownerAddressOfAddressBookEntry(path.id)
+          yield* requireOwnerOrAdmin(signer, owner)
+          const rows = yield* withDb((db) =>
+            db.delete(addressBook).where(eq(addressBook.id, path.id)).returning({ id: addressBook.id }),
+          )
+          if (!rows[0]) return yield* Effect.fail(notFound(`address book entry ${path.id}`))
+          return `deleted address book entry ${path.id}`
+        }),
       )
   }),
 ).pipe(Layer.provide([DatabaseService.Default]))

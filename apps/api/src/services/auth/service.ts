@@ -39,7 +39,8 @@ export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest
     if (!address || !sigHeader || !Number.isFinite(ts)) return yield* fail('missing auth headers')
     if (Math.abs(Date.now() - ts) > MAX_SKEW_MS) return yield* fail('stale timestamp')
 
-    const message = `fims-wallet-v3\n${request.method}\n${new URL(request.url).pathname}\n${ts}`
+    // request.url may be a bare path — the base only kicks in when it is.
+    const message = `fims-wallet-v3\n${request.method}\n${new URL(request.url, 'https://fims.local').pathname}\n${ts}`
 
     const valid = yield* Effect.try({
       catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),

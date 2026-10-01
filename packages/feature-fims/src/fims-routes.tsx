@@ -15,7 +15,7 @@ export default function FimsRoutes() {
         className="mb-4 items-center lg:mb-6"
         tabs={[
           {
-            element: <FimsFeatureMember address={account.publicKey} />,
+            element: <FimsFeatureMember account={account} />,
             label: t(($) => $.tabAccount),
             path: 'account',
           },
