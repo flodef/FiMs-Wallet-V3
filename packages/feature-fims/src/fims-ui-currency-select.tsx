@@ -11,6 +11,7 @@ export function FimsUiCurrencySelect() {
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="EUR">EUR</SelectItem>
+        <SelectItem value="SOL">SOL</SelectItem>
         <SelectItem value="USD">USD</SelectItem>
       </SelectContent>
     </Select>

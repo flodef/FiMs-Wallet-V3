@@ -18,18 +18,18 @@ type ConverterUnit = { eurValue: number; symbol: string }
 export function FimsUiConverter() {
   const { t } = useTranslation('fims')
   const tokens = useFimsTokens()
-  const { eurUsdRate } = useFimsCurrency()
+  const { rates } = useFimsCurrency()
 
   const units = useMemo<ConverterUnit[]>(
     () => [
       { eurValue: 1, symbol: 'EUR' },
-      { eurValue: eurUsdRate > 0 ? 1 / eurUsdRate : 1, symbol: 'USD' },
+      { eurValue: rates.usd > 0 ? 1 / rates.usd : 1, symbol: 'USD' },
       ...(tokens.data ?? [])
         .filter((token): token is typeof token & { value: number } => token.value != null && token.value > 0)
         .filter((token) => token.symbol !== 'EUR' && token.symbol !== 'USD')
         .map((token) => ({ eurValue: token.value, symbol: token.symbol })),
     ],
-    [tokens.data, eurUsdRate],
+    [tokens.data, rates],
   )
 
   const [amountText, setAmountText] = useState('1')
@@ -45,8 +45,8 @@ export function FimsUiConverter() {
   const formattedResult =
     eurTotal == null || !to
       ? '—'
-      : to.symbol === 'EUR' || to.symbol === 'USD'
-        ? formatCurrency(eurTotal, to.symbol, eurUsdRate)
+      : to.symbol === 'EUR' || to.symbol === 'SOL' || to.symbol === 'USD'
+        ? formatCurrency(eurTotal, to.symbol, rates)
         : `${tokenAmountFormatter.format(eurTotal / to.eurValue)} ${to.symbol}`
 
   return (

@@ -155,6 +155,8 @@
   "tabSwap": "Cambiar",
   "tabTontine": "Tontina",
   "tabVotes": "Votos",
+  "tokenChartHint": "Cada token se reajusta a 100 en su primer precio registrado — las pendientes son comparables. Insignias: variación de 1 día / total.",
+  "tokenChartTitle": "Mercados",
   "tokensTitle": "Tokens FiMs",
   "tontineInvested": "Invertido",
   "tontineTitle": "Tontina",

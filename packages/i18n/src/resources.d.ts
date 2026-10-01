@@ -219,6 +219,8 @@ export default interface Resources {
     tabSwap: 'Swap'
     tabTontine: 'Tontine'
     tabVotes: 'Votes'
+    tokenChartHint: 'Each token is rebased to 100 at its first recorded price — slopes are comparable. Badges: 1-day / total variation.'
+    tokenChartTitle: 'Markets'
     tokensTitle: 'FiMs tokens'
     tontineInvested: 'Invested'
     tontineTitle: 'Tontine'

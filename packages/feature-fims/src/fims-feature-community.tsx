@@ -7,6 +7,7 @@ import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatPercent } from './fims-format.ts'
 import { FimsUiConverter } from './fims-ui-converter.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
+import { FimsUiTokenChart } from './fims-ui-token-chart.tsx'
 
 export function FimsFeatureCommunity() {
   const { t } = useTranslation('fims')
@@ -73,6 +74,8 @@ export function FimsFeatureCommunity() {
           </div>
         )}
       </UiCard>
+
+      <FimsUiTokenChart />
 
       <FimsUiConverter />
     </div>

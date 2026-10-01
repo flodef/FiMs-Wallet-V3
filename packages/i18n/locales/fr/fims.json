@@ -155,6 +155,8 @@
   "tabSwap": "Échange",
   "tabTontine": "Tontine",
   "tabVotes": "Votes",
+  "tokenChartHint": "Chaque token est ramené à 100 à son premier cours enregistré — les pentes sont comparables. Badges : variation 1 jour / totale.",
+  "tokenChartTitle": "Marchés",
   "tokensTitle": "Tokens FiMs",
   "tontineInvested": "Investi",
   "tontineTitle": "Tontine",
