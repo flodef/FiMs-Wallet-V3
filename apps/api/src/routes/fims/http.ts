@@ -172,7 +172,12 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
 // The residual stays in the treasury — it is not credited to anyone.
 const FIMS_FEE_RATE = 0.001
 
-const deriveTransactionType = (movement: number, cost: number): 'deposit' | 'donation' | 'payment' | 'withdrawal' => {
+const deriveTransactionType = (
+  movement: number,
+  cost: number,
+  counterpartyIsCex = false,
+): 'cex_in' | 'cex_out' | 'deposit' | 'donation' | 'payment' | 'withdrawal' => {
+  if (counterpartyIsCex) return movement > 0 ? 'cex_in' : 'cex_out'
   const special = Math.abs(movement - cost) < 0.01
   return movement > 0 ? (special ? 'donation' : 'deposit') : special ? 'payment' : 'withdrawal'
 }
@@ -313,12 +318,25 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const signer = yield* verifyWalletRequest(request)
             yield* requireAdmin(signer)
             yield* userAccessOfId(payload.userId)
+            // A transaction whose address is registered as an exchange in the
+            // address book is categorized cex_in/cex_out automatically.
+            const cexRows = yield* withDb((db) =>
+              db
+                .select({ id: addressBook.id })
+                .from(addressBook)
+                .where(
+                  and(
+                    eq(addressBook.address, payload.address),
+                    inArray(addressBook.type, ['binance', 'coinbase', 'nexo']),
+                  ),
+                ),
+            )
             const rows = yield* withDb((db) =>
               db
                 .insert(transactions)
                 .values({
                   ...payload,
-                  type: payload.type ?? deriveTransactionType(payload.movement, payload.cost ?? 0),
+                  type: payload.type ?? deriveTransactionType(payload.movement, payload.cost ?? 0, cexRows.length > 0),
                 })
                 .returning(),
             )
