@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Account } from '@workspace/db/account/account'
 import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
+import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useSetting } from '@workspace/db-react/use-setting'
-import { env } from '@workspace/env/env'
+import { env, envAdminAddresses } from '@workspace/env/env'
 import { createKeyPairSignerFromJson } from '@workspace/keypair/create-key-pair-signer-from-json'
 import type {
   FimsAddressBookEntry,
@@ -19,7 +20,13 @@ import { FimsApiError, fimsGet, fimsGetAll, fimsSignedFetch, fimsSignedGet, fims
 
 export function useFimsEndpoint() {
   const [apiEndpoint] = useSetting('apiEndpoint')
-  return apiEndpoint ?? env('apiEndpoint')
+  // The apiEndpoint override is admin-only: a rogue endpoint can serve poisoned
+  // data (e.g. a fake address book) even though it cannot replay signatures.
+  const accounts = useAccountsLive()
+  const [activeAccountId] = useSetting('activeAccountId')
+  const active = accounts.find((account) => account.id === activeAccountId)
+  const isAdmin = !!active && envAdminAddresses().includes(active.publicKey)
+  return isAdmin ? (apiEndpoint ?? env('apiEndpoint')) : env('apiEndpoint')
 }
 
 export function useFimsUsers(params?: { address?: string }) {

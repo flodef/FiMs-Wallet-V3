@@ -4,6 +4,7 @@ export const envSchema = z.object({
   activeNetworkId: z
     .enum(['networkDevnet', 'networkLocalnet', 'networkMainnet', 'networkTestnet'])
     .default('networkDevnet'),
+  adminAddresses: z.string().default('CCLcWAJX6fubUqGyZWz8dyUGEddRj8h4XZZCNSDzMVx4'),
   apiEndpoint: z.url().default('https://fims-wallet-api.fims-fi.workers.dev'),
   networkDevnet: z.url().or(z.literal('')).default('https://api.devnet.solana.com'),
   networkDevnetSubscriptions: z.url().or(z.literal('')).default(''),
@@ -24,6 +25,15 @@ export function env(key: keyof Env): string {
     memoizedEnv = envSchema.parse({})
   }
   return memoizedEnv[key]
+}
+
+// Comma-separated public keys (VITE_ADMIN_ADDRESSES). These are not secrets —
+// they only gate privileged UI like the apiEndpoint override.
+export function envAdminAddresses(): string[] {
+  return env('adminAddresses')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
 }
 
 export function setEnv(env: Partial<Env> = {}) {

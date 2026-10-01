@@ -2,6 +2,7 @@ import { setEnv } from '@workspace/env/env'
 
 const env = {
   activeNetworkId: import.meta.env['VITE_ACTIVE_NETWORK_ID'],
+  adminAddresses: import.meta.env['VITE_ADMIN_ADDRESSES'],
   apiEndpoint: import.meta.env['VITE_API_ENDPOINT'],
   networkDevnet: import.meta.env['VITE_NETWORK_DEVNET'],
   networkDevnetSubscriptions: import.meta.env['VITE_NETWORK_DEVNET_SUBSCRIPTIONS'],

@@ -1,3 +1,5 @@
+import { useAccountActive } from '@workspace/db-react/use-account-active'
+import { envAdminAddresses } from '@workspace/env/env'
 import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { UiCard } from '@workspace/ui/components/ui-card'
@@ -11,6 +13,10 @@ import { SettingsFeatureGeneralWarningAcceptExperimental } from './settings-feat
 export function SettingsFeatureGeneral() {
   const { t } = useTranslation('settings')
   const page = useSettingsPage({ pageId: 'general' })
+  // The apiEndpoint override is admin-only: a malicious endpoint could serve a
+  // poisoned address book and redirect outgoing transfers.
+  const account = useAccountActive()
+  const isAdmin = envAdminAddresses().includes(account.publicKey)
   return (
     <div className="space-y-2 md:space-y-4">
       <UiCard
@@ -24,9 +30,14 @@ export function SettingsFeatureGeneral() {
         <SettingsFeatureGeneralTheme />
         <SettingsFeatureGeneralWarningAcceptExperimental />
       </UiCard>
-      <UiCard contentProps={{ className: 'space-y-2 md:space-y-6 md:py-2' }} title={t(($) => $.pageGeneralApiSettings)}>
-        <SettingsFeatureGeneralApiSettings />
-      </UiCard>
+      {isAdmin ? (
+        <UiCard
+          contentProps={{ className: 'space-y-2 md:space-y-6 md:py-2' }}
+          title={t(($) => $.pageGeneralApiSettings)}
+        >
+          <SettingsFeatureGeneralApiSettings />
+        </UiCard>
+      ) : null}
       <UiCard
         className="border-red-500"
         contentProps={{ className: 'grid gap-6' }}

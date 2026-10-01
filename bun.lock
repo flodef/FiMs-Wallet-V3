@@ -430,6 +430,7 @@
         "@workspace/context-react": "workspace:*",
         "@workspace/db": "workspace:*",
         "@workspace/db-react": "workspace:*",
+        "@workspace/env": "workspace:*",
         "@workspace/feature-explorer": "workspace:*",
         "@workspace/i18n": "workspace:*",
         "@workspace/keypair": "workspace:*",
