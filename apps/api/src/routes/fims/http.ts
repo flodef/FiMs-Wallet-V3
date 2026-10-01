@@ -165,6 +165,14 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
     })
   })
 
+// V2 rule: |movement - cost| ~= 0 marks a donation (in) or a payment (out),
+// anything else is a deposit/withdrawal. Applied at write time so stored rows
+// always carry a type — SQL filters on `type` would silently drop NULLs.
+const deriveTransactionType = (movement: number, cost: number): 'deposit' | 'donation' | 'payment' | 'withdrawal' => {
+  const special = Math.abs(movement - cost) < 0.01
+  return movement > 0 ? (special ? 'donation' : 'deposit') : special ? 'payment' : 'withdrawal'
+}
+
 export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
   Effect.gen(function* () {
     return (
@@ -301,7 +309,15 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const signer = yield* verifyWalletRequest(request)
             yield* requireAdmin(signer)
             yield* userAccessOfId(payload.userId)
-            const rows = yield* withDb((db) => db.insert(transactions).values(payload).returning())
+            const rows = yield* withDb((db) =>
+              db
+                .insert(transactions)
+                .values({
+                  ...payload,
+                  type: payload.type ?? deriveTransactionType(payload.movement, payload.cost ?? 0),
+                })
+                .returning(),
+            )
             const created = rows[0]
             if (!created) return yield* Effect.fail(insertFailed())
             return created
