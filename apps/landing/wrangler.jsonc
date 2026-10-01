@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "assets": {
+    "directory": "./public"
+  },
+  "compatibility_date": "2025-10-17",
+  "name": "fims-landing",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "preview_urls": true,
+  // Requires the fims.fi zone on Cloudflare (currently OVH DNS).
+  // Until then the site is served at https://fims-landing.fims-fi.workers.dev
+  // "routes": [
+  //   {
+  //     "custom_domain": true,
+  //     "pattern": "fims.fi"
+  //   },
+  //   {
+  //     "custom_domain": true,
+  //     "pattern": "www.fims.fi"
+  //   }
+  // ],
+  "send_metrics": false
+}

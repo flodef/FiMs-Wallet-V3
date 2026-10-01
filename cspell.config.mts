@@ -35,6 +35,10 @@ const config: CSpellSettings = {
       filename: '**/fr/*.json',
       language: 'en, fr',
     },
+    {
+      filename: 'apps/landing/**/*.html',
+      language: 'en, fr',
+    },
   ],
   useGitignore: true,
   words: [
@@ -53,6 +57,7 @@ const config: CSpellSettings = {
     'datetimepicker',
     'devnet',
     'dklen',
+    'dyor',
     'ellipsify',
     'fims',
     'fimseur',
