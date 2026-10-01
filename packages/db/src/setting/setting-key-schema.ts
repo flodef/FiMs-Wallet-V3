@@ -4,6 +4,7 @@ export const settingKeySchema = z.enum([
   'activeAccountId',
   'activeNetworkId',
   'apiEndpoint',
+  'fimsCurrency',
   'fimsLastSeenTransaction',
   'language',
   'theme',

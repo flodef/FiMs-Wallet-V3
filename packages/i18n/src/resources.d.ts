@@ -102,6 +102,8 @@ export default interface Resources {
     dashboardTitle: 'Community dashboard'
     disclaimer: 'FiMs Wallet is a portfolio tracking tool, not investment advice. Past performance is no guarantee of future results. Everyone is solely responsible for their own decisions and any losses.'
     donationsCount: 'donationsCount' | '{{count}} donations'
+    donationsRemaining: 'Left to give'
+    donationsRemainingHint: '10% of gains go to FiMs work: paid to the Tontine or given to a charity of your choice (proof required).'
     donationsTitle: 'Donations'
     donationsTotal: 'Total given'
     investedLabel: 'Total invested'

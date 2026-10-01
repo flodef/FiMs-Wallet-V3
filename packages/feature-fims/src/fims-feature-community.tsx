@@ -3,10 +3,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { useFimsDashboard, useFimsHistoric, useFimsTokens } from './data-access/use-fims.tsx'
-import { formatCurrency, formatPercent } from './fims-format.ts'
+import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
+import { formatPercent } from './fims-format.ts'
+import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 
 export function FimsFeatureCommunity() {
   const { t } = useTranslation('fims')
+  const { format } = useFimsCurrency()
   const dashboard = useFimsDashboard()
   const tokens = useFimsTokens()
   const historic = useFimsHistoric()
@@ -14,7 +17,7 @@ export function FimsFeatureCommunity() {
 
   return (
     <div className="space-y-4">
-      <UiCard title={t(($) => $.dashboardTitle)}>
+      <UiCard action={<FimsUiCurrencySelect />} title={t(($) => $.dashboardTitle)}>
         {dashboard.isLoading ? (
           <UiLoader />
         ) : (
@@ -22,7 +25,7 @@ export function FimsFeatureCommunity() {
             {(dashboard.data ?? []).map((metric) => (
               <div key={metric.label}>
                 <div className="text-muted-foreground text-xs">{metric.label}</div>
-                <div className="font-semibold">{formatCurrency(metric.value)}</div>
+                <div className="font-semibold">{format(metric.value)}</div>
                 {metric.ratio != null ? (
                   <div className="text-muted-foreground text-xs">{formatPercent(metric.ratio)}</div>
                 ) : null}
@@ -32,8 +35,8 @@ export function FimsFeatureCommunity() {
         )}
         {latest ? (
           <p className="pt-2 text-muted-foreground text-xs">
-            {t(($) => $.treasuryLabel)}: {latest.treasury != null ? formatCurrency(latest.treasury) : '—'} ·{' '}
-            {t(($) => $.investedLabel)}: {formatCurrency(latest.invested)}
+            {t(($) => $.treasuryLabel)}: {latest.treasury != null ? format(latest.treasury) : '—'} ·{' '}
+            {t(($) => $.investedLabel)}: {format(latest.invested)}
           </p>
         ) : null}
       </UiCard>
@@ -58,9 +61,7 @@ export function FimsFeatureCommunity() {
                       <div className="font-medium">{token.symbol}</div>
                       <div className="text-muted-foreground text-xs">{token.label}</div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      {token.value != null ? formatCurrency(token.value) : '—'}
-                    </TableCell>
+                    <TableCell className="text-right">{token.value != null ? format(token.value) : '—'}</TableCell>
                     <TableCell className="text-right">
                       {token.yearlyYield != null ? formatPercent(token.yearlyYield) : '—'}
                     </TableCell>

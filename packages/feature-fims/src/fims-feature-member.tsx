@@ -12,16 +12,21 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
+import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
 import type { FimsTransaction } from './fims-api.ts'
-import { formatCurrency, formatDate, formatPercent } from './fims-format.ts'
+import { formatDate, formatPercent } from './fims-format.ts'
 import { computeFimsPositions } from './fims-positions.ts'
 import { getFimsTransactionType } from './fims-transaction-type.ts'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
+import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
+
+const FIMS_DONATION_RATIO = 0.1
 
 export function FimsFeatureMember({ account }: { account: Account }) {
   const address = account.publicKey
   const { t } = useTranslation('fims')
+  const { format } = useFimsCurrency()
   const { isLoading, member } = useFimsMember(address)
   const historic = useFimsUserHistoric(member?.id)
   const transactions = useFimsTransactions(member ? { userId: member.id } : undefined)
@@ -54,6 +59,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
 
   const latest = historic.data?.at(-1)
   const pnl = latest?.total != null ? latest.total - latest.invested : null
+  const remainingToDonate = pnl != null && pnl > 0 ? Math.max(0, pnl * FIMS_DONATION_RATIO - donations.total) : null
 
   return (
     <div className="space-y-4">
@@ -62,6 +68,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
       <UiCard
         action={
           <div className="flex gap-2">
+            <FimsUiCurrencySelect />
             {member.isPro ? <Badge>{t(($) => $.badgePro)}</Badge> : null}
             <Badge variant="outline">{member.isPublic ? t(($) => $.badgePublic) : t(($) => $.badgePrivate)}</Badge>
           </div>
@@ -71,16 +78,16 @@ export function FimsFeatureMember({ account }: { account: Account }) {
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <div className="text-muted-foreground text-xs">{t(($) => $.labelInvested)}</div>
-            <div className="font-semibold">{latest ? formatCurrency(latest.invested) : '—'}</div>
+            <div className="font-semibold">{latest ? format(latest.invested) : '—'}</div>
           </div>
           <div>
             <div className="text-muted-foreground text-xs">{t(($) => $.labelCurrentValue)}</div>
-            <div className="font-semibold">{latest?.total != null ? formatCurrency(latest.total) : '—'}</div>
+            <div className="font-semibold">{latest?.total != null ? format(latest.total) : '—'}</div>
           </div>
           <div>
             <div className="text-muted-foreground text-xs">{t(($) => $.labelPnl)}</div>
             <div className={pnl != null && pnl < 0 ? 'font-semibold text-red-500' : 'font-semibold text-green-500'}>
-              {pnl != null ? formatCurrency(pnl) : '—'}
+              {pnl != null ? format(pnl) : '—'}
             </div>
           </div>
         </div>
@@ -106,14 +113,12 @@ export function FimsFeatureMember({ account }: { account: Account }) {
                     <TableCell className="text-right">
                       {p.units.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}
                     </TableCell>
+                    <TableCell className="text-right">{p.avgBuyPrice != null ? format(p.avgBuyPrice) : '—'}</TableCell>
                     <TableCell className="text-right">
-                      {p.avgBuyPrice != null ? formatCurrency(p.avgBuyPrice) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {p.currentValue != null ? formatCurrency(p.currentValue) : '—'}
+                      {p.currentValue != null ? format(p.currentValue) : '—'}
                     </TableCell>
                     <TableCell className={`text-right ${p.pnl < 0 ? 'text-red-500' : 'text-green-500'}`}>
-                      {formatCurrency(p.pnl)}
+                      {format(p.pnl)}
                       {p.pnlRatio != null ? (
                         <span className="text-muted-foreground text-xs"> ({formatPercent(p.pnlRatio)})</span>
                       ) : null}
@@ -128,17 +133,24 @@ export function FimsFeatureMember({ account }: { account: Account }) {
 
       <FimsUiAddressBook account={account} userId={member.id} />
 
-      {donations.count > 0 ? (
+      {donations.count > 0 || remainingToDonate ? (
         <UiCard title={t(($) => $.donationsTitle)}>
-          <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-muted-foreground text-xs">{t(($) => $.donationsTotal)}</div>
-              <div className="font-semibold text-pink-500">{formatCurrency(donations.total)}</div>
+              <div className="font-semibold text-pink-500">{format(donations.total)}</div>
             </div>
             <div>
               <div className="font-semibold">{t(($) => $.donationsCount, { count: donations.count })}</div>
             </div>
+            <div>
+              <div className="text-muted-foreground text-xs">{t(($) => $.donationsRemaining)}</div>
+              <div className="font-semibold">{remainingToDonate ? format(remainingToDonate) : '—'}</div>
+            </div>
           </div>
+          {remainingToDonate ? (
+            <p className="mt-3 text-muted-foreground text-xs">{t(($) => $.donationsRemainingHint)}</p>
+          ) : null}
         </UiCard>
       ) : null}
 
@@ -167,7 +179,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
                       {tx.donationTarget ? ` → ${tx.donationTarget}` : ''}
                     </TableCell>
                     <TableCell className="text-right">{tx.amount ?? '—'}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(tx.cost)}</TableCell>
+                    <TableCell className="text-right">{format(tx.cost)}</TableCell>
                   </TableRow>
                 ))}
                 {transactions.data?.length === 0 ? (
