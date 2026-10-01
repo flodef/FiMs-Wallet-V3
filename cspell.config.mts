@@ -60,6 +60,7 @@ const config: CSpellSettings = {
     'dyor',
     'ellipsify',
     'fims',
+    'fimsfi',
     'fimseur',
     'firestore',
     'hackathon',

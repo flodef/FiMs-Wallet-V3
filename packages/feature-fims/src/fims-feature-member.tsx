@@ -21,6 +21,7 @@ import { computeFimsPositions } from './fims-positions.ts'
 import { getFimsTransactionType } from './fims-transaction-type.ts'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
+import { FimsUiRatioBadges } from './fims-ui-ratio-badges.tsx'
 
 const FIMS_DONATION_RATIO = 0.1
 
@@ -60,7 +61,13 @@ export function FimsFeatureMember({ account }: { account: Account }) {
   }
 
   const latest = historic.data?.at(-1)
+  const previous = historic.data?.at(-2)
   const pnl = latest?.total != null ? latest.total - latest.invested : null
+  const pnlRatio = latest && latest.invested > 0 && pnl != null ? pnl / latest.invested : null
+  const dayRatio =
+    latest?.total != null && previous?.total != null && previous.total > 0
+      ? (latest.total - previous.total) / previous.total
+      : null
   const remainingToDonate = pnl != null && pnl > 0 ? Math.max(0, pnl * FIMS_DONATION_RATIO - donations.total) : null
 
   return (
@@ -94,6 +101,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
             <div className={pnl != null && pnl < 0 ? 'font-semibold text-red-500' : 'font-semibold text-green-500'}>
               {pnl != null ? format(pnl) : '—'}
             </div>
+            <FimsUiRatioBadges dayRatio={dayRatio} pnlRatio={pnlRatio} />
           </div>
         </div>
       </UiCard>
