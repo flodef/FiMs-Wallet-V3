@@ -1,5 +1,10 @@
+import type { Address } from '@solana/kit'
 import type { Account } from '@workspace/db/account/account'
+import { useNetworkActive } from '@workspace/db-react/use-network-active'
+import { PortfolioUiAccountButtons } from '@workspace/feature-portfolio/ui/portfolio-ui-account-buttons'
 import { useTranslation } from '@workspace/i18n'
+import { useGetBalance } from '@workspace/solana-client-react/use-get-balance'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UiCard } from '@workspace/ui/components/ui-card'
@@ -44,6 +49,8 @@ export function FimsFeatureMember({ account }: { account: Account }) {
 
   return (
     <div className="space-y-4">
+      <PortfolioUiAccountButtons />
+      <FimsNoSolWarning address={address} />
       <UiCard
         action={
           <div className="flex gap-2">
@@ -151,5 +158,20 @@ export function FimsFeatureMember({ account }: { account: Account }) {
         )}
       </UiCard>
     </div>
+  )
+}
+
+function FimsNoSolWarning({ address }: { address: Address }) {
+  const { t } = useTranslation('fims')
+  const network = useNetworkActive()
+  const balance = useGetBalance({ address, network })
+
+  if (balance.isLoading || !balance.data || balance.data.value > 0n) return null
+
+  return (
+    <Alert variant="destructive">
+      <AlertTitle>{t(($) => $.noSolTitle)}</AlertTitle>
+      <AlertDescription>{t(($) => $.noSolDescription)}</AlertDescription>
+    </Alert>
   )
 }
