@@ -25,7 +25,8 @@
     "vitest": "catalog:"
   },
   "exports": {
-    "./*": "./src/*.tsx"
+    "./*": "./src/*.tsx",
+    "./data-access/use-get-token-balances": "./src/data-access/use-get-token-balances.ts"
   },
   "license": "MIT",
   "name": "@workspace/feature-portfolio",
