@@ -27,7 +27,10 @@ export const addressBookType = pgEnum('address_book_type', ['nexo', 'coinbase', 
 export const voteStatus = pgEnum('vote_status', ['draft', 'open', 'closed'])
 
 export const users = pgTable('users', {
-  address: text('address').notNull(),
+  // One row per wallet — duplicate addresses would break member resolution and
+  // allow address squatting (a squatter's address book could poison the
+  // victim's send-destination suggestions).
+  address: text('address').notNull().unique(),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   id: serial('id').primaryKey(),
   isPro: boolean('is_pro').notNull().default(false),

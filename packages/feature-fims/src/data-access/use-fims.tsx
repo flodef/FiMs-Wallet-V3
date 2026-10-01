@@ -15,7 +15,7 @@ import type {
   FimsUser,
   FimsUserHistoricPoint,
 } from '../fims-api.ts'
-import { fimsGet, fimsSignedFetch } from '../fims-api.ts'
+import { FimsApiError, fimsGet, fimsSignedFetch, fimsSignedGet } from '../fims-api.ts'
 
 export function useFimsEndpoint() {
   const [apiEndpoint] = useSetting('apiEndpoint')
@@ -30,19 +30,42 @@ export function useFimsUsers(params?: { address?: string }) {
   })
 }
 
-export function useFimsMember(address: string) {
-  const users = useFimsUsers({ address })
+// Member-scoped reads are signed when an account is provided: the API only
+// serves a private member's data to the owner (signed) or an admin. Signing
+// failures (e.g. locked vault, watched account) fall back to anonymous reads.
+export function useFimsSignedGet(account: Account | undefined) {
+  const apiEndpoint = useFimsEndpoint()
+  const accountSecretKey = useAccountSecretKey()
+  return async <T,>(path: string, params?: Record<string, string>): Promise<T> => {
+    if (!account || account.type === 'Watched') return fimsGet<T>(apiEndpoint, path, params)
+    try {
+      const json = await accountSecretKey({ account })
+      const signer = await createKeyPairSignerFromJson({ json })
+      return await fimsSignedGet<T>(apiEndpoint, signer, path, params)
+    } catch (error) {
+      if (error instanceof FimsApiError) throw error
+      return fimsGet<T>(apiEndpoint, path, params)
+    }
+  }
+}
+
+export function useFimsMember(address: string, account?: Account) {
+  const signedGet = useFimsSignedGet(account)
+  const users = useQuery({
+    queryFn: () => signedGet<FimsUser[]>('/users', { address }),
+    queryKey: ['fims', 'users', address, account?.publicKey ?? 'anon'],
+  })
   return { ...users, member: users.data?.[0] ?? null }
 }
 
-export function useFimsTransactions(params?: { userId?: number }) {
-  const apiEndpoint = useFimsEndpoint()
+export function useFimsTransactions(params?: { userId?: number }, account?: Account) {
+  const signedGet = useFimsSignedGet(account)
   return useQuery({
     queryFn: () =>
-      fimsGet<FimsTransaction[]>(apiEndpoint, '/transactions', {
+      signedGet<FimsTransaction[]>('/transactions', {
         ...(params?.userId ? { userId: String(params.userId) } : {}),
       }),
-    queryKey: ['fims', 'transactions', params?.userId],
+    queryKey: ['fims', 'transactions', params?.userId, account?.publicKey ?? 'anon'],
   })
 }
 
@@ -70,12 +93,12 @@ export function useFimsHistoric() {
   })
 }
 
-export function useFimsUserHistoric(userId: number | undefined) {
-  const apiEndpoint = useFimsEndpoint()
+export function useFimsUserHistoric(userId: number | undefined, account?: Account) {
+  const signedGet = useFimsSignedGet(account)
   return useQuery({
     enabled: userId != null,
-    queryFn: () => fimsGet<FimsUserHistoricPoint[]>(apiEndpoint, '/user-historic', { userId: String(userId) }),
-    queryKey: ['fims', 'user-historic', userId],
+    queryFn: () => signedGet<FimsUserHistoricPoint[]>('/user-historic', { userId: String(userId) }),
+    queryKey: ['fims', 'user-historic', userId, account?.publicKey ?? 'anon'],
   })
 }
 
@@ -87,12 +110,12 @@ export function useFimsPrices(token?: string) {
   })
 }
 
-export function useFimsAddressBook(userId: number | undefined) {
-  const apiEndpoint = useFimsEndpoint()
+export function useFimsAddressBook(userId: number | undefined, account?: Account) {
+  const signedGet = useFimsSignedGet(account)
   return useQuery({
     enabled: userId != null,
-    queryFn: () => fimsGet<FimsAddressBookEntry[]>(apiEndpoint, '/address-book', { userId: String(userId) }),
-    queryKey: ['fims', 'address-book', userId],
+    queryFn: () => signedGet<FimsAddressBookEntry[]>('/address-book', { userId: String(userId) }),
+    queryKey: ['fims', 'address-book', userId, account?.publicKey ?? 'anon'],
   })
 }
 

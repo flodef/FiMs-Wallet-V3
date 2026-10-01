@@ -139,7 +139,7 @@ function AddressBookFormDialog({
 
 export function FimsUiAddressBook({ account, userId }: { account: Account; userId: number }) {
   const { t } = useTranslation('fims')
-  const entries = useFimsAddressBook(userId)
+  const entries = useFimsAddressBook(userId, account)
   const remove = useFimsAddressBookDelete(account, userId)
   const canSign = account.type !== 'Watched'
 

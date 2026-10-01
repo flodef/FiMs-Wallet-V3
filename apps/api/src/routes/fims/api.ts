@@ -89,15 +89,18 @@ export class AddressBookEntry extends Schema.Class<AddressBookEntry>('AddressBoo
   userId: Schema.Number,
 }) {}
 
+// Base58-encoded Solana public key (32 bytes → 32-44 chars, no 0/O/I/l).
+export const SolanaAddress = Schema.String.pipe(Schema.pattern(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/))
+
 const CreateAddressBookEntryBody = Schema.Struct({
-  address: Schema.String,
+  address: SolanaAddress,
   label: Schema.String,
   type: Schema.optional(AddressBookType),
   userId: Schema.Number,
 })
 
 const UpdateAddressBookEntryBody = Schema.Struct({
-  address: Schema.optional(Schema.String),
+  address: Schema.optional(SolanaAddress),
   label: Schema.optional(Schema.String),
   type: Schema.optional(AddressBookType),
 })
@@ -105,13 +108,15 @@ const UpdateAddressBookEntryBody = Schema.Struct({
 const NotFound = Schema.String
 
 const CreateUserBody = Schema.Struct({
-  address: Schema.String,
+  address: SolanaAddress,
   isPublic: Schema.optional(Schema.Boolean),
   name: Schema.String,
 })
 
+// `address` and `isPro` are privileged: the handler rejects them for non-admin
+// signers (self-service is limited to name/isPublic).
 const UpdateUserBody = Schema.Struct({
-  address: Schema.optional(Schema.String),
+  address: Schema.optional(SolanaAddress),
   isPro: Schema.optional(Schema.Boolean),
   isPublic: Schema.optional(Schema.Boolean),
   name: Schema.optional(Schema.String),
@@ -130,6 +135,8 @@ const CreateTransactionBody = Schema.Struct({
   userId: Schema.Number,
 })
 
+// `userId` is intentionally absent: reassigning a transaction to another user
+// would let a writer pollute someone else's history.
 const UpdateTransactionBody = Schema.Struct({
   address: Schema.optional(Schema.String),
   amount: Schema.optional(Schema.Number),
@@ -140,7 +147,6 @@ const UpdateTransactionBody = Schema.Struct({
   signature: Schema.optional(Schema.String),
   token: Schema.optional(Schema.String),
   type: Schema.optional(TransactionType),
-  userId: Schema.optional(Schema.Number),
 })
 
 export class FimsApi extends HttpApiGroup.make('Fims')
@@ -149,6 +155,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'List users')
       .setUrlParams(Schema.Struct({ address: Schema.optional(Schema.String), name: Schema.optional(Schema.String) }))
       .addSuccess(Schema.Array(User))
+      .addError(AuthForbidden, { status: 403 })
+      .addError(AuthUnauthorized, { status: 401 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )
@@ -196,6 +204,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
         }),
       )
       .addSuccess(Schema.Array(Transaction))
+      .addError(AuthForbidden, { status: 403 })
+      .addError(AuthUnauthorized, { status: 401 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )
@@ -252,6 +262,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'Per-user portfolio history')
       .setUrlParams(Schema.Struct({ userId: Schema.optional(Schema.NumberFromString) }))
       .addSuccess(Schema.Array(UserHistoricPoint))
+      .addError(AuthForbidden, { status: 403 })
+      .addError(AuthUnauthorized, { status: 401 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )
@@ -275,6 +287,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'List address book entries')
       .setUrlParams(Schema.Struct({ userId: Schema.optional(Schema.NumberFromString) }))
       .addSuccess(Schema.Array(AddressBookEntry))
+      .addError(AuthForbidden, { status: 403 })
+      .addError(AuthUnauthorized, { status: 401 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )

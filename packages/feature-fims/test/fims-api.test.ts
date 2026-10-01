@@ -23,12 +23,18 @@ describe('fims-signed-fetch', () => {
   })
 
   describe('expected behavior', () => {
-    it('should sign the method, path and timestamp with the wallet keypair', async () => {
+    it('should sign host, method, path, timestamp and body hash with the wallet keypair', async () => {
       // ARRANGE
       expect.assertions(4)
       const signedContent = new Uint8Array(512)
       const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }))
       vi.stubGlobal('fetch', fetchMock)
+      const body = { label: 'test' }
+      const bodyHash = Array.from(
+        new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(body)))),
+      )
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
 
       // ACT
       const result = await fimsSignedFetch<{ ok: boolean }>(
@@ -36,7 +42,7 @@ describe('fims-signed-fetch', () => {
         testSigner(signedContent),
         'POST',
         '/address-book',
-        { label: 'test' },
+        body,
       )
 
       // ASSERT
@@ -45,7 +51,9 @@ describe('fims-signed-fetch', () => {
       expect(url).toBe('https://api.example.com/fims/address-book')
       const headers = init.headers as Record<string, string>
       const message = new TextDecoder().decode(signedContent.subarray(0, signedContent.indexOf(0)))
-      expect(message).toBe(`fims-wallet-v3\nPOST\n/fims/address-book\n${headers['x-fims-ts']}`)
+      expect(message).toBe(
+        `fims-wallet-v3\napi.example.com\nPOST\n/fims/address-book\n${headers['x-fims-ts']}\n${bodyHash}`,
+      )
       expect(headers['x-fims-sig']).toBe(getBase64Decoder().decode(SIGNATURE_BYTES))
     })
   })

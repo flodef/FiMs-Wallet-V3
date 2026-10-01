@@ -11,8 +11,8 @@ import { useFimsAddressBook, useFimsMember } from './data-access/use-fims.tsx'
 export default function FimsModals() {
   const { t } = useTranslation('fims')
   const account = useAccountActive()
-  const { member } = useFimsMember(account.publicKey)
-  const entries = useFimsAddressBook(member?.id)
+  const { member } = useFimsMember(account.publicKey, account)
+  const entries = useFimsAddressBook(member?.id, account)
 
   const groups = useMemo<UiGroupedComboboxInputGroup<DestinationAccount>[]>(
     () =>

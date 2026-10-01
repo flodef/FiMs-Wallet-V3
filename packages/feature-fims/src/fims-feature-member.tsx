@@ -27,9 +27,9 @@ export function FimsFeatureMember({ account }: { account: Account }) {
   const address = account.publicKey
   const { t } = useTranslation('fims')
   const { format } = useFimsCurrency()
-  const { isLoading, member } = useFimsMember(address)
-  const historic = useFimsUserHistoric(member?.id)
-  const transactions = useFimsTransactions(member ? { userId: member.id } : undefined)
+  const { isLoading, member } = useFimsMember(address, account)
+  const historic = useFimsUserHistoric(member?.id, account)
+  const transactions = useFimsTransactions(member ? { userId: member.id } : undefined, account)
   const tokens = useFimsTokens()
   const positions = useMemo(
     () => computeFimsPositions(transactions.data ?? [], tokens.data ?? []),

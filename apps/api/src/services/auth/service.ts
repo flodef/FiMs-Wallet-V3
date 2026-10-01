@@ -13,20 +13,31 @@ export class AuthForbidden extends Schema.TaggedError<AuthForbidden>()('AuthForb
 }) {}
 
 // 5 min window — a signed request is replayable only within it, and only
-// for the same method+path (both are part of the signed message).
+// for the same host+method+path+body (all are part of the signed message).
 const MAX_SKEW_MS = 5 * 60 * 1000
 
 const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
 const header = (request: HttpServerRequest.HttpServerRequest, name: string) =>
   Option.getOrElse(Headers.get(request.headers, name), () => '')
 
+const sha256Hex = (text: string) =>
+  Effect.promise(async () =>
+    Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(''),
+  )
+
 /**
  * Wallet-signed auth. The client signs:
- *   `fims-wallet-v3\n{METHOD}\n{PATHNAME}\n{TIMESTAMP_MS}`
+ *   `fims-wallet-v3\n{HOST}\n{METHOD}\n{PATHNAME}\n{TIMESTAMP_MS}\n{SHA256_HEX(BODY)}`
  * with its Solana keypair and sends:
  *   x-fims-address:   base58 public key
  *   x-fims-ts:        unix timestamp (ms)
  *   x-fims-sig:       ed25519 signature, base64
+ *
+ * Binding the host stops signatures captured on a rogue endpoint from being
+ * replayed against the real API; binding the body hash stops a captured
+ * signature from being replayed with a swapped payload.
  */
 export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
@@ -40,7 +51,12 @@ export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest
     if (Math.abs(Date.now() - ts) > MAX_SKEW_MS) return yield* fail('stale timestamp')
 
     // request.url may be a bare path — the base only kicks in when it is.
-    const message = `fims-wallet-v3\n${request.method}\n${new URL(request.url, 'https://fims.local').pathname}\n${ts}`
+    // request.text is cached by the platform, so reading it after payload
+    // decoding returns the same buffered body.
+    const url = new URL(request.url, 'https://fims.local')
+    const bodyText = yield* Effect.catchAll(request.text, () => Effect.succeed(''))
+    const bodyHash = yield* sha256Hex(bodyText)
+    const message = `fims-wallet-v3\n${url.host}\n${request.method}\n${url.pathname}\n${ts}\n${bodyHash}`
 
     const valid = yield* Effect.try({
       catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),
@@ -57,6 +73,17 @@ export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest
   })
 }
 
+/**
+ * Optional auth for reads: no auth headers → anonymous (Option.none).
+ * Headers present but invalid → Unauthorized (fail closed).
+ */
+export function optionalWalletRequest(request: HttpServerRequest.HttpServerRequest) {
+  return Effect.gen(function* () {
+    if (!header(request, 'x-fims-address') && !header(request, 'x-fims-sig')) return Option.none<string>()
+    return Option.some(yield* verifyWalletRequest(request))
+  })
+}
+
 // ADMIN_ADDRESSES: comma-separated base58 pubkeys allowed to mutate any resource
 const adminAddresses = () =>
   (process.env['ADMIN_ADDRESSES'] ?? '')
@@ -64,8 +91,14 @@ const adminAddresses = () =>
     .map((a) => a.trim())
     .filter(Boolean)
 
+export const isAdminAddress = (signer: string) => adminAddresses().includes(signer)
+
+export function requireAdmin(signer: string) {
+  return isAdminAddress(signer) ? Effect.void : Effect.fail(new AuthForbidden({ address: signer }))
+}
+
 export function requireOwnerOrAdmin(signer: string, ownerAddress: string) {
-  return signer === ownerAddress || adminAddresses().includes(signer)
+  return signer === ownerAddress || isAdminAddress(signer)
     ? Effect.void
     : Effect.fail(new AuthForbidden({ address: signer }))
 }
