@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
+import { FimsUiLimitOrders } from './fims-ui-limit-orders.tsx'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
 export function FimsFeatureSwap({ account }: { account: Account }) {
@@ -61,96 +62,100 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   }
 
   return (
-    <UiCard title={t(($) => $.swapTitle)}>
-      <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+    <div className="space-y-4">
+      <UiCard title={t(($) => $.swapTitle)}>
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>{t(($) => $.swapFrom)}</Label>
+              <Select onValueChange={setInputMint} value={inputMint}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t(($) => $.swapFromPlaceholder)} />
+                </SelectTrigger>
+                <SelectContent>
+                  {balances.map((token) => (
+                    <SelectItem key={token.mint} value={token.mint}>
+                      {token.metadata?.symbol ?? 'SOL'} — {formatTokenUnits(token.balance, token.decimals)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t(($) => $.swapAmount)}</Label>
+              <div className="flex gap-2">
+                <Input
+                  inputMode="decimal"
+                  onChange={(e) => setAmountText(e.target.value)}
+                  placeholder="0.0"
+                  value={amountText}
+                />
+                <Button
+                  disabled={!inputToken}
+                  onClick={() => inputToken && setAmountText(formatTokenUnits(inputToken.balance, inputToken.decimals))}
+                  variant="outline"
+                >
+                  {t(($) => $.swapMax)}
+                </Button>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label>{t(($) => $.swapFrom)}</Label>
-            <Select onValueChange={setInputMint} value={inputMint}>
+            <Label>{t(($) => $.swapTo)}</Label>
+            <Select onValueChange={setOutputMint} value={outputMint}>
               <SelectTrigger>
-                <SelectValue placeholder={t(($) => $.swapFromPlaceholder)} />
+                <SelectValue placeholder={t(($) => $.swapToPlaceholder)} />
               </SelectTrigger>
               <SelectContent>
-                {balances.map((token) => (
-                  <SelectItem key={token.mint} value={token.mint}>
-                    {token.metadata?.symbol ?? 'SOL'} — {formatTokenUnits(token.balance, token.decimals)}
+                {outputTokens.map((token) => (
+                  <SelectItem key={token.address ?? token.symbol} value={token.address ?? ''}>
+                    {token.symbol} — {token.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>{t(($) => $.swapAmount)}</Label>
-            <div className="flex gap-2">
-              <Input
-                inputMode="decimal"
-                onChange={(e) => setAmountText(e.target.value)}
-                placeholder="0.0"
-                value={amountText}
-              />
-              <Button
-                disabled={!inputToken}
-                onClick={() => inputToken && setAmountText(formatTokenUnits(inputToken.balance, inputToken.decimals))}
-                variant="outline"
-              >
-                {t(($) => $.swapMax)}
-              </Button>
-            </div>
-          </div>
-        </div>
 
-        <div className="space-y-2">
-          <Label>{t(($) => $.swapTo)}</Label>
-          <Select onValueChange={setOutputMint} value={outputMint}>
-            <SelectTrigger>
-              <SelectValue placeholder={t(($) => $.swapToPlaceholder)} />
-            </SelectTrigger>
-            <SelectContent>
-              {outputTokens.map((token) => (
-                <SelectItem key={token.address ?? token.symbol} value={token.address ?? ''}>
-                  {token.symbol} — {token.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {quote.isFetching ? <UiLoader className="size-6" /> : null}
-        {quote.isError ? <p className="text-destructive text-sm">{t(($) => $.swapQuoteError)}</p> : null}
-        {quote.data ? (
-          <div className="space-y-1 text-muted-foreground text-sm">
-            <div>
-              {t(($) => $.swapReceive)} ≈ {outAmount} {outputSymbol}
-            </div>
-            <div>
-              {t(($) => $.swapMinReceived)}: {minOut} {outputSymbol}
-            </div>
-            {quote.data.priceImpactPct ? (
+          {quote.isFetching ? <UiLoader className="size-6" /> : null}
+          {quote.isError ? <p className="text-destructive text-sm">{t(($) => $.swapQuoteError)}</p> : null}
+          {quote.data ? (
+            <div className="space-y-1 text-muted-foreground text-sm">
               <div>
-                {t(($) => $.swapPriceImpact)}: {(Number(quote.data.priceImpactPct) * 100).toFixed(2)}%
+                {t(($) => $.swapReceive)} ≈ {outAmount} {outputSymbol}
               </div>
-            ) : null}
+              <div>
+                {t(($) => $.swapMinReceived)}: {minOut} {outputSymbol}
+              </div>
+              {quote.data.priceImpactPct ? (
+                <div>
+                  {t(($) => $.swapPriceImpact)}: {(Number(quote.data.priceImpactPct) * 100).toFixed(2)}%
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {signature ? (
+            <p className="text-sm">
+              <UiIcon className="mr-1 inline size-4 text-green-500" icon="check" />
+              {t(($) => $.swapSuccess)}{' '}
+              <Link className="text-primary underline" to={`/explorer/tx/${signature}`}>
+                {t(($) => $.swapViewTx)}
+              </Link>
+            </p>
+          ) : null}
+
+          <div className="flex justify-end">
+            <Button disabled={!canSign || !quote.data || swap.isPending} onClick={handleSwap}>
+              {swap.isPending ? <UiLoader className="size-4" /> : null}
+              {t(($) => $.swapAction)}
+            </Button>
           </div>
-        ) : null}
-
-        {signature ? (
-          <p className="text-sm">
-            <UiIcon className="mr-1 inline size-4 text-green-500" icon="check" />
-            {t(($) => $.swapSuccess)}{' '}
-            <Link className="text-primary underline" to={`/explorer/tx/${signature}`}>
-              {t(($) => $.swapViewTx)}
-            </Link>
-          </p>
-        ) : null}
-
-        <div className="flex justify-end">
-          <Button disabled={!canSign || !quote.data || swap.isPending} onClick={handleSwap}>
-            {swap.isPending ? <UiLoader className="size-4" /> : null}
-            {t(($) => $.swapAction)}
-          </Button>
+          {!canSign ? <p className="text-muted-foreground text-xs">{t(($) => $.swapWatchOnly)}</p> : null}
         </div>
-        {!canSign ? <p className="text-muted-foreground text-xs">{t(($) => $.swapWatchOnly)}</p> : null}
-      </div>
-    </UiCard>
+      </UiCard>
+
+      <FimsUiLimitOrders account={account} outputTokens={outputTokens} />
+    </div>
   )
 }
