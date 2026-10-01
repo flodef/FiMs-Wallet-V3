@@ -12,8 +12,10 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
+import type { FimsTransaction } from './fims-api.ts'
 import { formatCurrency, formatDate, formatPercent } from './fims-format.ts'
 import { computeFimsPositions } from './fims-positions.ts'
+import { getFimsTransactionType } from './fims-transaction-type.ts'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 
 export function FimsFeatureMember({ account }: { account: Account }) {
@@ -27,6 +29,10 @@ export function FimsFeatureMember({ account }: { account: Account }) {
     () => computeFimsPositions(transactions.data ?? [], tokens.data ?? []),
     [transactions.data, tokens.data],
   )
+  const donations = useMemo(() => {
+    const list = (transactions.data ?? []).filter((tx) => ['donation', 'tontine'].includes(getFimsTransactionType(tx)))
+    return { count: list.length, total: list.reduce((sum, tx) => sum + (tx.movement ?? 0), 0) }
+  }, [transactions.data])
 
   if (isLoading) return <UiLoader />
 
@@ -120,6 +126,20 @@ export function FimsFeatureMember({ account }: { account: Account }) {
 
       <FimsUiAddressBook account={account} userId={member.id} />
 
+      {donations.count > 0 ? (
+        <UiCard title={t(($) => $.donationsTitle)}>
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <div className="text-muted-foreground text-xs">{t(($) => $.donationsTotal)}</div>
+              <div className="font-semibold text-pink-500">{formatCurrency(donations.total)}</div>
+            </div>
+            <div>
+              <div className="font-semibold">{t(($) => $.donationsCount, { count: donations.count })}</div>
+            </div>
+          </div>
+        </UiCard>
+      ) : null}
+
       <UiCard title={t(($) => $.transactionsTitle)}>
         {transactions.isLoading ? (
           <UiLoader />
@@ -140,7 +160,10 @@ export function FimsFeatureMember({ account }: { account: Account }) {
                   <TableRow key={tx.id}>
                     <TableCell>{formatDate(tx.date)}</TableCell>
                     <TableCell>{tx.token ?? '—'}</TableCell>
-                    <TableCell>{tx.donationTarget ? `${tx.type} → ${tx.donationTarget}` : (tx.type ?? '—')}</TableCell>
+                    <TableCell>
+                      <FimsTxTypeLabel transaction={tx} />
+                      {tx.donationTarget ? ` → ${tx.donationTarget}` : ''}
+                    </TableCell>
                     <TableCell className="text-right">{tx.amount ?? '—'}</TableCell>
                     <TableCell className="text-right">{formatCurrency(tx.cost)}</TableCell>
                   </TableRow>
@@ -174,4 +197,26 @@ function FimsNoSolWarning({ address }: { address: Address }) {
       <AlertDescription>{t(($) => $.noSolDescription)}</AlertDescription>
     </Alert>
   )
+}
+
+function FimsTxTypeLabel({ transaction }: { transaction: FimsTransaction }) {
+  const { t } = useTranslation('fims')
+  switch (getFimsTransactionType(transaction)) {
+    case 'cex_in':
+      return t(($) => $.txTypeCexIn)
+    case 'cex_out':
+      return t(($) => $.txTypeCexOut)
+    case 'conversion':
+      return t(($) => $.txTypeConversion)
+    case 'donation':
+      return t(($) => $.txTypeDonation)
+    case 'payment':
+      return t(($) => $.txTypePayment)
+    case 'tontine':
+      return t(($) => $.txTypeTontine)
+    case 'withdrawal':
+      return t(($) => $.txTypeWithdrawal)
+    default:
+      return t(($) => $.txTypeDeposit)
+  }
 }

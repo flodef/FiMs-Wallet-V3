@@ -26,6 +26,7 @@ export default function FimsRoutes() {
           },
         ]}
       />
+      <p className="mt-6 text-center text-muted-foreground text-xs">{t(($) => $.disclaimer)}</p>
     </UiPage>
   )
 }

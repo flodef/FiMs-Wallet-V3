@@ -32,6 +32,11 @@
   "columnValue": "Value",
   "columnYield": "Yield",
   "dashboardTitle": "Community dashboard",
+  "disclaimer": "FiMs Wallet is a portfolio tracking tool, not investment advice. Past performance is no guarantee of future results. Everyone is solely responsible for their own decisions and any losses.",
+  "donationsCount_one": "donationsCount",
+  "donationsCount_other": "{{count}} donations",
+  "donationsTitle": "Donations",
+  "donationsTotal": "Total given",
   "investedLabel": "Total invested",
   "labelCurrentValue": "Current value",
   "labelInvested": "Invested",
@@ -47,5 +52,13 @@
   "tokensTitle": "FiMs tokens",
   "transactionsEmpty": "No transactions found.",
   "transactionsTitle": "Transactions",
-  "treasuryLabel": "Treasury"
+  "treasuryLabel": "Treasury",
+  "txTypeCexIn": "CEX deposit",
+  "txTypeCexOut": "CEX withdrawal",
+  "txTypeConversion": "Conversion",
+  "txTypeDeposit": "Deposit",
+  "txTypeDonation": "Donation",
+  "txTypePayment": "Payment",
+  "txTypeTontine": "Tontine",
+  "txTypeWithdrawal": "Withdrawal"
 }

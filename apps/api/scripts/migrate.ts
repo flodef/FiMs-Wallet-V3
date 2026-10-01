@@ -211,6 +211,13 @@ type TxInput = {
   type?: string | null
 }
 const txSeen = new Set<string>()
+// V2 rule: |movement - cost| ≈ 0 means the row is a donation (in) or payment (out),
+// otherwise a deposit/withdrawal. Explicit types (tontine, cex_*) are kept as stored.
+const deriveTxType = (movement: number, cost: number) => {
+  const special = Math.abs(movement - cost) < 0.01
+  return movement > 0 ? (special ? 'donation' : 'deposit') : special ? 'payment' : 'withdrawal'
+}
+
 const txRows: { userKey: string | null; row: typeof s.transactions.$inferInsert }[] = []
 
 const pushTx = (t: TxInput) => {
@@ -236,7 +243,9 @@ const pushTx = (t: TxInput) => {
       date,
       movement: num(t.movement) ?? 0,
       token: str(t.token) || null,
-      type: (t.type as (typeof s.transactions.$inferInsert)['type']) ?? null,
+      type:
+        (t.type as (typeof s.transactions.$inferInsert)['type']) ??
+        deriveTxType(num(t.movement) ?? 0, num(t.cost) ?? 0),
     },
     userKey,
   })
