@@ -8,6 +8,7 @@ import { FimsFeatureCommunity } from './fims-feature-community.tsx'
 import { FimsFeatureLearn } from './fims-feature-learn.tsx'
 import { FimsFeatureMember } from './fims-feature-member.tsx'
 import { FimsFeatureSwap } from './fims-feature-swap.tsx'
+import { FimsFeatureTontine } from './fims-feature-tontine.tsx'
 
 export default function FimsRoutes() {
   const { t } = useTranslation('fims')
@@ -32,6 +33,11 @@ export default function FimsRoutes() {
             element: <FimsFeatureCommunity />,
             label: t(($) => $.tabCommunity),
             path: 'community',
+          },
+          {
+            element: <FimsFeatureTontine />,
+            label: t(($) => $.tabTontine),
+            path: 'tontine',
           },
           {
             element: <FimsFeatureLearn />,

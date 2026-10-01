@@ -15,10 +15,10 @@ import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric 
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
 import { useSnsDomain } from './data-access/use-sns-domain.tsx'
-import type { FimsTransaction } from './fims-api.ts'
 import { formatDate, formatPercent } from './fims-format.ts'
 import { computeFimsPositions } from './fims-positions.ts'
 import { getFimsTransactionType } from './fims-transaction-type.ts'
+import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiRatioBadges } from './fims-ui-ratio-badges.tsx'
@@ -224,26 +224,4 @@ function FimsNoSolWarning({ address }: { address: Address }) {
       <AlertDescription>{t(($) => $.noSolDescription)}</AlertDescription>
     </Alert>
   )
-}
-
-function FimsTxTypeLabel({ transaction }: { transaction: FimsTransaction }) {
-  const { t } = useTranslation('fims')
-  switch (getFimsTransactionType(transaction)) {
-    case 'cex_in':
-      return t(($) => $.txTypeCexIn)
-    case 'cex_out':
-      return t(($) => $.txTypeCexOut)
-    case 'conversion':
-      return t(($) => $.txTypeConversion)
-    case 'donation':
-      return t(($) => $.txTypeDonation)
-    case 'payment':
-      return t(($) => $.txTypePayment)
-    case 'tontine':
-      return t(($) => $.txTypeTontine)
-    case 'withdrawal':
-      return t(($) => $.txTypeWithdrawal)
-    default:
-      return t(($) => $.txTypeDeposit)
-  }
 }

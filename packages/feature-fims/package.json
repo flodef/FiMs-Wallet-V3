@@ -12,6 +12,7 @@
     "@workspace/solana-client-react": "workspace:*",
     "@workspace/ui": "workspace:*",
     "react-router": "catalog:",
+    "recharts": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
