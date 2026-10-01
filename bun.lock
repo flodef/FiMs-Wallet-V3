@@ -297,6 +297,29 @@
         "react-dom": "catalog:",
       },
     },
+    "packages/feature-fims": {
+      "name": "@workspace/feature-fims",
+      "version": "0.0.0",
+      "dependencies": {
+        "@tanstack/react-query": "catalog:",
+        "@workspace/db-react": "workspace:*",
+        "@workspace/env": "workspace:*",
+        "@workspace/i18n": "workspace:*",
+        "@workspace/ui": "workspace:*",
+        "react-router": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@types/react": "catalog:",
+        "@types/react-dom": "catalog:",
+        "@workspace/config-typescript": "workspace:*",
+        "typescript": "catalog:",
+      },
+      "peerDependencies": {
+        "react": "catalog:",
+        "react-dom": "catalog:",
+      },
+    },
     "packages/feature-onboarding": {
       "name": "@workspace/feature-onboarding",
       "version": "0.0.0",
@@ -429,6 +452,7 @@
         "@workspace/env": "workspace:*",
         "@workspace/feature-dev": "workspace:*",
         "@workspace/feature-explorer": "workspace:*",
+        "@workspace/feature-fims": "workspace:*",
         "@workspace/feature-onboarding": "workspace:*",
         "@workspace/feature-portfolio": "workspace:*",
         "@workspace/feature-request": "workspace:*",
@@ -1858,6 +1882,8 @@
     "@workspace/feature-dev": ["@workspace/feature-dev@workspace:packages/feature-dev"],
 
     "@workspace/feature-explorer": ["@workspace/feature-explorer@workspace:packages/feature-explorer"],
+
+    "@workspace/feature-fims": ["@workspace/feature-fims@workspace:packages/feature-fims"],
 
     "@workspace/feature-onboarding": ["@workspace/feature-onboarding@workspace:packages/feature-onboarding"],
 

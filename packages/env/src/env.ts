@@ -4,7 +4,7 @@ export const envSchema = z.object({
   activeNetworkId: z
     .enum(['networkDevnet', 'networkLocalnet', 'networkMainnet', 'networkTestnet'])
     .default('networkDevnet'),
-  apiEndpoint: z.url().default('https://api.samui.build'),
+  apiEndpoint: z.url().default('https://fims-wallet-api.fims-fi.workers.dev'),
   networkDevnet: z.url().or(z.literal('')).default('https://api.devnet.solana.com'),
   networkDevnetSubscriptions: z.url().or(z.literal('')).default(''),
   networkLocalnet: z.url().or(z.literal('')).default('http://localhost:8899'),

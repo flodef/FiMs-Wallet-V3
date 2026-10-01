@@ -41,7 +41,7 @@ export function SettingsFeatureGeneralApiSettings() {
             <FormItem>
               <FormLabel>{t(($) => $.pageGeneralApiEndpoint)}</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="https://api.samui.build" type="url" />
+                <Input {...field} placeholder="https://fims-wallet-api.fims-fi.workers.dev" type="url" />
               </FormControl>
               <FormMessage />
             </FormItem>

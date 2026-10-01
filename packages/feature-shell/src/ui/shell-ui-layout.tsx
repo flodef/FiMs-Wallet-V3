@@ -23,6 +23,7 @@ export function ShellUiLayout() {
   const { t } = useTranslation('shell')
   const links: ShellLayoutLink[] = [
     { icon: 'portfolio', label: t(($) => $.labelPortfolio), to: '/portfolio' },
+    { icon: 'handCoins', label: t(($) => $.labelFims), to: '/fims' },
     { icon: 'explorer', label: t(($) => $.labelExplorer), to: '/explorer' },
     { icon: 'tools', label: t(($) => $.labelTools), to: '/tools' },
     { icon: 'settings', label: t(($) => $.labelSettings), to: '/settings' },

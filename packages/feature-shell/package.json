@@ -11,6 +11,7 @@
     "@workspace/env": "workspace:*",
     "@workspace/feature-dev": "workspace:*",
     "@workspace/feature-explorer": "workspace:*",
+    "@workspace/feature-fims": "workspace:*",
     "@workspace/feature-onboarding": "workspace:*",
     "@workspace/feature-portfolio": "workspace:*",
     "@workspace/feature-request": "workspace:*",

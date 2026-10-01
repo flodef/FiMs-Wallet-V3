@@ -123,7 +123,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.get('users', '/fims/users')
       .annotate(OpenApi.Summary, 'List users')
-      .setUrlParams(Schema.Struct({ name: Schema.optional(Schema.String) }))
+      .setUrlParams(Schema.Struct({ address: Schema.optional(Schema.String), name: Schema.optional(Schema.String) }))
       .addSuccess(Schema.Array(User))
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),

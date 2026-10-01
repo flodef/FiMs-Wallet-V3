@@ -15,6 +15,7 @@ import { ShellUiLayout } from './ui/shell-ui-layout.tsx'
 
 const DevRoutes = lazy(() => import('@workspace/feature-dev/dev-routes'))
 const ExplorerRoutes = lazy(() => import('@workspace/feature-explorer/explorer-routes'))
+const FimsRoutes = lazy(() => import('@workspace/feature-fims/fims-routes'))
 const OnboardingRoutes = lazy(() => import('@workspace/feature-onboarding/onboarding-routes'))
 const PortfolioRoutes = lazy(() => import('@workspace/feature-portfolio/portfolio-routes'))
 const PortfolioModals = lazy(() => import('@workspace/feature-portfolio/portfolio-modals'))
@@ -60,6 +61,7 @@ function getAppRoutes(): RouteObject[] {
       children: [
         { element: <DevRoutes />, path: 'dev/*' },
         { element: <ExplorerRoutes basePath="/explorer" />, path: 'explorer/*' },
+        { element: <FimsRoutes />, path: 'fims/*' },
         { element: <PortfolioRoutes />, path: 'portfolio/*' },
         { element: <SettingsRoutes />, path: 'settings/*' },
         { element: <ToolsRoutes />, path: 'tools/*' },

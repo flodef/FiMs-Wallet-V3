@@ -5,6 +5,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import enDbReact from '../locales/en/db-react.json' with { type: 'json' }
 import enExplorer from '../locales/en/explorer.json' with { type: 'json' }
+import enFims from '../locales/en/fims.json' with { type: 'json' }
 import enOnboarding from '../locales/en/onboarding.json' with { type: 'json' }
 import enPortfolio from '../locales/en/portfolio.json' with { type: 'json' }
 import enSettings from '../locales/en/settings.json' with { type: 'json' }
@@ -14,6 +15,7 @@ import enUi from '../locales/en/ui.json' with { type: 'json' }
 import enVaultReact from '../locales/en/vault-react.json' with { type: 'json' }
 import esDbReact from '../locales/es/db-react.json' with { type: 'json' }
 import esExplorer from '../locales/es/explorer.json' with { type: 'json' }
+import esFims from '../locales/es/fims.json' with { type: 'json' }
 import esOnboarding from '../locales/es/onboarding.json' with { type: 'json' }
 import esPortfolio from '../locales/es/portfolio.json' with { type: 'json' }
 import esSettings from '../locales/es/settings.json' with { type: 'json' }
@@ -33,6 +35,7 @@ i18n.use(initReactI18next).init({
     en: {
       'db-react': enDbReact,
       explorer: enExplorer,
+      fims: enFims,
       onboarding: enOnboarding,
       portfolio: enPortfolio,
       settings: enSettings,
@@ -44,6 +47,7 @@ i18n.use(initReactI18next).init({
     es: {
       'db-react': esDbReact,
       explorer: esExplorer,
+      fims: esFims,
       onboarding: esOnboarding,
       portfolio: esPortfolio,
       settings: esSettings,

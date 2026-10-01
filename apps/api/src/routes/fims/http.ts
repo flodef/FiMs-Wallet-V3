@@ -33,9 +33,16 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
     return handlers
       .handle('users', ({ urlParams }) =>
         withDb((db) =>
-          urlParams.name
-            ? db.select().from(users).where(ilike(users.name, urlParams.name))
-            : db.select().from(users).orderBy(asc(users.id)),
+          db
+            .select()
+            .from(users)
+            .where(
+              and(
+                urlParams.name ? ilike(users.name, urlParams.name) : undefined,
+                urlParams.address ? eq(users.address, urlParams.address) : undefined,
+              ),
+            )
+            .orderBy(asc(users.id)),
         ),
       )
       .handle('createUser', ({ payload }) =>
