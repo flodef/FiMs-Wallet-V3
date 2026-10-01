@@ -9,6 +9,7 @@ export interface FimsUser {
   isPublic: boolean
   name: string
   profileUpdatedAt: null | string
+  riskTarget: null | number
   updatedAt: string
 }
 

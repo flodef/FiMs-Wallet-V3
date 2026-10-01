@@ -182,7 +182,7 @@ export function useFimsUserUpdate(account: Account, userId: number) {
   const signedFetch = useFimsSignedFetch(account)
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { isPublic?: boolean; name?: string }) =>
+    mutationFn: (input: { isPublic?: boolean; name?: string; riskTarget?: null | number }) =>
       signedFetch<FimsUser>('PATCH', `/users/${userId}`, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fims', 'users'] })
@@ -229,6 +229,18 @@ export function useFimsVoteUpdate(account: Account, voteId: number) {
   return useMutation({
     mutationFn: (input: { status: FimsVoteStatus }) => signedFetch<FimsVote>('PATCH', `/votes/${voteId}`, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'votes'] }),
+  })
+}
+
+// Rebalance: converts `eurAmount` of `fromToken` into `toToken` — the API
+// prices the units server-side and writes the two `conversion` transactions.
+export function useFimsConvert(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { eurAmount: number; fromToken: string; toToken: string }) =>
+      signedFetch<FimsTransaction[]>('POST', '/conversions', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'transactions'] }),
   })
 }
 

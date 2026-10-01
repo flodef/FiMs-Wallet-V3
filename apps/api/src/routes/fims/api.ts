@@ -22,6 +22,7 @@ export class User extends Schema.Class<User>('User')({
   isPublic: Schema.Boolean,
   name: Schema.String,
   profileUpdatedAt: Schema.NullOr(Schema.Date),
+  riskTarget: Schema.NullOr(Schema.Number),
   updatedAt: Schema.Date,
 }) {}
 
@@ -130,6 +131,9 @@ const UpdateUserBody = Schema.Struct({
   isPro: Schema.optional(Schema.Boolean),
   isPublic: Schema.optional(Schema.Boolean),
   name: Schema.optional(Schema.String),
+  // Member's own rebalance target (% of risky assets). Preference, not
+  // identity — exempt from the once-a-day profile-edit cooldown.
+  riskTarget: Schema.optional(Schema.NullOr(Schema.Number.pipe(Schema.between(0, 100)))),
 })
 
 const CreateTransactionBody = Schema.Struct({
@@ -350,6 +354,24 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addSuccess(Schema.String)
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('convertPosition', '/fims/conversions')
+      .annotate(OpenApi.Summary, 'Rebalance: convert EUR value between two tokens')
+      .setPayload(
+        Schema.Struct({
+          eurAmount: Schema.Number.pipe(Schema.greaterThan(0)),
+          fromToken: Schema.String,
+          toToken: Schema.String,
+        }),
+      )
+      .addSuccess(Schema.Array(Transaction))
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(BadRequest, { status: 400 })
       .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),

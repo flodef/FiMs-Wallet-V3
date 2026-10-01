@@ -43,6 +43,9 @@ export const users = pgTable('users', {
   // Last member-initiated profile edit (name/privacy). Admin corrections do not
   // touch this — the once-a-day limit only applies to self-service edits.
   profileUpdatedAt: timestamp('profile_updated_at', { mode: 'date' }),
+  // Member-chosen rebalance target: share of the portfolio kept in risky assets
+  // (0–100). Null = no target set, no drift check.
+  riskTarget: numeric('risk_target', { mode: 'number' }),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
 

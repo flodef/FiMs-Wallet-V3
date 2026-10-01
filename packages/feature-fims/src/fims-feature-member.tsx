@@ -24,6 +24,7 @@ import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiProfileEdit } from './fims-ui-profile-edit.tsx'
 import { FimsUiRatioBadges } from './fims-ui-ratio-badges.tsx'
+import { FimsUiRebalance } from './fims-ui-rebalance.tsx'
 
 export function FimsFeatureMember({ account }: { account: Account }) {
   const address = account.publicKey
@@ -181,6 +182,8 @@ export function FimsFeatureMember({ account }: { account: Account }) {
           ) : null}
         </UiCard>
       ) : null}
+
+      <FimsUiRebalance account={account} member={member} positions={positions} />
 
       <UiCard title={t(($) => $.transactionsTitle)}>
         {transactions.isLoading ? (

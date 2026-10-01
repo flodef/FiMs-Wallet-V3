@@ -1,5 +1,5 @@
 import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
-import { and, asc, desc, eq, ilike, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.ts'
 import {
@@ -216,8 +216,13 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             if (!isAdmin && (payload.address !== undefined || payload.isPro !== undefined)) {
               return yield* Effect.fail(new AuthForbidden({ address: signer }))
             }
-            if (!isAdmin) {
+            // The daily edit allowance covers identity fields only — the
+            // rebalance target is a preference and stays freely editable.
+            const touchesIdentity = payload.name !== undefined || payload.isPublic !== undefined
+            if (!isAdmin && touchesIdentity) {
               yield* memberProfileEditAllowed(path.id)
+            }
+            if (!isAdmin) {
               if (payload.name !== undefined) {
                 const taken = yield* withDb((db) =>
                   db
@@ -235,7 +240,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                 .set({
                   ...payload,
                   // Only member self-edits consume the daily edit allowance.
-                  ...(isAdmin ? {} : { profileUpdatedAt: new Date() }),
+                  ...(isAdmin || !touchesIdentity ? {} : { profileUpdatedAt: new Date() }),
                   updatedAt: new Date(),
                 })
                 .where(eq(users.id, path.id))
@@ -438,6 +443,72 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             if (!rows[0]) return yield* Effect.fail(notFound(`address book entry ${path.id}`))
             return `deleted address book entry ${path.id}`
+          }),
+        )
+        // Member-initiated rebalance: moves EUR value between two of the
+        // member's tokens. Units are priced server-side so the client cannot
+        // forge amounts; the pair nets to zero (no fake deposit/donation).
+        .handle('convertPosition', ({ payload }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* verifyWalletRequest(request)
+            const memberRows = yield* withDb((db) =>
+              db.select({ id: users.id }).from(users).where(eq(users.address, signer)),
+            )
+            const member = memberRows[0]
+            if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+            if (payload.fromToken === payload.toToken)
+              return yield* Effect.fail(new BadRequest({ reason: 'source and destination tokens must differ' }))
+            const priceRows = yield* withDb((db) =>
+              db
+                .select({ symbol: tokens.symbol, value: tokens.value })
+                .from(tokens)
+                .where(inArray(tokens.symbol, [payload.fromToken, payload.toToken])),
+            )
+            const priceOf = new Map(priceRows.map((r) => [r.symbol, r.value]))
+            const fromPrice = priceOf.get(payload.fromToken)
+            const toPrice = priceOf.get(payload.toToken)
+            if (fromPrice == null || fromPrice <= 0 || toPrice == null || toPrice <= 0)
+              return yield* Effect.fail(new BadRequest({ reason: 'unknown or unpriced token' }))
+            const unitRows = (yield* withDb((db) =>
+              db.execute(
+                sql`SELECT COALESCE(SUM(amount), 0)::float AS units FROM transactions WHERE user_id = ${member.id} AND token = ${payload.fromToken}`,
+              ),
+            )).rows as { units: number }[]
+            const available = Number(unitRows[0]?.units ?? 0) * fromPrice
+            if (payload.eurAmount > available * 1.001 + 0.01)
+              return yield* Effect.fail(
+                new BadRequest({
+                  reason: `amount exceeds position: ${payload.eurAmount} > ${available.toFixed(2)} ${payload.fromToken}`,
+                }),
+              )
+            const now = new Date()
+            const rows = yield* withDb((db) =>
+              db
+                .insert(transactions)
+                .values([
+                  {
+                    address: signer,
+                    amount: -payload.eurAmount / fromPrice,
+                    date: now,
+                    movement: -payload.eurAmount,
+                    token: payload.fromToken,
+                    type: 'conversion',
+                    userId: member.id,
+                  },
+                  {
+                    address: signer,
+                    amount: payload.eurAmount / toPrice,
+                    date: now,
+                    movement: payload.eurAmount,
+                    token: payload.toToken,
+                    type: 'conversion',
+                    userId: member.id,
+                  },
+                ])
+                .returning(),
+            )
+            return rows
           }),
         )
         .handle('votes', () =>
