@@ -21,6 +21,7 @@ export class User extends Schema.Class<User>('User')({
   isPro: Schema.Boolean,
   isPublic: Schema.Boolean,
   name: Schema.String,
+  profileUpdatedAt: Schema.NullOr(Schema.Date),
   updatedAt: Schema.Date,
 }) {}
 
@@ -106,6 +107,15 @@ const UpdateAddressBookEntryBody = Schema.Struct({
 })
 
 const NotFound = Schema.String
+
+// Tagged errors for non-404 failures — plain Schema.String errors on the same
+// endpoint would be ambiguous for the error-to-status mapping.
+export class BadRequest extends Schema.TaggedError<BadRequest>()('BadRequest', {
+  reason: Schema.String,
+}) {}
+export class RateLimited extends Schema.TaggedError<RateLimited>()('RateLimited', {
+  reason: Schema.String,
+}) {}
 
 const CreateUserBody = Schema.Struct({
   address: SolanaAddress,
@@ -193,6 +203,8 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 404 })
+      .addError(BadRequest, { status: 400 })
+      .addError(RateLimited, { status: 429 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )

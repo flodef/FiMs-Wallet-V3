@@ -1,5 +1,5 @@
 import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
-import { and, asc, desc, eq, ilike, isNull, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.ts'
 import {
@@ -21,6 +21,7 @@ import {
   requireOwnerOrAdmin,
   verifyWalletRequest,
 } from '../../services/auth/service.ts'
+import { BadRequest, RateLimited } from './api.ts'
 
 const notFound = (what: string) => `not found: ${what}`
 const insertFailed = () => new DatabaseError({ cause: 'insert returned no row' })
@@ -58,6 +59,21 @@ const userAccessOfId = (userId: number) =>
   )
 
 const ownerAddressOfUser = (userId: number) => userAccessOfId(userId).pipe(Effect.map((u) => u.address))
+
+const PROFILE_EDIT_COOLDOWN_MS = 24 * 60 * 60 * 1000
+
+// Members may edit their own profile (name/privacy) at most once a day — the
+// name is displayed publicly and flipping it constantly would confuse the
+// community views. Admin edits bypass the cooldown entirely.
+const memberProfileEditAllowed = (userId: number) =>
+  withDb((db) => db.select({ profileUpdatedAt: users.profileUpdatedAt }).from(users).where(eq(users.id, userId))).pipe(
+    Effect.flatMap((rows) => {
+      const last = rows[0]?.profileUpdatedAt
+      return last && Date.now() - last.getTime() < PROFILE_EDIT_COOLDOWN_MS
+        ? Effect.fail(new RateLimited({ reason: `profile already edited ${last.toISOString()}` }))
+        : Effect.void
+    }),
+  )
 
 const ownerAddressOfAddressBookEntry = (id: number) =>
   withDb((db) =>
@@ -133,13 +149,32 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             // member squat someone else's pubkey (member resolution picks the
             // lowest-id row → the squatter's address book is shown to the victim),
             // and `isPro` is a community trust badge.
-            if (!isAdminAddress(signer) && (payload.address !== undefined || payload.isPro !== undefined)) {
+            const isAdmin = isAdminAddress(signer)
+            if (!isAdmin && (payload.address !== undefined || payload.isPro !== undefined)) {
               return yield* Effect.fail(new AuthForbidden({ address: signer }))
+            }
+            if (!isAdmin) {
+              yield* memberProfileEditAllowed(path.id)
+              if (payload.name !== undefined) {
+                const taken = yield* withDb((db) =>
+                  db
+                    .select({ id: users.id })
+                    .from(users)
+                    .where(and(eq(users.name, payload.name ?? ''), sql`${users.id} <> ${path.id}`)),
+                )
+                if (taken.length)
+                  return yield* Effect.fail(new BadRequest({ reason: `name already taken: ${payload.name}` }))
+              }
             }
             const rows = yield* withDb((db) =>
               db
                 .update(users)
-                .set({ ...payload, updatedAt: new Date() })
+                .set({
+                  ...payload,
+                  // Only member self-edits consume the daily edit allowance.
+                  ...(isAdmin ? {} : { profileUpdatedAt: new Date() }),
+                  updatedAt: new Date(),
+                })
                 .where(eq(users.id, path.id))
                 .returning(),
             )

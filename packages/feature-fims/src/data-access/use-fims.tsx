@@ -175,6 +175,18 @@ export function useFimsAddressBookUpdate(account: Account, userId: number) {
   })
 }
 
+export function useFimsUserUpdate(account: Account, userId: number) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { isPublic?: boolean; name?: string }) =>
+      signedFetch<FimsUser>('PATCH', `/users/${userId}`, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fims', 'users'] })
+    },
+  })
+}
+
 export function useFimsAddressBookDelete(account: Account, userId: number) {
   const signedFetch = useFimsSignedFetch(account)
   const queryClient = useQueryClient()

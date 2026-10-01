@@ -8,6 +8,7 @@ export interface FimsUser {
   isPro: boolean
   isPublic: boolean
   name: string
+  profileUpdatedAt: null | string
   updatedAt: string
 }
 

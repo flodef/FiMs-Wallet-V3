@@ -21,6 +21,7 @@ import { getFimsTransactionType } from './fims-transaction-type.ts'
 import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
+import { FimsUiProfileEdit } from './fims-ui-profile-edit.tsx'
 import { FimsUiRatioBadges } from './fims-ui-ratio-badges.tsx'
 
 const FIMS_DONATION_RATIO = 0.1
@@ -143,6 +144,8 @@ export function FimsFeatureMember({ account }: { account: Account }) {
           </div>
         </UiCard>
       ) : null}
+
+      <FimsUiProfileEdit account={account} member={member} />
 
       <FimsUiAddressBook account={account} userId={member.id} />
 

@@ -36,6 +36,9 @@ export const users = pgTable('users', {
   isPro: boolean('is_pro').notNull().default(false),
   isPublic: boolean('is_public').notNull().default(true),
   name: text('name').notNull().unique(),
+  // Last member-initiated profile edit (name/privacy). Admin corrections do not
+  // touch this — the once-a-day limit only applies to self-service edits.
+  profileUpdatedAt: timestamp('profile_updated_at', { mode: 'date' }),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
 

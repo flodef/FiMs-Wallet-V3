@@ -4,6 +4,12 @@ const currencyFormatters: Record<string, Intl.NumberFormat> = {
 }
 const percentFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1, style: 'percent' })
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+const dateTimeFormatter = new Intl.DateTimeFormat('fr-FR', {
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: 'short',
+})
 
 export type FimsCurrency = 'EUR' | 'USD'
 
@@ -18,4 +24,8 @@ export function formatPercent(value: number) {
 
 export function formatDate(iso: string) {
   return dateFormatter.format(new Date(iso))
+}
+
+export function formatDateTime(iso: string) {
+  return dateTimeFormatter.format(new Date(iso))
 }
