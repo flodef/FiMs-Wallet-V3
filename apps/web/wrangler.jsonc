@@ -12,7 +12,7 @@
   },
   "preview_urls": true,
   // Requires the fims.fi zone on Cloudflare (currently OVH DNS).
-  // Until then the app is served at https://fims-wallet-web.workers.dev
+  // Until then the app is served at https://fims-wallet-web.fims-fi.workers.dev
   // "routes": [
   //   {
   //     "custom_domain": true,

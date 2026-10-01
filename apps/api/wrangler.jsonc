@@ -10,7 +10,7 @@
   },
   "preview_urls": true,
   // Requires the fims.fi zone on Cloudflare (currently OVH DNS).
-  // Until then the API is served at https://fims-wallet-api.workers.dev
+  // Until then the API is served at https://fims-wallet-api.fims-fi.workers.dev
   // "routes": [
   //   {
   //     "custom_domain": true,
@@ -21,6 +21,6 @@
   "vars": {
     // Comma-separated base58 public keys allowed to mutate any /fims resource
     "ADMIN_ADDRESSES": "",
-    "CORS_ORIGINS": "https://fims-wallet-web.workers.dev"
+    "CORS_ORIGINS": "https://fims-wallet-web.fims-fi.workers.dev"
   }
 }
