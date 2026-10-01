@@ -51,12 +51,15 @@ export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest
     if (Math.abs(Date.now() - ts) > MAX_SKEW_MS) return yield* fail('stale timestamp')
 
     // request.url may be a bare path — the base only kicks in when it is.
-    // request.text is cached by the platform, so reading it after payload
-    // decoding returns the same buffered body.
+    // The real host comes from the Host header (the signed URL host must match
+    // the endpoint the client actually called, else signatures are replayable
+    // across hosts). request.text is cached by the platform, so reading it
+    // after payload decoding returns the same buffered body.
     const url = new URL(request.url, 'https://fims.local')
+    const host = header(request, 'host') || url.host
     const bodyText = yield* Effect.catchAll(request.text, () => Effect.succeed(''))
     const bodyHash = yield* sha256Hex(bodyText)
-    const message = `fims-wallet-v3\n${url.host}\n${request.method}\n${url.pathname}\n${ts}\n${bodyHash}`
+    const message = `fims-wallet-v3\n${host}\n${request.method}\n${url.pathname}\n${ts}\n${bodyHash}`
 
     const valid = yield* Effect.try({
       catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),
