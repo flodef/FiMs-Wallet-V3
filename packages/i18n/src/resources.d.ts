@@ -100,6 +100,8 @@ export default interface Resources {
     columnUnits: 'Units'
     columnValue: 'Value'
     columnYield: 'Yield'
+    converterHint: 'Indicative estimate based on the latest known prices — no transaction is created.'
+    converterTitle: 'Converter'
     dashboardTitle: 'Community dashboard'
     disclaimer: 'FiMs Wallet is a portfolio tracking tool, not investment advice. Past performance is no guarantee of future results. Everyone is solely responsible for their own decisions and any losses.'
     donationsCount: 'donationsCount' | '{{count}} donations'

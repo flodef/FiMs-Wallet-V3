@@ -32,6 +32,8 @@
   "columnUnits": "Unidades",
   "columnValue": "Valor",
   "columnYield": "Rendimiento",
+  "converterHint": "Estimación indicativa basada en los últimos precios conocidos — no se crea ninguna transacción.",
+  "converterTitle": "Convertidor",
   "dashboardTitle": "Panel de la comunidad",
   "disclaimer": "FiMs Wallet es una herramienta de seguimiento de cartera, no un consejo de inversión. Las rentabilidades pasadas no garantizan resultados futuros. Cada quien es responsable de sus decisiones y posibles pérdidas.",
   "donationsCount_many": "",

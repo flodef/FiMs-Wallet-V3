@@ -11,6 +11,7 @@ import {
 } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatPercent } from './fims-format.ts'
+import { FimsUiConverter } from './fims-ui-converter.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 
 export function FimsFeatureCommunity() {
@@ -82,6 +83,8 @@ export function FimsFeatureCommunity() {
           </div>
         )}
       </UiCard>
+
+      <FimsUiConverter />
 
       {tontineLatest ? (
         <UiCard title={t(($) => $.tontineTitle)}>
