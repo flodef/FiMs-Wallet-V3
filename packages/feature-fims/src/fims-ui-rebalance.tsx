@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { useFimsConvert, useFimsUserUpdate } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import type { FimsUser } from './fims-api.ts'
+import { FIMS_FEE_RATE } from './fims-constants.ts'
 import type { FimsPosition } from './fims-positions.ts'
 import { computeRebalancePlan } from './fims-risk.ts'
 
@@ -145,6 +146,9 @@ export function FimsUiRebalance({
                 from: plan.fromSymbol,
                 to: plan.toSymbol,
               })}
+            </p>
+            <p className="mt-1 text-muted-foreground text-xs">
+              {t(($) => $.rebalanceFee, { amount: format(plan.driftValue * FIMS_FEE_RATE) })}
             </p>
             <div className="mt-2 flex justify-end">
               <Button disabled={!canSign || convert.isPending} onClick={runRebalance} size="sm">

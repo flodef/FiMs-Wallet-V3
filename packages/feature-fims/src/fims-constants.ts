@@ -11,3 +11,7 @@ export const FIMS_TREASURY_DOMAIN = 'fimsfi.sol' as const
 // Legacy spreadsheet rule: members owe 10% of their gains to FiMs (donation to
 // the Tontine or a charity of their choice).
 export const FIMS_DONATION_RATIO = 0.1
+
+// Operating fee deducted from the credited side of conversions and from
+// withdrawals: 0.1% stays in the treasury. Mirrors FIMS_FEE_RATE in the API.
+export const FIMS_FEE_RATE = 0.001

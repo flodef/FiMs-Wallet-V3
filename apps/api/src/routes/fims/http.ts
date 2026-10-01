@@ -168,6 +168,10 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
 // V2 rule: |movement - cost| ~= 0 marks a donation (in) or a payment (out),
 // anything else is a deposit/withdrawal. Applied at write time so stored rows
 // always carry a type — SQL filters on `type` would silently drop NULLs.
+// Operating fee: 0.1% of the moved amount, deducted from the credited side.
+// The residual stays in the treasury — it is not credited to anyone.
+const FIMS_FEE_RATE = 0.001
+
 const deriveTransactionType = (movement: number, cost: number): 'deposit' | 'donation' | 'payment' | 'withdrawal' => {
   const special = Math.abs(movement - cost) < 0.01
   return movement > 0 ? (special ? 'donation' : 'deposit') : special ? 'payment' : 'withdrawal'
@@ -513,10 +517,12 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                     userId: member.id,
                   },
                   {
+                    // Credited side is net of the operating fee — the member's
+                    // balance drops by the fee, which stays in the treasury.
                     address: signer,
-                    amount: payload.eurAmount / toPrice,
+                    amount: (payload.eurAmount * (1 - FIMS_FEE_RATE)) / toPrice,
                     date: now,
-                    movement: payload.eurAmount,
+                    movement: payload.eurAmount * (1 - FIMS_FEE_RATE),
                     token: payload.toToken,
                     type: 'conversion',
                     userId: member.id,
