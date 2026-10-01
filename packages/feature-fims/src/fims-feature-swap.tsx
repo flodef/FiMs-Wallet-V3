@@ -13,7 +13,9 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { useFimsTokens } from './data-access/use-fims.tsx'
+import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
+import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
+import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import { FimsUiLimitOrders } from './fims-ui-limit-orders.tsx'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
@@ -23,6 +25,10 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const network = useNetworkActive()
   const balances = useGetTokenBalances({ address: account.publicKey, network })
   const fimsTokens = useFimsTokens()
+  const { format } = useFimsCurrency()
+  const { member } = useFimsMember(account.publicKey, account)
+  const { debt } = useFimsDebt(member, account)
+  const debtBlocked = debt != null && debt > 0
 
   const [inputMint, setInputMint] = useState<string>('')
   const [outputMint, setOutputMint] = useState<string>('')
@@ -63,6 +69,11 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
 
   return (
     <div className="space-y-4">
+      {debtBlocked ? (
+        <UiCard title={t(($) => $.debtBlockedTitle)}>
+          <p className="text-muted-foreground text-sm">{t(($) => $.debtBlockedBody, { amount: format(debt) })}</p>
+        </UiCard>
+      ) : null}
       <UiCard title={t(($) => $.swapTitle)}>
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -146,7 +157,7 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
           ) : null}
 
           <div className="flex justify-end">
-            <Button disabled={!canSign || !quote.data || swap.isPending} onClick={handleSwap}>
+            <Button disabled={!canSign || !quote.data || swap.isPending || debtBlocked} onClick={handleSwap}>
               {swap.isPending ? <UiLoader className="size-4" /> : null}
               {t(($) => $.swapAction)}
             </Button>
@@ -155,7 +166,7 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
         </div>
       </UiCard>
 
-      <FimsUiLimitOrders account={account} outputTokens={outputTokens} />
+      <FimsUiLimitOrders account={account} debtBlocked={debtBlocked} outputTokens={outputTokens} />
     </div>
   )
 }

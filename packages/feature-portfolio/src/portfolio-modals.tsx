@@ -1,3 +1,4 @@
+import type { Address } from '@solana/kit'
 import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useAccountGetTransactionSigner } from '@workspace/db-react/use-account-get-transaction-signer'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
@@ -17,8 +18,10 @@ import type { DestinationAccount } from './ui/portfolio-ui-send-destination.tsx'
 
 export default function PortfolioModals({
   extraDestinationGroups,
+  getSendBlock,
 }: {
   extraDestinationGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
+  getSendBlock?: ((destination: Address) => null | string) | undefined
 }) {
   const { t } = useTranslation('ui')
   const account = useAccountActive()
@@ -36,6 +39,7 @@ export default function PortfolioModals({
       element: (
         <PortfolioFeatureModalConfirm
           address={account.publicKey}
+          getSendBlock={getSendBlock}
           getTransactionSigner={getTransactionSigner}
           network={network}
         />

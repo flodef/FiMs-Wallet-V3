@@ -15,6 +15,7 @@ import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric 
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
 import { useSnsDomain } from './data-access/use-sns-domain.tsx'
+import { FIMS_DONATION_RATIO } from './fims-constants.ts'
 import { formatDate, formatPercent } from './fims-format.ts'
 import { computeFimsPositions } from './fims-positions.ts'
 import { getFimsTransactionType } from './fims-transaction-type.ts'
@@ -23,8 +24,6 @@ import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiProfileEdit } from './fims-ui-profile-edit.tsx'
 import { FimsUiRatioBadges } from './fims-ui-ratio-badges.tsx'
-
-const FIMS_DONATION_RATIO = 0.1
 
 export function FimsFeatureMember({ account }: { account: Account }) {
   const address = account.publicKey

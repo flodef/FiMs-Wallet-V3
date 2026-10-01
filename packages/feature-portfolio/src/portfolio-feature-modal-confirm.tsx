@@ -15,10 +15,14 @@ import { PortfolioUiSendConfirm } from './ui/portfolio-ui-send-confirm.tsx'
 
 export function PortfolioFeatureModalConfirm({
   address,
+  getSendBlock,
   getTransactionSigner,
   network,
 }: {
   address: Address
+  // Returns a user-facing message when this destination must not be sent to
+  // (e.g. FiMs debt guard), or null/undefined to allow the send.
+  getSendBlock?: ((destination: Address) => null | string) | undefined
   getTransactionSigner: GetTransactionSigner
   network: Network
 }) {
@@ -64,6 +68,14 @@ export function PortfolioFeatureModalConfirm({
     return <UiError message={new Error('Parameter destination is unknown')} title="No destination" />
   }
   assertIsAddress(destination)
+  const sendBlock = getSendBlock?.(destination)
+  if (sendBlock) {
+    return (
+      <PortfolioUiModal title={t(($) => $.actionSend)}>
+        <UiError message={new Error(sendBlock)} title="Send blocked" />
+      </PortfolioUiModal>
+    )
+  }
   if (prepareQuery.error) {
     return <UiError message={prepareQuery.error} title="Transaction preview failed" />
   }

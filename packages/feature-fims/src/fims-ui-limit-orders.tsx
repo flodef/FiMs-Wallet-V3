@@ -19,7 +19,15 @@ import {
 import type { FimsToken } from './fims-api.ts'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
-export function FimsUiLimitOrders({ account, outputTokens }: { account: Account; outputTokens: FimsToken[] }) {
+export function FimsUiLimitOrders({
+  account,
+  debtBlocked = false,
+  outputTokens,
+}: {
+  account: Account
+  debtBlocked?: boolean
+  outputTokens: FimsToken[]
+}) {
   const { t } = useTranslation('fims')
   const network = useNetworkActive()
   const balances = useGetTokenBalances({ address: account.publicKey, network })
@@ -117,7 +125,15 @@ export function FimsUiLimitOrders({ account, outputTokens }: { account: Account;
 
         <div className="flex justify-end">
           <Button
-            disabled={!canSign || !inputToken || !outputToken || !sellAmount || !receiveAmount || createOrder.isPending}
+            disabled={
+              !canSign ||
+              !inputToken ||
+              !outputToken ||
+              !sellAmount ||
+              !receiveAmount ||
+              createOrder.isPending ||
+              debtBlocked
+            }
             onClick={handleCreate}
           >
             {createOrder.isPending ? <UiLoader className="size-4" /> : null}
