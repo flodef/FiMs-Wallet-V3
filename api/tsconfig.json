@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": false
+  },
+  "extends": "@workspace/config-typescript/base.json",
+  "include": ["./**/*.ts"]
+}

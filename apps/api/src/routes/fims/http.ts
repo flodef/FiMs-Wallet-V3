@@ -1,7 +1,7 @@
 import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
 import { and, asc, desc, eq, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { Effect, Layer, Option } from 'effect'
-import { Api } from '../../api.ts'
+import { Api } from '../../api.js'
 import {
   addressBook,
   dashboardMetrics,
@@ -14,8 +14,8 @@ import {
   voteBallots,
   voteOptions,
   votes,
-} from '../../db/schema.ts'
-import { DatabaseError, DatabaseService, withDb } from '../../db/service.ts'
+} from '../../db/schema.js'
+import { DatabaseError, DatabaseService, withDb } from '../../db/service.js'
 import {
   AuthForbidden,
   isAdminAddress,
@@ -23,8 +23,8 @@ import {
   requireAdmin,
   requireOwnerOrAdmin,
   verifyWalletRequest,
-} from '../../services/auth/service.ts'
-import { BadRequest, RateLimited } from './api.ts'
+} from '../../services/auth/service.js'
+import { BadRequest, RateLimited } from './api.js'
 
 const notFound = (what: string) => `not found: ${what}`
 const insertFailed = () => new DatabaseError({ cause: 'insert returned no row' })

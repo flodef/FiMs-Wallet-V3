@@ -1,7 +1,7 @@
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from '@effect/platform'
 import { Schema } from 'effect'
-import { DatabaseError, DatabaseNotConfigured } from '../../db/service.ts'
-import { AuthForbidden, AuthUnauthorized } from '../../services/auth/service.ts'
+import { DatabaseError, DatabaseNotConfigured } from '../../db/service.js'
+import { AuthForbidden, AuthUnauthorized } from '../../services/auth/service.js'
 
 const TransactionType = Schema.Literal(
   'deposit',

@@ -17,7 +17,7 @@ import { drizzle } from 'drizzle-orm/neon-http'
 import { getApp, getApps, initializeApp } from 'firebase/app'
 import { collection, getDocs, getFirestore } from 'firebase/firestore'
 import postgres from 'postgres'
-import * as s from '../src/db/schema.ts'
+import * as s from '../src/db/schema.js'
 
 const DRY_RUN = process.argv.includes('--dry-run')
 

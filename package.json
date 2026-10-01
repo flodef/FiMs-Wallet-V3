@@ -100,7 +100,7 @@
     "lint": "biome check --error-on-warnings",
     "lint:fix": "biome check --error-on-warnings --write",
     "preinstall": "npx only-allow bun",
-    "prepare": "lefthook install",
+    "prepare": "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true",
     "spell-check": "cspell -c ./cspell.config.mts .",
     "test": "vitest run",
     "test:e2e": "turbo run test:e2e",

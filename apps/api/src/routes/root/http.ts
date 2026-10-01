@@ -1,6 +1,6 @@
 import { HttpApiBuilder } from '@effect/platform'
 import { Effect } from 'effect'
-import { Api } from '../../api.ts'
+import { Api } from '../../api.js'
 
 export const HttpRootLive = HttpApiBuilder.group(Api, 'Root', (handlers) =>
   Effect.gen(function* () {

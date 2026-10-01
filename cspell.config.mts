@@ -97,6 +97,7 @@ const config: CSpellSettings = {
     'unimodules',
     'unruggable',
     'unstake',
+    'vercel',
     'viewpager',
     'vitaly',
     'wordlist',

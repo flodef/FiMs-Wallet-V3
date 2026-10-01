@@ -87,6 +87,16 @@
   },
   "overrides": [
     {
+      "includes": ["apps/api/**", "api/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useImportExtensions": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/*.astro"],
       "linter": {
         "rules": {

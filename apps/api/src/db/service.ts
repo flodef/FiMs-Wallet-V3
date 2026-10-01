@@ -1,7 +1,7 @@
 import { neon } from '@neondatabase/serverless'
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http'
 import { Effect, Schema } from 'effect'
-import * as schema from './schema.ts'
+import * as schema from './schema.js'
 
 export type Db = NeonHttpDatabase<typeof schema>
 

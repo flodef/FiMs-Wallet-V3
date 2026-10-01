@@ -5,6 +5,7 @@ import { defineConfig, mergeConfig } from 'vite'
 export default mergeConfig(
   sharedConfig,
   defineConfig({
-    plugins: [cloudflare()],
+    // Cloudflare plugin only for the Workers build; Vercel builds a plain SPA.
+    plugins: process.env['VERCEL'] ? [] : [cloudflare()],
   }),
 )
