@@ -41,6 +41,7 @@
   "donationsCount_many": "",
   "donationsCount_one": "",
   "donationsCount_other": "{{count}} dons",
+  "donationsProgress": "{{ratio}} de l’objectif de 10 % des gains atteint",
   "donationsRemaining": "Restant à donner",
   "donationsRemainingHint": "10% des gains correspondent à la rémunération du travail FiMs : versés à la Tontine ou donnés à une association de votre choix (sur justificatifs).",
   "donationsTitle": "Dons",

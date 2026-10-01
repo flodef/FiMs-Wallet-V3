@@ -161,6 +161,19 @@ export function FimsFeatureMember({ account }: { account: Account }) {
               <div className="font-semibold">{remainingToDonate ? format(remainingToDonate) : '—'}</div>
             </div>
           </div>
+          {pnl != null && pnl > 0 ? (
+            <div className="mt-4">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-pink-500 transition-all"
+                  style={{ width: `${Math.min(100, (donations.total / (pnl * FIMS_DONATION_RATIO)) * 100)}%` }}
+                />
+              </div>
+              <p className="mt-1 text-center text-muted-foreground text-xs">
+                {t(($) => $.donationsProgress, { ratio: formatPercent(donations.total / (pnl * FIMS_DONATION_RATIO)) })}
+              </p>
+            </div>
+          ) : null}
           {remainingToDonate ? (
             <p className="mt-3 text-muted-foreground text-xs">{t(($) => $.donationsRemainingHint)}</p>
           ) : null}

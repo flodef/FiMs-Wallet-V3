@@ -41,6 +41,7 @@
   "donationsCount_many": "",
   "donationsCount_one": "",
   "donationsCount_other": "{{count}} donaciones",
+  "donationsProgress": "{{ratio}} del objetivo del 10 % de las ganancias alcanzado",
   "donationsRemaining": "Queda por donar",
   "donationsRemainingHint": "El 10% de las ganancias corresponde al trabajo FiMs: se paga a la Tontina o se dona a una asociación (con justificante).",
   "donationsTitle": "Donaciones",
