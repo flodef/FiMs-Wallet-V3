@@ -23,6 +23,16 @@ import esShell from '../locales/es/shell.json' with { type: 'json' }
 import esTranslation from '../locales/es/translation.json' with { type: 'json' }
 import esUi from '../locales/es/ui.json' with { type: 'json' }
 import esVaultReact from '../locales/es/vault-react.json' with { type: 'json' }
+import frDbReact from '../locales/fr/db-react.json' with { type: 'json' }
+import frExplorer from '../locales/fr/explorer.json' with { type: 'json' }
+import frFims from '../locales/fr/fims.json' with { type: 'json' }
+import frOnboarding from '../locales/fr/onboarding.json' with { type: 'json' }
+import frPortfolio from '../locales/fr/portfolio.json' with { type: 'json' }
+import frSettings from '../locales/fr/settings.json' with { type: 'json' }
+import frShell from '../locales/fr/shell.json' with { type: 'json' }
+import frTranslation from '../locales/fr/translation.json' with { type: 'json' }
+import frUi from '../locales/fr/ui.json' with { type: 'json' }
+import frVaultReact from '../locales/fr/vault-react.json' with { type: 'json' }
 
 i18n.use(initReactI18next).init({
   defaultNS: 'translation',
@@ -55,6 +65,18 @@ i18n.use(initReactI18next).init({
       translation: esTranslation,
       ui: esUi,
       'vault-react': esVaultReact,
+    },
+    fr: {
+      'db-react': frDbReact,
+      explorer: frExplorer,
+      fims: frFims,
+      onboarding: frOnboarding,
+      portfolio: frPortfolio,
+      settings: frSettings,
+      shell: frShell,
+      translation: frTranslation,
+      ui: frUi,
+      'vault-react': frVaultReact,
     },
   },
 })

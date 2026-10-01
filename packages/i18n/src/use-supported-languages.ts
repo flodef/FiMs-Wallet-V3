@@ -6,5 +6,6 @@ export function useSupportedLanguages() {
   return {
     en: t(($) => $.languageEnglish),
     es: t(($) => $.languageSpanish),
+    fr: t(($) => $.languageFrench),
   }
 }

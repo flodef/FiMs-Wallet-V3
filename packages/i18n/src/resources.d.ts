@@ -107,8 +107,8 @@ export default interface Resources {
     indexLinkGenerate: 'Create a new wallet'
     indexLinkImport: 'I already have a wallet'
     indexPageDescription: 'We hope you enjoy your stay!'
-    indexPageTitle: 'Welcome to 🏝️ Samui Wallet'
-    onboardingPageDescription: 'You can now start using 🏝️ Samui Wallet!'
+    indexPageTitle: 'Welcome to FiMs Wallet'
+    onboardingPageDescription: 'You can now start using FiMs Wallet!'
     onboardingPageTitle: "You're all set!"
     uiMnemonicUnexpectedLength: 'Unexpected mnemonic length'
     uiMnemonicWords: '{{words, number}} words'
@@ -224,7 +224,7 @@ export default interface Resources {
     exportSecretKeyHide: 'Hide secret key'
     exportSecretKeyReveal: 'Reveal secret key'
     exportSecretKeyShow: 'Show secret key'
-    exportWarning1: 'The Samui team will never ask for your secrets.'
+    exportWarning1: 'The FiMs team will never ask for your secrets.'
     exportWarning2: 'Never share your secret or enter it into an app or website.'
     exportWarning3: 'Anyone with your secret will have complete control of your account.'
     exportWarningAccept: 'I accept that exporting this value is at my own risk.'
@@ -337,6 +337,7 @@ export default interface Resources {
   }
   translation: {
     languageEnglish: 'English'
+    languageFrench: 'French'
     languageSpanish: 'Spanish'
   }
   ui: {

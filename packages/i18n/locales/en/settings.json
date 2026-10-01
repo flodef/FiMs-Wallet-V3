@@ -39,7 +39,7 @@
   "exportSecretKeyHide": "Hide secret key",
   "exportSecretKeyReveal": "Reveal secret key",
   "exportSecretKeyShow": "Show secret key",
-  "exportWarning1": "The Samui team will never ask for your secrets.",
+  "exportWarning1": "The FiMs team will never ask for your secrets.",
   "exportWarning2": "Never share your secret or enter it into an app or website.",
   "exportWarning3": "Anyone with your secret will have complete control of your account.",
   "exportWarningAccept": "I accept that exporting this value is at my own risk.",

@@ -28,7 +28,7 @@ export default defineConfig({
     input: '../../**/src/**/*.{js,jsx,ts,tsx}',
     output: 'locales/{{language}}/{{namespace}}.json',
   },
-  locales: ['en', 'es'],
+  locales: ['en', 'es', 'fr'],
   types: {
     enableSelector: true,
     input: ['locales/en/*.json'],

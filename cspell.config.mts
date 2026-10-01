@@ -25,11 +25,15 @@ export function getPackageNames(): string[] {
 const config: CSpellSettings = {
   dictionaries: ['fullstack', 'html', 'css'],
   ignorePaths: ['drizzle'],
-  import: ['@cspell/dict-es-es/cspell-ext.json'],
+  import: ['@cspell/dict-es-es/cspell-ext.json', '@cspell/dict-fr-fr/cspell-ext.json'],
   overrides: [
     {
       filename: '**/es/*.json',
       language: 'en, es',
+    },
+    {
+      filename: '**/fr/*.json',
+      language: 'en, fr',
     },
   ],
   useGitignore: true,
