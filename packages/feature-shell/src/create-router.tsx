@@ -5,11 +5,12 @@ import { optionsSetting } from '@workspace/db-react/options-setting'
 import { optionsWallet } from '@workspace/db-react/options-wallet'
 import { queryClient } from '@workspace/db-react/query-client'
 import { getEntrypoint } from '@workspace/env/get-entrypoint'
+import { DemoTour } from '@workspace/feature-onboarding/demo/demo-tour'
 import { UiErrorBoundary } from '@workspace/ui/components/ui-error-boundary'
 import { UiLoaderFull } from '@workspace/ui/components/ui-loader-full'
 import { UiNotFound } from '@workspace/ui/components/ui-not-found'
 import { lazy } from 'react'
-import { createHashRouter, Navigate, type RouteObject } from 'react-router'
+import { createHashRouter, Navigate, Outlet, type RouteObject } from 'react-router'
 import { rootRouteLoader } from './data-access/root-route-loader.tsx'
 import { ShellUiLayout } from './ui/shell-ui-layout.tsx'
 
@@ -39,6 +40,12 @@ export function createRouter(ctx: AppContext) {
   return createHashRouter([
     {
       children: getRoutes(),
+      element: (
+        <>
+          <Outlet />
+          <DemoTour />
+        </>
+      ),
       errorElement: <UiErrorBoundary />,
       hydrateFallbackElement: <UiLoaderFull />,
       id: 'root',

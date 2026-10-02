@@ -1,5 +1,7 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
+import { useWalletGenerateWithAccount } from '@workspace/db-react/use-wallet-generate-with-account'
 import { useTranslation } from '@workspace/i18n'
+import { derivationPaths } from '@workspace/keypair/derivation-paths'
 import type { MnemonicStrength } from '@workspace/keypair/generate-mnemonic'
 import { getMnemonicWordStatus } from '@workspace/keypair/get-mnemonic-word-status'
 import { validateMnemonic } from '@workspace/keypair/validate-mnemonic'
@@ -8,7 +10,7 @@ import { UiBackButton } from '@workspace/ui/components/ui-back-button'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiTextPasteButton } from '@workspace/ui/components/ui-text-paste-button'
 import { toastError } from '@workspace/ui/lib/toast-error'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
@@ -18,6 +20,7 @@ import {
   parseCreateNewWalletProtectionMode,
   useCreateNewWallet,
 } from './data-access/use-create-new-wallet.tsx'
+import { DEMO_MNEMONIC, demoSetState, useDemoState } from './demo/demo-store.tsx'
 import { OnboardingUiMnemonicWordInput } from './onboarding-ui-mnemonic-word-input.tsx'
 import { OnboardingUiMnemonicSave } from './ui/onboarding-ui-mnemonic-save.tsx'
 import { OnboardingUiMnemonicSelectStrength } from './ui/onboarding-ui-mnemonic-select-strength.tsx'
@@ -33,7 +36,9 @@ type OnboardingImportForm = z.infer<typeof onboardingImportSchema>
 export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) {
   const { t } = useTranslation('onboarding')
   const create = useCreateNewWallet()
+  const generate = useWalletGenerateWithAccount()
   const navigate = useNavigate()
+  const demo = useDemoState()
   const [pin, setPin] = useState('')
   const [pinConfirm, setPinConfirm] = useState('')
   const [protectionMode, setProtectionMode] = useState<CreateNewWalletProtectionMode>('password')
@@ -127,6 +132,54 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
       toastError(`${error}`)
     }
   }
+
+  const demoActionRef = useRef({ generate, navigate, redirectTo })
+  useEffect(() => {
+    demoActionRef.current = { generate, navigate, redirectTo }
+  })
+
+  useEffect(() => {
+    if (!demo.active || demo.walletCreated) {
+      return
+    }
+    setProtectionMode('unsecured')
+    setUnsecuredConfirmed(true)
+    const demoWords = DEMO_MNEMONIC.split(' ')
+    let index = 0
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const interval = setInterval(() => {
+      const word = demoWords[index]
+      if (!word) {
+        return
+      }
+      const newWords = [...getValues('words')]
+      newWords[index] = word
+      setValue('words', newWords)
+      index++
+      if (index >= demoWords.length) {
+        clearInterval(interval)
+        timeout = setTimeout(() => {
+          const { generate: gen, navigate: nav, redirectTo: to } = demoActionRef.current
+          gen
+            .mutateAsync({
+              derivationPath: derivationPaths.default,
+              mnemonic: DEMO_MNEMONIC,
+              name: 'Démo',
+              protection: { mode: 'unsecured' },
+            })
+            .then(async () => {
+              demoSetState({ stepIndex: 1, walletCreated: true })
+              await nav(to)
+            })
+            .catch((error: unknown) => toastError(`${error}`))
+        }, 800)
+      }
+    }, 150)
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
+  }, [demo.active, demo.walletCreated, getValues, setValue])
 
   return (
     <Form {...form}>

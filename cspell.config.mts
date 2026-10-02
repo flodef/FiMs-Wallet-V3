@@ -106,6 +106,8 @@ const config: CSpellSettings = {
     'wordlist',
     'wordlists',
     'worklets',
+    // French
+    'démo',
     // Spanish
     'cripto',
     'rebalancear',

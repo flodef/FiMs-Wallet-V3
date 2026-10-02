@@ -51,7 +51,7 @@ export function ShellUiLayout() {
           <NavLink
             className={({ isActive }) =>
               cn('flex flex-1 flex-col items-center gap-1 truncate pt-2 pb-1 text-xs md:gap-2 md:text-md', {
-                'bg-secondary/50 font-semibold': isActive,
+                'bg-primary/15 font-semibold text-primary': isActive,
               })
             }
             key={to}
