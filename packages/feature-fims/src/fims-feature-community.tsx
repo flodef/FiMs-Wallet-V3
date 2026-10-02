@@ -41,6 +41,7 @@ export function FimsFeatureCommunity() {
             {t(($) => $.investedLabel)}: {format(latest.invested)}
           </p>
         ) : null}
+        <p className="pt-2 text-muted-foreground text-xs">{t(($) => $.communityDisclaimer)}</p>
       </UiCard>
 
       <UiCard title={t(($) => $.tokensTitle)}>

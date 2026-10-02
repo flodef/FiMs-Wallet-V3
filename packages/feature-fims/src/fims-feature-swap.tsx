@@ -163,6 +163,7 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
             </Button>
           </div>
           {!canSign ? <p className="text-muted-foreground text-xs">{t(($) => $.swapWatchOnly)}</p> : null}
+          <p className="text-muted-foreground text-xs">{t(($) => $.swapDisclaimer)}</p>
         </div>
       </UiCard>
 
