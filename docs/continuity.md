@@ -14,19 +14,31 @@ FiMs Wallet V3 is a Solana wallet + community dashboard built on the
 | ---------------- | ------------------------------------- | -------------------------------- |
 | Wallet / web app | React + Vite + Tailwind (SPA)         | `apps/web`                       |
 | API              | Effect `HttpApi` + `@effect/platform` | `apps/api`                       |
-| Landing page     | Static HTML                           | `apps/landing`                   |
+| Landing page     | Raw HTML injected into a React route  | `apps/web/src/landing`           |
 | Database         | Neon (Postgres) + Drizzle             | `packages/db`, `apps/api/src/db` |
 | Translations     | i18next (fr/en/es)                    | `packages/i18n`                  |
 
 ## Production (Vercel)
 
-Two Vercel projects, both connected to `flodef/FiMs-Wallet-V3` — **pushing to
-`main` deploys automatically**.
+A single Vercel project, `fims-wallet-v3`, connected to
+`flodef/FiMs-Wallet-V3` — **pushing to `main` deploys automatically**.
 
-| Project          | Domain                   | Content                        |
-| ---------------- | ------------------------ | ------------------------------ |
-| `fims-wallet-v3` | `wallet-v3.fims.fi`      | SPA (root) + API (`/api/*`)    |
-| `fims-landing`   | `fims.fi`, `www.fims.fi` | `apps/landing` (rootDirectory) |
+| Domain                   | Content                            |
+| ------------------------ | ---------------------------------- |
+| `wallet-v3.fims.fi`      | Wallet SPA (root) + API (`/api/*`) |
+| `fims.fi`, `www.fims.fi` | Landing page                       |
+
+The same SPA serves both sites: `apps/web/src/main.tsx` checks
+`window.location.hostname` and lazy-loads `LandingPage`
+(`apps/web/src/landing/landing-page.tsx`) on the landing hosts instead of
+the wallet shell. The landing is self-contained HTML (`landing.html`,
+imported with `?raw`) — its former inline script is ported to React
+effects in `landing-page.tsx`. Because it shares the deployment, its
+live community stats call `/api/fims/dashboard` **same-origin** (no CORS).
+
+The former standalone landing app (`apps/landing`, Vercel project
+`fims-landing`) was removed — the project can be deleted from Vercel once
+the merged deployment is confirmed stable.
 
 The API runs in a Vercel Function (`api/[...path].ts`) that adapts Node's
 `IncomingMessage` to a Web `Request` and delegates to `handleRequest`
@@ -46,11 +58,11 @@ Sensitive points:
 
 ### Environment variables (`fims-wallet-v3` project)
 
-| Variable          | Purpose                                              |
-| ----------------- | ---------------------------------------------------- |
-| `DATABASE_URL`    | Neon connection (required for `/api/fims/*`)         |
-| `ADMIN_ADDRESSES` | Admin Solana addresses (privileged actions)          |
-| `CORS_ORIGINS`    | Allowed origins (landing, wallet domains, localhost) |
+| Variable          | Purpose                                                  |
+| ----------------- | -------------------------------------------------------- |
+| `DATABASE_URL`    | Neon connection (required for `/api/fims/*`)             |
+| `ADMIN_ADDRESSES` | Admin Solana addresses (privileged actions)              |
+| `CORS_ORIGINS`    | Allowed origins (legacy cross-origin callers, localhost) |
 
 Secrets live in the Vercel dashboard (encrypted) or via `vercel env`.
 ⚠️ An env var change requires a **redeployment** to take effect.
@@ -58,8 +70,9 @@ Secrets live in the Vercel dashboard (encrypted) or via `vercel env`.
 ### DNS (OVH)
 
 - `wallet-v3.fims.fi`: CNAME → `cname.vercel-dns.com` ✅
-- `fims.fi`: A record → `76.76.21.21` (Vercel anycast) + `www` → CNAME
-  `cname.vercel-dns.com` — pending switch from Google Sites
+- `fims.fi`: A record → `76.76.21.21` (Vercel anycast) ✅
+- `www.fims.fi`: CNAME → `cname.vercel-dns.com` ✅
+- `wallet.fims.fi`: still points to V2 (legacy) — switch pending decision
 
 ## API authentication
 

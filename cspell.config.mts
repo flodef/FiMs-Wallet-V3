@@ -36,7 +36,7 @@ const config: CSpellSettings = {
       language: 'en, fr',
     },
     {
-      filename: 'apps/landing/**/*.html',
+      filename: 'apps/web/src/landing/**/*',
       language: 'en, fr',
     },
   ],

@@ -1,6 +1,6 @@
 import '@workspace/i18n'
 import { ShellFeature } from '@workspace/feature-shell/shell-feature'
-import { StrictMode } from 'react'
+import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 
 const root = document.getElementById('root')
@@ -8,8 +8,20 @@ if (!root) {
   throw new Error('Root element not found')
 }
 
+// Same deployment serves both sites: fims.fi hosts the landing page, the
+// wallet domains host the wallet app.
+const LANDING_HOSTS = new Set(['fims.fi', 'www.fims.fi'])
+const isLandingHost = LANDING_HOSTS.has(window.location.hostname) || window.location.pathname === '/landing'
+const LandingPage = lazy(() => import('./landing/landing-page.tsx').then((m) => ({ default: m.LandingPage })))
+
 createRoot(root).render(
   <StrictMode>
-    <ShellFeature />
+    {isLandingHost ? (
+      <Suspense fallback={null}>
+        <LandingPage />
+      </Suspense>
+    ) : (
+      <ShellFeature />
+    )}
   </StrictMode>,
 )
