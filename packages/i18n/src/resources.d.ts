@@ -254,6 +254,7 @@ export default interface Resources {
     votesFieldTitle: 'Title'
     votesKindInvestment: 'Investment'
     votesKindTontine: 'Tontine'
+    votesMyPower: 'Your voting power: {{power}} — {{share}} % of the total'
     votesOpen: 'Open'
     votesStatusClosed: 'Closed'
     votesStatusDraft: 'Draft'
@@ -288,6 +289,8 @@ export default interface Resources {
     demoStepTontineTitle: 'The tontine'
     demoStepToolsDescription: 'Devnet airdrop, token creation and transaction inspector.'
     demoStepToolsTitle: 'Tools'
+    demoStepVotesDescription: 'Community decisions are voted here. Your voting power is shown on each vote.'
+    demoStepVotesTitle: 'Votes'
     generateButtonCreate: 'Create wallet'
     generateCardDescription: "This seed phrase is the ONLY way to recover your wallet. Don't share it with anyone!"
     generateCardTitle: 'Generate Recovery Phrase'

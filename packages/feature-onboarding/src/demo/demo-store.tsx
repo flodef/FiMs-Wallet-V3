@@ -5,6 +5,7 @@ export const DEMO_MNEMONIC = 'pill tomorrow foster begin walnut borrow virtual k
 export interface DemoState {
   active: boolean
   airdropRequested: boolean
+  memberRegistered: boolean
   previousAccountId: null | string
   previousNetworkId: null | string
   stepIndex: number
@@ -14,6 +15,7 @@ export interface DemoState {
 const initialState: DemoState = {
   active: false,
   airdropRequested: false,
+  memberRegistered: false,
   previousAccountId: null,
   previousNetworkId: null,
   stepIndex: 0,

@@ -188,6 +188,7 @@
   "votesFieldTitle": "Title",
   "votesKindInvestment": "Investment",
   "votesKindTontine": "Tontine",
+  "votesMyPower": "Your voting power: {{power}} — {{share}} % of the total",
   "votesOpen": "Open",
   "votesStatusClosed": "Closed",
   "votesStatusDraft": "Draft",

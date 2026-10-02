@@ -99,6 +99,14 @@ function FimsVoteCard({
         <p className="text-muted-foreground text-xs">
           {vote.kind === 'tontine' ? t(($) => $.votesWeightTontine) : t(($) => $.votesWeightInvestment)}
         </p>
+        {vote.myWeight !== null ? (
+          <p className="text-xs">
+            {t(($) => $.votesMyPower, {
+              power: format(vote.myWeight),
+              share: (vote.eligibleWeight > 0 ? (vote.myWeight / vote.eligibleWeight) * 100 : 0).toFixed(1),
+            })}
+          </p>
+        ) : null}
 
         <div className="space-y-2">
           {vote.options.map((option) => {

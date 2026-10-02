@@ -14,6 +14,14 @@ const LANDING_HOSTS = new Set(['fims.fi', 'www.fims.fi'])
 const isLandingHost = LANDING_HOSTS.has(window.location.hostname) || window.location.pathname === '/landing'
 const LandingPage = lazy(() => import('./landing/landing-page.tsx').then((m) => ({ default: m.LandingPage })))
 
+// PWA: register the passthrough service worker so the app is installable.
+// Dev would cache-bust oddly, so prod only.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}
+
 createRoot(root).render(
   <StrictMode>
     {isLandingHost ? (

@@ -190,6 +190,7 @@
   "votesFieldTitle": "Titre",
   "votesKindInvestment": "Investissement",
   "votesKindTontine": "Tontine",
+  "votesMyPower": "Ton pouvoir de vote : {{power}} — {{share}} % du total",
   "votesOpen": "Ouvrir",
   "votesStatusClosed": "Clos",
   "votesStatusDraft": "Brouillon",

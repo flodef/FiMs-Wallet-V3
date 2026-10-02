@@ -103,9 +103,14 @@ export interface FimsVote {
   closesAt: null | string
   createdAt: string
   description: null | string
+  // Sum of every member's voting weight for this vote kind — the
+  // denominator of `myWeight`.
+  eligibleWeight: number
   id: number
   kind: FimsVoteKind
   myOptionId: null | number
+  // Caller's voting weight for this vote kind (null when unsigned).
+  myWeight: null | number
   options: FimsVoteOption[]
   status: FimsVoteStatus
   title: string

@@ -23,6 +23,8 @@
   "demoStepTontineTitle": "La tontine",
   "demoStepToolsDescription": "Airdrop devnet, création de tokens et inspecteur de transactions.",
   "demoStepToolsTitle": "Les outils",
+  "demoStepVotesDescription": "Les décisions de la communauté se votent ici. Ton pouvoir de vote est affiché sur chaque vote.",
+  "demoStepVotesTitle": "Les votes",
   "generateButtonCreate": "Créer le wallet",
   "generateCardDescription": "Cette phrase de récupération est le SEUL moyen de restaurer votre wallet. Ne la partagez avec personne !",
   "generateCardTitle": "Générer la phrase de récupération",

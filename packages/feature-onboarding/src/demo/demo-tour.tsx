@@ -1,10 +1,15 @@
 import type { Address } from '@solana/kit'
 import { useQueryClient } from '@tanstack/react-query'
+import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
+import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
 import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useNetworkLive } from '@workspace/db-react/use-network-live'
 import { useSetting } from '@workspace/db-react/use-setting'
+import { env } from '@workspace/env/env'
+import { fimsSignedFetch } from '@workspace/feature-fims/fims-api'
 import { useTranslation } from '@workspace/i18n'
+import { createKeyPairSignerFromJson } from '@workspace/keypair/create-key-pair-signer-from-json'
 import { deriveFromMnemonicAtIndex } from '@workspace/keypair/derive-from-mnemonic-at-index'
 import { requestAirdrop } from '@workspace/solana-client/request-airdrop'
 import { solToLamports } from '@workspace/solana-client/sol-to-lamports'
@@ -41,6 +46,35 @@ function DemoAirdrop({ address, network }: { address: Address; network: Network 
   return null
 }
 
+// The demo wallet self-registers as a community member so member-scoped
+// pages (profile, votes, address book) work during the tour. Members can
+// register themselves (owner-signed POST /users); a conflict means the row
+// already exists — either way the demo account ends up a member.
+function DemoMemberRegistration({ account }: { account: Account }) {
+  const accountSecretKey = useAccountSecretKey()
+  const queryClient = useQueryClient()
+  const fired = useRef(false)
+  useEffect(() => {
+    if (fired.current) {
+      return
+    }
+    fired.current = true
+    ;(async () => {
+      const json = await accountSecretKey({ account })
+      const signer = await createKeyPairSignerFromJson({ json })
+      await fimsSignedFetch(env('apiEndpoint'), signer, 'POST', '/users', {
+        address: signer.address,
+        isPublic: true,
+        name: 'Démo',
+      })
+    })()
+      .then(() => queryClient.invalidateQueries({ queryKey: ['fims', 'users'] }))
+      .catch(() => {})
+      .finally(() => demoSetState({ memberRegistered: true }))
+  }, [account, accountSecretKey, queryClient])
+  return null
+}
+
 export function DemoTour() {
   const { t } = useTranslation('onboarding')
   const demo = useDemoState()
@@ -73,6 +107,11 @@ export function DemoTour() {
         description: t(($) => $.demoStepTontineDescription),
         path: '/fims/tontine',
         title: t(($) => $.demoStepTontineTitle),
+      },
+      {
+        description: t(($) => $.demoStepVotesDescription),
+        path: '/fims/votes',
+        title: t(($) => $.demoStepVotesTitle),
       },
       { description: t(($) => $.demoStepLearnDescription), path: '/fims/learn', title: t(($) => $.demoStepLearnTitle) },
       {
@@ -135,10 +174,13 @@ export function DemoTour() {
 
   const devnet = networks.find((network) => network.type === 'solana:devnet')
   const showAirdrop = demo.walletCreated && !demo.airdropRequested && demoAddress && devnet
+  const demoAccount = demoAddress ? accounts.find((account) => account.publicKey === demoAddress) : undefined
+  const showMemberRegistration = demo.walletCreated && !demo.memberRegistered && demoAccount
 
   return (
     <>
       {showAirdrop ? <DemoAirdrop address={demoAddress} network={devnet} /> : null}
+      {showMemberRegistration ? <DemoMemberRegistration account={demoAccount} /> : null}
       <div className="pointer-events-none fixed inset-x-0 bottom-16 z-50 flex justify-center px-3 md:bottom-20">
         <div className="pointer-events-auto w-full max-w-md rounded-xl border border-primary/40 bg-card/95 p-4 shadow-[0_0_40px_-5px] shadow-primary/40 backdrop-blur-md">
           <div className="mb-2 flex items-center justify-between">

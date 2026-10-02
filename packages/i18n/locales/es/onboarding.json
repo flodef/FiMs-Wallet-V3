@@ -23,6 +23,8 @@
   "demoStepTontineTitle": "La tontina",
   "demoStepToolsDescription": "Airdrop de devnet, creación de tokens e inspector de transacciones.",
   "demoStepToolsTitle": "Las herramientas",
+  "demoStepVotesDescription": "Las decisiones de la comunidad se votan aquí. Tu poder de voto se muestra en cada votación.",
+  "demoStepVotesTitle": "Las votaciones",
   "generateButtonCreate": "Crea billetera",
   "generateCardDescription": "Esta frase semilla es la ÚNICA forma de recuperar tu billetera. ¡No la compartas con nadie!",
   "generateCardTitle": "Generar frase de recuperación",

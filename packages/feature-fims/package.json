@@ -25,7 +25,8 @@
     "vitest": "catalog:"
   },
   "exports": {
-    "./*": "./src/*.tsx"
+    "./*": "./src/*.tsx",
+    "./fims-api": "./src/fims-api.ts"
   },
   "license": "MIT",
   "name": "@workspace/feature-fims",

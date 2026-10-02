@@ -185,9 +185,15 @@ export class Vote extends Schema.Class<Vote>('Vote')({
   closesAt: Schema.NullOr(Schema.Date),
   createdAt: Schema.Date,
   description: Schema.NullOr(Schema.String),
+  // Total voting weight available across all members for this vote kind
+  // (all tontine contributions, or all invested amounts) — the denominator
+  // of a member's voting power.
+  eligibleWeight: Schema.Number,
   id: Schema.Number,
   kind: VoteKind,
   myOptionId: Schema.NullOr(Schema.Number),
+  // The signer's own voting weight for this vote kind. Null when unsigned.
+  myWeight: Schema.NullOr(Schema.Number),
   options: Schema.Array(VoteOption),
   status: VoteStatus,
   title: Schema.String,

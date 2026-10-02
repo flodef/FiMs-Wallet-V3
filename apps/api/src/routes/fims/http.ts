@@ -141,8 +141,8 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
     ])
     const signerUserId = signerUser?.id ?? null
     return voteRows.map((vote) => {
-      const weightOf = (userId: number) =>
-        (vote.kind === 'tontine' ? weights.tontine : weights.invested).get(userId) ?? 0
+      const weightMap = vote.kind === 'tontine' ? weights.tontine : weights.invested
+      const weightOf = (userId: number) => weightMap.get(userId) ?? 0
       const ballots = ballotRows.filter((b) => b.voteId === vote.id)
       const options = optionRows
         .filter((o) => o.voteId === vote.id)
@@ -158,7 +158,9 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
         })
       return {
         ...vote,
+        eligibleWeight: [...weightMap.values()].reduce((sum, w) => sum + w, 0),
         myOptionId: ballots.find((b) => b.userId === signerUserId)?.optionId ?? null,
+        myWeight: signerUserId === null ? null : weightOf(signerUserId),
         options,
         totalWeight: options.reduce((sum, o) => sum + o.weight, 0),
       }

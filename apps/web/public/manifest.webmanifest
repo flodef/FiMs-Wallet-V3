@@ -1,0 +1,16 @@
+{
+  "background_color": "#17131f",
+  "description": "FiMs community wallet — portfolio, tontine, votes and learning",
+  "display": "standalone",
+  "icons": [
+    { "sizes": "192x192", "src": "/icon-192.png", "type": "image/png" },
+    { "sizes": "512x512", "src": "/icon-512.png", "type": "image/png" },
+    { "purpose": "maskable", "sizes": "512x512", "src": "/icon-maskable-512.png", "type": "image/png" }
+  ],
+  "name": "FiMs Wallet",
+  "orientation": "portrait",
+  "scope": "/",
+  "short_name": "FiMs",
+  "start_url": "/",
+  "theme_color": "#9945ff"
+}
