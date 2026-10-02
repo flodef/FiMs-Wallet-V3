@@ -12,6 +12,9 @@
     <meta property="og:description" content="Se réapproprier l'utilisation de son argent, ensemble." />
     <meta property="og:type" content="website" />
     <link rel="icon" type="image/svg+xml" href="/fims.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap" rel="stylesheet" />
     <script>
       // Theme before paint — no flash. Values: 'light' | 'dark' | 'system'.
       (() => {
@@ -513,45 +516,6 @@
       .pillar:hover .more svg {
         transform: translateX(4px);
       }
-      /* ═══════════════ Community ═══════════════ */
-      .social-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-      }
-      @media (min-width: 860px) {
-        .social-grid {
-          grid-template-columns: repeat(4, 1fr);
-        }
-      }
-      .social {
-        display: flex;
-        flex-direction: column;
-        gap: 0.9rem;
-        align-items: flex-start;
-        padding: 1.6rem;
-        border-radius: 1.2rem;
-        transition:
-          transform 0.2s ease,
-          border-color 0.2s ease,
-          background 0.2s ease;
-      }
-      .social:hover {
-        background: var(--surface-hover);
-        border-color: var(--border-strong);
-        transform: translateY(-3px);
-      }
-      .social svg {
-        color: var(--text);
-      }
-      .social .name {
-        font-size: 0.95rem;
-        font-weight: 700;
-      }
-      .social .desc {
-        font-size: 0.8rem;
-        color: var(--faint);
-      }
       /* ═══════════════ CTA band ═══════════════ */
       .cta-band {
         position: relative;
@@ -688,10 +652,11 @@
         }
       }
       .stat .stat-value {
-        font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+        font-family: "Baloo 2", ui-rounded, "SF Rounded", system-ui, sans-serif;
         font-size: clamp(1.9rem, 4.5vw, 2.7rem);
-        font-weight: 900;
-        letter-spacing: -0.02em;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0;
       }
       .stat .stat-label {
         margin-top: 0.3rem;
@@ -705,6 +670,66 @@
         font-size: 0.75rem;
         color: var(--faint);
         text-align: center;
+      }
+      /* ═══════════════ FAQ ═══════════════ */
+      .faq-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+        max-width: 46rem;
+        margin: 0 auto;
+      }
+      .faq {
+        padding: 0;
+        overflow: hidden;
+        border-radius: 1.1rem;
+        transition:
+          border-color 0.25s ease,
+          background 0.25s ease;
+      }
+      .faq:hover,
+      .faq[open] {
+        border-color: var(--border-strong);
+      }
+      .faq summary {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.25rem 1.6rem;
+        font-size: 1.02rem;
+        font-weight: 750;
+        letter-spacing: -0.01em;
+        cursor: pointer;
+        list-style: none;
+        transition: color 0.2s;
+      }
+      .faq summary::-webkit-details-marker {
+        display: none;
+      }
+      .faq summary::after {
+        flex-shrink: 0;
+        width: 22px;
+        height: 22px;
+        content: "";
+        background: currentColor;
+        opacity: 0.55;
+        -webkit-mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"/></svg>')
+          center / contain no-repeat;
+        mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"/></svg>')
+          center / contain no-repeat;
+        transition: transform 0.25s ease;
+      }
+      .faq[open] summary {
+        color: var(--accent);
+      }
+      .faq[open] summary::after {
+        transform: rotate(180deg);
+      }
+      .faq p {
+        padding: 0 1.6rem 1.35rem;
+        font-size: 0.95rem;
+        color: var(--muted);
       }
       /* ═══════════════ Mobile menu ═══════════════ */
       .burger {
@@ -761,8 +786,7 @@
         <div class="nav-links">
           <a href="#mission">Mission</a>
           <a href="#piliers">Piliers</a>
-          <a href="#communaute">Communauté</a>
-          <a href="https://github.com/flodef/FiMS/discussions" target="_blank" rel="noopener">FAQ</a>
+          <a href="#faq">FAQ</a>
         </div>
         <div style="display: flex; align-items: center; gap: 0.8rem">
           <div class="theme-toggle" role="radiogroup" aria-label="Thème">
@@ -841,8 +865,7 @@
     <div class="mobile-menu" id="mobileMenu">
       <a href="#mission">Mission</a>
       <a href="#piliers">Piliers</a>
-      <a href="#communaute">Communauté</a>
-      <a href="https://github.com/flodef/FiMS/discussions" target="_blank" rel="noopener">FAQ</a>
+      <a href="#faq">FAQ</a>
       <a
         class="btn-primary"
         style="justify-content: center; margin-top: 1rem"
@@ -1269,100 +1292,110 @@
     </section>
 
     <!-- ═══════════ Communauté ═══════════ -->
-    <section id="communaute">
-      <div class="container">
-        <div class="section-head reveal">
-          <div class="eyebrow">Des questions ?</div>
-          <h2>La communauté est <span class="grad-text">partout</span></h2>
-          <p>Fouille la FAQ, viens échanger sur Discord, ou passe directement à l'action.</p>
+    <section id="faq" style="background: var(--bg-soft)">
+      <div
+        class="orb"
+        style="width: 380px; height: 380px; background: var(--glow-2); bottom: -60px; left: -120px"
+      ></div>
+      <div class="container" style="position: relative; z-index: 1">
+        <div class="section-head center reveal">
+          <div class="eyebrow">FAQ</div>
+          <h2>On répond à <span class="grad-text">vos questions</span></h2>
+          <p>Simple et sans jargon — comme on se les pose entre nous.</p>
         </div>
-        <div class="social-grid">
-          <a class="social glass reveal" href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">
-            <svg
-              aria-hidden="true"
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M8 12a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />
-              <path d="M14 12a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />
-              <path
-                d="M15.5 17c0 1 1.5 3 2 3c1.5 0 2.833 -1.667 3.5 -3c.667 -1.667 .5 -5.833 -1.5 -11.5c-1.457 -1.015 -3 -1.34 -4.5 -1.5l-.972 1.923a11.913 11.913 0 0 0 -4.053 0l-.975 -1.923c-1.5 .16 -3.043 .485 -4.5 1.5c-2 5.667 -2.167 9.833 -1.5 11.5c.667 1.333 2 3 3.5 3c.5 0 2 -2 2 -3"
-              />
-              <path d="M7 16.5c3.5 1 6.5 1 10 0" />
-            </svg>
-            <span class="name">Discord</span>
-            <span class="desc">Le cœur de la communauté — discussions, entraide, annonces</span>
-          </a>
-          <a class="social glass reveal" href="https://twitter.com/FiMsFi" target="_blank" rel="noopener">
-            <svg
-              aria-hidden="true"
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M4 4l11.733 16h4.267l-11.733 -16l-4.267 0" />
-              <path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772" />
-            </svg>
-            <span class="name">X / Twitter</span>
-            <span class="desc">@FiMsFi — actualités et annonces publiques</span>
-          </a>
-          <a class="social glass reveal" href="https://medium.com/@fimsfi" target="_blank" rel="noopener">
-            <svg
-              aria-hidden="true"
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12" />
-              <path d="M8 9h1l3 3l3 -3h1" />
-              <path d="M8 15l2 0" />
-              <path d="M14 15l2 0" />
-              <path d="M9 9l0 6" />
-              <path d="M15 9l0 6" />
-            </svg>
-            <span class="name">Medium</span>
-            <span class="desc">Articles vulgarisateurs sur la finance et la DeFi</span>
-          </a>
-          <a
-            class="social glass reveal"
-            href="https://github.com/flodef/FiMS/discussions"
-            target="_blank"
-            rel="noopener"
-          >
-            <svg
-              aria-hidden="true"
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5"
-              />
-            </svg>
-            <span class="name">GitHub</span>
-            <span class="desc">Code source ouvert, discussions et contributions</span>
-          </a>
+        <div class="faq-list">
+          <details class="faq glass reveal">
+            <summary>FiMs, c'est quoi exactement ?</summary>
+            <p>
+              Une communauté à taille humaine qui expérimente la finance autrement : se passer des banques, s'échanger
+              de l'argent entre membres, investir ensemble de façon transparente. FiMs = Financement Indépendant,
+              Militant et Solidaire.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>C'est une banque ou un produit d'investissement ?</summary>
+            <p>
+              Ni l'un ni l'autre. FiMs est une expérimentation communautaire, pas un établissement financier. Personne
+              ne te promet de rendement et rien ici n'est un conseil en investissement. Le site et le wallet sont des
+              outils, les décisions t'appartiennent.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Comment ça marche concrètement ?</summary>
+            <p>
+              Tu te crées un porte-monnaie (un « wallet ») en deux minutes sur wallet-v3.fims.fi, tu y mets un peu de
+              cryptomonnaie, et tu peux ensuite payer, échanger ou participer aux projets de la communauté. Tout se
+              passe sur Solana, une blockchain publique rapide et peu énergivore.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Mes euros partent où quand je « dépose » ?</summary>
+            <p>
+              L'apport des membres finance le portefeuille communautaire (tokens FiMs, liquidité…) dont le suivi est
+              public dans l'onglet Communauté du wallet. Chacun garde la main sur ses propres fonds : le wallet est «
+              non-custodial », FiMs ne détient pas ton argent.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>C'est quoi la tontine ?</summary>
+            <p>
+              Une cagnotte solidaire entre membres : chacun cotise ce qu'il veut, et la cagnotte peut aider un membre en
+              difficulté. Si l'argent n'a pas servi dans l'année, il est reversé à une œuvre de charité choisie par la
+              communauté.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Et cette règle des « 10 % » dont on entend parler ?</summary>
+            <p>
+              Quand un membre réalise des gains, on lui propose de reverser 10 % au pot commun — c'est ce qui finance le
+              fonctionnement et la solidarité. Tant qu'un membre a une contribution due, ses actions sortantes
+              (échanges, envois) sont bloquées jusqu'à régularisation.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Combien ça coûte ?</summary>
+            <p>
+              L'inscription et l'utilisation du wallet sont gratuites. Les conversions et retraits prélèvent 0,1 % de
+              frais de fonctionnement pour la communauté, et la blockchain Solana ajoute des frais réseau de l'ordre du
+              centime.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Je peux perdre de l'argent ?</summary>
+            <p>
+              Oui. Les crypto-actifs sont volatils : leur valeur peut monter… ou chuter fortement. Ne mets jamais plus
+              que ce que tu peux te permettre de perdre, et renseigne-toi toujours par toi-même avant de décider.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Ma « phrase de récupération », c'est quoi et pourquoi tout le monde insiste dessus ?</summary>
+            <p>
+              C'est la liste de 12 mots affichée à la création du wallet : c'est ta seule et unique clé. Qui la connaît
+              contrôle tes fonds — la communauté ne peut pas te la « réinitialiser ». Écris-la sur papier, garde-la
+              précieusement, ne la donne à personne (jamais, pas même à « l'assistance »).
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Qui voit mes données ?</summary>
+            <p>
+              La transparence est un principe FiMs : le dashboard communauté affiche les montants de chaque membre… sous
+              un pseudo. Tu choisis ton pseudo et tu peux passer ton profil en privé si tu préfères ne pas apparaître.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Le code est-il ouvert ?</summary>
+            <p>
+              Oui, tout est open source sur GitHub (FiMs-Wallet-V3). Tu peux lire, vérifier, contribuer — et la
+              communauté se réunit tous les 3 mois sur Discord pour décider ensemble de la suite.
+            </p>
+          </details>
+          <details class="faq glass reveal">
+            <summary>Comment rejoindre ?</summary>
+            <p>
+              Passe dire bonjour sur le Discord — c'est là que tout se joue : présentations, réunions trimestrielles,
+              entraide. Aucune compétence technique ou financière requise, la curiosité suffit.
+            </p>
+          </details>
         </div>
       </div>
     </section>
@@ -1434,7 +1467,7 @@
         <div class="footer-row">
           <span>© 2026 FiMs — Financement Indépendant, Militant et Solidaire</span>
           <div class="footer-links">
-            <a href="https://github.com/flodef/FiMS" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/flodef/FiMs-Wallet-V3" target="_blank" rel="noopener">GitHub</a>
             <a href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">Discord</a>
             <a href="https://wallet-v3.fims.fi" target="_blank" rel="noopener">Wallet</a>
           </div>
@@ -1559,7 +1592,7 @@
             countUp(
               document.getElementById("statPerf"),
               gains.ratio * 100,
-              (v) => (v >= 0 ? "+" : "") + v.toFixed(1) + " %",
+              (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)} %`,
             );
           })
           .catch(() => {});
