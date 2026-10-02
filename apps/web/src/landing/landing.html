@@ -1,1447 +1,1438 @@
 <style>
-      /* ═══════════════ Tokens ═══════════════ */
-      :root {
-        --brand-1: #9945ff;
-        --brand-2: #14f195;
-        --accent: #34a5ff;
-        --bg: #07080e;
-        --bg-soft: #0b0d17;
-        --surface: rgba(255, 255, 255, 0.035);
-        --surface-hover: rgba(255, 255, 255, 0.07);
-        --border: rgba(255, 255, 255, 0.09);
-        --border-strong: rgba(255, 255, 255, 0.16);
-        --text: #f2f4fa;
-        --muted: #98a1b6;
-        --faint: #646c82;
-        --nav-bg: rgba(7, 8, 14, 0.72);
-        --glow-1: rgba(153, 69, 255, 0.28);
-        --glow-2: rgba(20, 241, 149, 0.16);
-        --glow-3: rgba(52, 165, 255, 0.18);
-        --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
-      }
-      html.light {
-        --bg: #f5f6fa;
-        --bg-soft: #ffffff;
-        --surface: rgba(19, 23, 38, 0.035);
-        --surface-hover: rgba(19, 23, 38, 0.07);
-        --border: rgba(19, 23, 38, 0.1);
-        --border-strong: rgba(19, 23, 38, 0.2);
-        --text: #141a2a;
-        --muted: #525b70;
-        --faint: #8a92a6;
-        --nav-bg: rgba(245, 246, 250, 0.75);
-        --glow-1: rgba(153, 69, 255, 0.16);
-        --glow-2: rgba(20, 241, 149, 0.14);
-        --glow-3: rgba(52, 165, 255, 0.14);
-        --shadow: 0 24px 60px -24px rgba(30, 35, 60, 0.25);
-      }
-      /* ═══════════════ Base ═══════════════ */
-      * {
-        box-sizing: border-box;
-        padding: 0;
-        margin: 0;
-      }
-      html {
-        scroll-behavior: smooth;
-      }
-      body {
-        overflow-x: hidden;
-        font-family:
-          ui-sans-serif,
-          system-ui,
-          -apple-system,
-          "Segoe UI",
-          Roboto,
-          "Helvetica Neue",
-          Arial,
-          sans-serif;
-        -webkit-font-smoothing: antialiased;
-        line-height: 1.6;
-        color: var(--text);
-        background: var(--bg);
-        transition:
-          background 0.35s ease,
-          color 0.35s ease;
-      }
-      ::selection {
-        color: #fff;
-        background: var(--brand-1);
-      }
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
-      img,
-      svg {
-        display: block;
-      }
-      .container {
-        max-width: 72rem;
-        padding: 0 1.5rem;
-        margin: 0 auto;
-      }
-      .mono {
-        font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
-      }
-      .grad-text {
-        color: transparent;
-        background: linear-gradient(92deg, var(--brand-1) 0%, var(--accent) 50%, var(--brand-2) 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-      }
-      .glass {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        -webkit-backdrop-filter: blur(14px);
-        backdrop-filter: blur(14px);
-      }
-      /* ═══════════════ Orbs / grain ═══════════════ */
-      .orb {
-        position: absolute;
-        pointer-events: none;
-        border-radius: 50%;
-        filter: blur(90px);
-        animation: drift 14s ease-in-out infinite alternate;
-      }
-      @keyframes drift {
-        from {
-          transform: translate(0, 0) scale(1);
-        }
-        to {
-          transform: translate(30px, -30px) scale(1.08);
-        }
-      }
-      /* ═══════════════ Nav ═══════════════ */
-      nav {
-        position: fixed;
-        top: 0;
-        right: 0;
-        left: 0;
-        z-index: 100;
-        padding: 1.1rem 0;
-        transition: padding 0.3s ease;
-      }
-      nav.scrolled {
-        padding: 0.6rem 0;
-        background: var(--nav-bg);
-        border-bottom: 1px solid var(--border);
-        -webkit-backdrop-filter: blur(16px);
-        backdrop-filter: blur(16px);
-      }
-      .nav-inner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      .logo {
-        display: flex;
-        gap: 0.6rem;
-        align-items: center;
-        font-size: 1.25rem;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-      }
-      .logo img {
-        width: 30px;
-        height: 30px;
-      }
-      .nav-links {
-        display: none;
-        gap: 2rem;
-        align-items: center;
-      }
-      .nav-links a {
-        font-size: 0.9rem;
-        color: var(--muted);
-        transition: color 0.2s;
-      }
-      .nav-links a:hover {
-        color: var(--text);
-      }
-      @media (min-width: 860px) {
-        .nav-links {
-          display: flex;
-        }
-      }
-      .btn-primary {
-        display: inline-flex;
-        gap: 0.5rem;
-        align-items: center;
-        padding: 0.65rem 1.4rem;
-        font-size: 0.9rem;
-        font-weight: 700;
-        color: #fff;
-        cursor: pointer;
-        background: linear-gradient(92deg, var(--brand-1), var(--accent) 60%, var(--brand-2));
-        border: none;
-        border-radius: 999px;
-        box-shadow: 0 8px 28px -8px var(--glow-1);
-        transition:
-          transform 0.2s ease,
-          box-shadow 0.2s ease;
-      }
-      .btn-primary:hover {
-        box-shadow: 0 14px 36px -8px var(--glow-1);
-        transform: translateY(-2px);
-      }
-      .btn-ghost {
-        display: inline-flex;
-        gap: 0.5rem;
-        align-items: center;
-        padding: 0.65rem 1.4rem;
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: var(--text);
-        cursor: pointer;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        transition:
-          background 0.2s ease,
-          transform 0.2s ease;
-      }
-      .btn-ghost:hover {
-        background: var(--surface-hover);
-        transform: translateY(-2px);
-      }
-      /* ═══════════════ Theme toggle ═══════════════ */
-      .theme-toggle {
-        display: inline-flex;
-        gap: 2px;
-        align-items: center;
-        padding: 3px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-      }
-      .theme-toggle button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 30px;
-        height: 30px;
-        color: var(--faint);
-        cursor: pointer;
-        background: transparent;
-        border: none;
-        border-radius: 999px;
-        transition: all 0.2s ease;
-      }
-      .theme-toggle button:hover {
-        color: var(--text);
-      }
-      .theme-toggle button.active {
-        color: #fff;
-        background: linear-gradient(92deg, var(--brand-1), var(--accent));
-      }
-      /* ═══════════════ Hero ═══════════════ */
-      .hero {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 100svh;
-        padding: 7rem 1.5rem 5rem;
-        overflow: hidden;
-        text-align: center;
-      }
-      .hero-badge {
-        display: inline-flex;
-        gap: 0.5rem;
-        align-items: center;
-        padding: 0.4rem 1rem;
-        font-size: 0.82rem;
-        color: var(--muted);
-        border-radius: 999px;
-        animation: float 5s ease-in-out infinite;
-      }
-      .hero-badge .dot {
-        width: 7px;
-        height: 7px;
-        background: var(--brand-2);
-        border-radius: 50%;
-        box-shadow: 0 0 12px var(--brand-2);
-      }
-      @keyframes float {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(-7px);
-        }
-      }
-      .hero h1 {
-        margin: 1.6rem 0 1.4rem;
-        font-size: clamp(2.6rem, 8vw, 5.4rem);
-        font-weight: 900;
-        line-height: 1.04;
-        letter-spacing: -0.035em;
-      }
-      .hero p.sub {
-        max-width: 42rem;
-        margin: 0 auto 2.6rem;
-        font-size: clamp(1.05rem, 2.2vw, 1.3rem);
-        color: var(--muted);
-      }
-      .hero-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.9rem;
-        justify-content: center;
-      }
-      .hero-actions .btn-primary,
-      .hero-actions .btn-ghost {
-        padding: 0.95rem 2rem;
-        font-size: 1.02rem;
-      }
-      .hero-foot {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1.4rem 2.4rem;
-        justify-content: center;
-        margin-top: 3.4rem;
-        font-size: 0.85rem;
-        color: var(--faint);
-      }
-      .hero-foot span {
-        display: inline-flex;
-        gap: 0.45rem;
-        align-items: center;
-      }
-      .hero-foot svg {
-        color: var(--brand-2);
-      }
-      /* ═══════════════ Sections ═══════════════ */
-      section {
-        position: relative;
-        padding: 6.5rem 0;
-      }
-      .eyebrow {
-        margin-bottom: 1rem;
-        font-size: 0.78rem;
-        font-weight: 700;
-        color: var(--accent);
-        text-transform: uppercase;
-        letter-spacing: 0.22em;
-      }
-      h2 {
-        font-size: clamp(1.9rem, 4.5vw, 3.1rem);
-        font-weight: 850;
-        line-height: 1.12;
-        letter-spacing: -0.03em;
-      }
-      .section-head {
-        max-width: 44rem;
-        margin-bottom: 3.4rem;
-      }
-      .section-head.center {
-        margin-right: auto;
-        margin-left: auto;
-        text-align: center;
-      }
-      .section-head p {
-        margin-top: 1rem;
-        font-size: 1.06rem;
-        color: var(--muted);
-      }
-      /* ═══════════════ Mission ═══════════════ */
-      .mission-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 1.1rem;
-      }
-      @media (min-width: 760px) {
-        .mission-grid {
-          grid-template-columns: repeat(3, 1fr);
-        }
-      }
-      .card {
-        position: relative;
-        padding: 2rem;
-        overflow: hidden;
-        border-radius: 1.4rem;
-        transition:
-          transform 0.25s ease,
-          border-color 0.25s ease,
-          background 0.25s ease;
-      }
-      .card:hover {
-        background: var(--surface-hover);
-        border-color: var(--border-strong);
-        transform: translateY(-4px);
-      }
-      .card .num {
-        margin-bottom: 1.4rem;
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: var(--faint);
-        letter-spacing: 0.14em;
-      }
-      .card h3 {
-        margin-bottom: 0.7rem;
-        font-size: 1.3rem;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-      }
-      .card p {
-        font-size: 0.95rem;
-        color: var(--muted);
-      }
-      .card .card-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        margin-bottom: 1.4rem;
-        color: #fff;
-        border-radius: 12px;
-      }
-      .ci-1 {
-        background: linear-gradient(135deg, var(--brand-1), #6d28d9);
-      }
-      .ci-2 {
-        background: linear-gradient(135deg, var(--accent), #1d4ed8);
-      }
-      .ci-3 {
-        background: linear-gradient(135deg, var(--brand-2), #059669);
-      }
-      .ci-4 {
-        background: linear-gradient(135deg, #f472b6, #be185d);
-      }
-      /* ═══════════════ Piliers ═══════════════ */
-      .pillars {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 1.2rem;
-      }
-      @media (min-width: 860px) {
-        .pillars {
-          grid-template-columns: repeat(2, 1fr);
-        }
-      }
-      .pillar {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        padding: 2.4rem;
-        overflow: hidden;
-        border-radius: 1.6rem;
-        transition:
-          transform 0.25s ease,
-          border-color 0.25s ease;
-      }
-      .pillar:hover {
-        border-color: var(--border-strong);
-        transform: translateY(-4px);
-      }
-      .pillar::before {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        content: "";
-        background: radial-gradient(
-          600px circle at var(--mx, 50%) var(--my, 0%),
-          rgba(153, 69, 255, 0.09),
-          transparent 65%
-        );
-        opacity: 0;
-        transition: opacity 0.35s ease;
-      }
-      .pillar:hover::before {
-        opacity: 1;
-      }
-      .pillar .tag {
-        align-self: flex-start;
-        padding: 0.3rem 0.75rem;
-        font-size: 0.7rem;
-        font-weight: 800;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
-        border: 1px solid var(--border-strong);
-        border-radius: 999px;
-      }
-      .pillar h3 {
-        font-size: 1.65rem;
-        font-weight: 850;
-        letter-spacing: -0.02em;
-      }
-      .pillar p {
-        flex: 1;
-        font-size: 0.98rem;
-        color: var(--muted);
-      }
-      .pillar .more {
-        display: inline-flex;
-        gap: 0.4rem;
-        align-items: center;
-        margin-top: 0.4rem;
-        font-size: 0.88rem;
-        font-weight: 700;
-        color: var(--accent);
-      }
-      .pillar .more svg {
-        transition: transform 0.2s;
-      }
-      .pillar:hover .more svg {
-        transform: translateX(4px);
-      }
-      /* ═══════════════ CTA band ═══════════════ */
-      .cta-band {
-        position: relative;
-        padding: 4rem 2rem;
-        overflow: hidden;
-        text-align: center;
-        background:
-          radial-gradient(700px circle at 20% 0%, var(--glow-1), transparent 60%),
-          radial-gradient(700px circle at 80% 100%, var(--glow-2), transparent 60%), var(--bg-soft);
-        border: 1px solid var(--border-strong);
-        border-radius: 2rem;
-      }
-      .cta-band h2 {
-        margin-bottom: 1rem;
-      }
-      .cta-band p {
-        max-width: 34rem;
-        margin: 0 auto 2.2rem;
-        color: var(--muted);
-      }
-      /* ═══════════════ Footer ═══════════════ */
-      footer {
-        padding: 3.5rem 0 2.5rem;
-        border-top: 1px solid var(--border);
-      }
-      .disclaimer {
-        padding: 1.6rem 1.8rem;
-        margin-bottom: 2.4rem;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 1.2rem;
-      }
-      .disclaimer strong {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-        margin-bottom: 0.5rem;
-        font-size: 0.9rem;
-      }
-      .disclaimer p {
-        font-size: 0.82rem;
-        color: var(--muted);
-      }
-      .footer-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
-        align-items: center;
-        justify-content: space-between;
-        font-size: 0.82rem;
-        color: var(--faint);
-      }
-      .footer-links {
-        display: flex;
-        gap: 1.4rem;
-      }
-      .footer-links a:hover {
-        color: var(--text);
-      }
-      /* ═══════════════ Reveal ═══════════════ */
-      .reveal {
-        opacity: 0;
-        transform: translateY(26px);
-        transition:
-          opacity 0.7s ease,
-          transform 0.7s ease;
-      }
-      .reveal.in {
-        opacity: 1;
-        transform: none;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .reveal {
-          opacity: 1;
-          transform: none;
-          transition: none;
-        }
-        .orb,
-        .hero-badge {
-          animation: none;
-        }
-      }
-      /* ═══════════════ Live stats ═══════════════ */
-      .stats-band {
-        position: relative;
-        padding: 2.6rem 2rem;
-        overflow: hidden;
-        background:
-          radial-gradient(500px circle at 15% 0%, var(--glow-1), transparent 60%),
-          radial-gradient(500px circle at 85% 100%, var(--glow-3), transparent 60%), var(--bg-soft);
-        border: 1px solid var(--border-strong);
-        border-radius: 1.6rem;
-      }
-      .stats-band .live-tag {
-        display: inline-flex;
-        gap: 0.5rem;
-        align-items: center;
-        padding: 0.3rem 0.85rem;
-        margin-bottom: 1.8rem;
-        font-size: 0.72rem;
-        font-weight: 800;
-        color: var(--brand-2);
-        text-transform: uppercase;
-        letter-spacing: 0.2em;
-        border: 1px solid var(--border-strong);
-        border-radius: 999px;
-      }
-      .stats-band .live-tag .dot {
-        width: 7px;
-        height: 7px;
-        background: var(--brand-2);
-        border-radius: 50%;
-        box-shadow: 0 0 10px var(--brand-2);
-        animation: blink 1.6s ease-in-out infinite;
-      }
-      @keyframes blink {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.25;
-        }
-      }
-      .stats-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 1.6rem;
-        text-align: center;
-      }
-      @media (min-width: 720px) {
-        .stats-grid {
-          grid-template-columns: repeat(3, 1fr);
-        }
-      }
-      .stat .stat-value {
-        font-family: "Baloo 2", ui-rounded, "SF Rounded", system-ui, sans-serif;
-        font-size: clamp(1.9rem, 4.5vw, 2.7rem);
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0;
-      }
-      .stat .stat-label {
-        margin-top: 0.3rem;
-        font-size: 0.82rem;
-        color: var(--faint);
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-      }
-      .stats-note {
-        margin-top: 1.8rem;
-        font-size: 0.75rem;
-        color: var(--faint);
-        text-align: center;
-      }
-      /* ═══════════════ FAQ ═══════════════ */
-      .faq-list {
-        display: flex;
-        flex-direction: column;
-        gap: 0.9rem;
-        max-width: 46rem;
-        margin: 0 auto;
-      }
-      .faq {
-        padding: 0;
-        overflow: hidden;
-        border-radius: 1.1rem;
-        transition:
-          border-color 0.25s ease,
-          background 0.25s ease;
-      }
-      .faq:hover,
-      .faq[open] {
-        border-color: var(--border-strong);
-      }
-      .faq summary {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-        justify-content: space-between;
-        padding: 1.25rem 1.6rem;
-        font-size: 1.02rem;
-        font-weight: 750;
-        letter-spacing: -0.01em;
-        cursor: pointer;
-        list-style: none;
-        transition: color 0.2s;
-      }
-      .faq summary::-webkit-details-marker {
-        display: none;
-      }
-      .faq summary::after {
-        flex-shrink: 0;
-        width: 22px;
-        height: 22px;
-        content: "";
-        background: currentColor;
-        opacity: 0.55;
-        -webkit-mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"/></svg>')
-          center / contain no-repeat;
-        mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"/></svg>')
-          center / contain no-repeat;
-        transition: transform 0.25s ease;
-      }
-      .faq[open] summary {
-        color: var(--accent);
-      }
-      .faq[open] summary::after {
-        transform: rotate(180deg);
-      }
-      .faq p {
-        padding: 0 1.6rem 1.35rem;
-        font-size: 0.95rem;
-        color: var(--muted);
-      }
-      /* ═══════════════ Mobile menu ═══════════════ */
-      .burger {
-        display: flex;
-        padding: 6px;
-        color: var(--text);
-        cursor: pointer;
-        background: none;
-        border: none;
-      }
-      @media (min-width: 860px) {
-        .burger {
-          display: none;
-        }
-      }
-      .mobile-menu {
-        position: fixed;
-        inset: 0;
-        z-index: 90;
-        display: none;
-        flex-direction: column;
-        gap: 1.6rem;
-        padding: 6rem 1.5rem 2rem;
-        background: var(--bg);
-      }
-      .mobile-menu.open {
-        display: flex;
-      }
-      .mobile-menu a {
-        padding: 0.6rem 0;
-        font-size: 1.4rem;
-        font-weight: 750;
-        letter-spacing: -0.02em;
-        border-bottom: 1px solid var(--border);
-      }
-      .nav-cta {
-        display: none;
-      }
-      @media (min-width: 860px) {
-        .nav-cta {
-          display: inline-flex;
-        }
-      }
-    </style>
+  /* ═══════════════ Tokens ═══════════════ */
+  :root {
+    --brand-1: #9945ff;
+    --brand-2: #14f195;
+    --accent: #34a5ff;
+    --bg: #07080e;
+    --bg-soft: #0b0d17;
+    --surface: rgba(255, 255, 255, 0.035);
+    --surface-hover: rgba(255, 255, 255, 0.07);
+    --border: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --text: #f2f4fa;
+    --muted: #98a1b6;
+    --faint: #646c82;
+    --nav-bg: rgba(7, 8, 14, 0.72);
+    --glow-1: rgba(153, 69, 255, 0.28);
+    --glow-2: rgba(20, 241, 149, 0.16);
+    --glow-3: rgba(52, 165, 255, 0.18);
+    --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+  }
+  html.light {
+    --bg: #f5f6fa;
+    --bg-soft: #ffffff;
+    --surface: rgba(19, 23, 38, 0.035);
+    --surface-hover: rgba(19, 23, 38, 0.07);
+    --border: rgba(19, 23, 38, 0.1);
+    --border-strong: rgba(19, 23, 38, 0.2);
+    --text: #141a2a;
+    --muted: #525b70;
+    --faint: #8a92a6;
+    --nav-bg: rgba(245, 246, 250, 0.75);
+    --glow-1: rgba(153, 69, 255, 0.16);
+    --glow-2: rgba(20, 241, 149, 0.14);
+    --glow-3: rgba(52, 165, 255, 0.14);
+    --shadow: 0 24px 60px -24px rgba(30, 35, 60, 0.25);
+  }
+  /* ═══════════════ Base ═══════════════ */
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    overflow-x: hidden;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      "Helvetica Neue",
+      Arial,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bg);
+    transition:
+      background 0.35s ease,
+      color 0.35s ease;
+  }
+  ::selection {
+    color: #fff;
+    background: var(--brand-1);
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  img,
+  svg {
+    display: block;
+  }
+  .container {
+    max-width: 72rem;
+    padding: 0 1.5rem;
+    margin: 0 auto;
+  }
+  .mono {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  }
+  .grad-text {
+    color: transparent;
+    background: linear-gradient(92deg, var(--brand-1) 0%, var(--accent) 50%, var(--brand-2) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .glass {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+  /* ═══════════════ Orbs / grain ═══════════════ */
+  .orb {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 50%;
+    filter: blur(90px);
+    animation: drift 14s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    from {
+      transform: translate(0, 0) scale(1);
+    }
+    to {
+      transform: translate(30px, -30px) scale(1.08);
+    }
+  }
+  /* ═══════════════ Nav ═══════════════ */
+  nav {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 100;
+    padding: 1.1rem 0;
+    transition: padding 0.3s ease;
+  }
+  nav.scrolled {
+    padding: 0.6rem 0;
+    background: var(--nav-bg);
+    border-bottom: 1px solid var(--border);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .logo img {
+    width: 30px;
+    height: 30px;
+  }
+  .nav-links {
+    display: none;
+    gap: 2rem;
+    align-items: center;
+  }
+  .nav-links a {
+    font-size: 0.9rem;
+    color: var(--muted);
+    transition: color 0.2s;
+  }
+  .nav-links a:hover {
+    color: var(--text);
+  }
+  @media (min-width: 860px) {
+    .nav-links {
+      display: flex;
+    }
+  }
+  .btn-primary {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.65rem 1.4rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    background: linear-gradient(92deg, var(--brand-1), var(--accent) 60%, var(--brand-2));
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 8px 28px -8px var(--glow-1);
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .btn-primary:hover {
+    box-shadow: 0 14px 36px -8px var(--glow-1);
+    transform: translateY(-2px);
+  }
+  .btn-ghost {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.65rem 1.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    transition:
+      background 0.2s ease,
+      transform 0.2s ease;
+  }
+  .btn-ghost:hover {
+    background: var(--surface-hover);
+    transform: translateY(-2px);
+  }
+  /* ═══════════════ Theme toggle ═══════════════ */
+  .theme-toggle {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    padding: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+  .theme-toggle button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: var(--faint);
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    border-radius: 999px;
+    transition: all 0.2s ease;
+  }
+  .theme-toggle button:hover {
+    color: var(--text);
+  }
+  .theme-toggle button.active {
+    color: #fff;
+    background: linear-gradient(92deg, var(--brand-1), var(--accent));
+  }
+  /* ═══════════════ Hero ═══════════════ */
+  .hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100svh;
+    padding: 7rem 1.5rem 5rem;
+    overflow: hidden;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.4rem 1rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+    border-radius: 999px;
+    animation: float 5s ease-in-out infinite;
+  }
+  .hero-badge .dot {
+    width: 7px;
+    height: 7px;
+    background: var(--brand-2);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--brand-2);
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-7px);
+    }
+  }
+  .hero h1 {
+    margin: 1.6rem 0 1.4rem;
+    font-size: clamp(2.6rem, 8vw, 5.4rem);
+    font-weight: 900;
+    line-height: 1.04;
+    letter-spacing: -0.035em;
+  }
+  .hero p.sub {
+    max-width: 42rem;
+    margin: 0 auto 2.6rem;
+    font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+    color: var(--muted);
+  }
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    justify-content: center;
+  }
+  .hero-actions .btn-primary,
+  .hero-actions .btn-ghost {
+    padding: 0.95rem 2rem;
+    font-size: 1.02rem;
+  }
+  .hero-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.4rem 2.4rem;
+    justify-content: center;
+    margin-top: 3.4rem;
+    font-size: 0.85rem;
+    color: var(--faint);
+  }
+  .hero-foot span {
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+  }
+  .hero-foot svg {
+    color: var(--brand-2);
+  }
+  /* ═══════════════ Sections ═══════════════ */
+  section {
+    position: relative;
+    padding: 6.5rem 0;
+  }
+  .eyebrow {
+    margin-bottom: 1rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+  }
+  h2 {
+    font-size: clamp(1.9rem, 4.5vw, 3.1rem);
+    font-weight: 850;
+    line-height: 1.12;
+    letter-spacing: -0.03em;
+  }
+  .section-head {
+    max-width: 44rem;
+    margin-bottom: 3.4rem;
+  }
+  .section-head.center {
+    margin-right: auto;
+    margin-left: auto;
+    text-align: center;
+  }
+  .section-head p {
+    margin-top: 1rem;
+    font-size: 1.06rem;
+    color: var(--muted);
+  }
+  /* ═══════════════ Mission ═══════════════ */
+  .mission-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.1rem;
+  }
+  @media (min-width: 760px) {
+    .mission-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .card {
+    position: relative;
+    padding: 2rem;
+    overflow: hidden;
+    border-radius: 1.4rem;
+    transition:
+      transform 0.25s ease,
+      border-color 0.25s ease,
+      background 0.25s ease;
+  }
+  .card:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+    transform: translateY(-4px);
+  }
+  .card .num {
+    margin-bottom: 1.4rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--faint);
+    letter-spacing: 0.14em;
+  }
+  .card h3 {
+    margin-bottom: 0.7rem;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .card p {
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  .card .card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 1.4rem;
+    color: #fff;
+    border-radius: 12px;
+  }
+  .ci-1 {
+    background: linear-gradient(135deg, var(--brand-1), #6d28d9);
+  }
+  .ci-2 {
+    background: linear-gradient(135deg, var(--accent), #1d4ed8);
+  }
+  .ci-3 {
+    background: linear-gradient(135deg, var(--brand-2), #059669);
+  }
+  .ci-4 {
+    background: linear-gradient(135deg, #f472b6, #be185d);
+  }
+  /* ═══════════════ Piliers ═══════════════ */
+  .pillars {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.2rem;
+  }
+  @media (min-width: 860px) {
+    .pillars {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .pillar {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 2.4rem;
+    overflow: hidden;
+    border-radius: 1.6rem;
+    transition:
+      transform 0.25s ease,
+      border-color 0.25s ease;
+  }
+  .pillar:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-4px);
+  }
+  .pillar::before {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    content: "";
+    background: radial-gradient(
+      600px circle at var(--mx, 50%) var(--my, 0%),
+      rgba(153, 69, 255, 0.09),
+      transparent 65%
+    );
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .pillar:hover::before {
+    opacity: 1;
+  }
+  .pillar .tag {
+    align-self: flex-start;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+  }
+  .pillar h3 {
+    font-size: 1.65rem;
+    font-weight: 850;
+    letter-spacing: -0.02em;
+  }
+  .pillar p {
+    flex: 1;
+    font-size: 0.98rem;
+    color: var(--muted);
+  }
+  .pillar .more {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-top: 0.4rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .pillar .more svg {
+    transition: transform 0.2s;
+  }
+  .pillar:hover .more svg {
+    transform: translateX(4px);
+  }
+  /* ═══════════════ CTA band ═══════════════ */
+  .cta-band {
+    position: relative;
+    padding: 4rem 2rem;
+    overflow: hidden;
+    text-align: center;
+    background:
+      radial-gradient(700px circle at 20% 0%, var(--glow-1), transparent 60%),
+      radial-gradient(700px circle at 80% 100%, var(--glow-2), transparent 60%), var(--bg-soft);
+    border: 1px solid var(--border-strong);
+    border-radius: 2rem;
+  }
+  .cta-band h2 {
+    margin-bottom: 1rem;
+  }
+  .cta-band p {
+    max-width: 34rem;
+    margin: 0 auto 2.2rem;
+    color: var(--muted);
+  }
+  /* ═══════════════ Footer ═══════════════ */
+  footer {
+    padding: 3.5rem 0 2.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .disclaimer {
+    padding: 1.6rem 1.8rem;
+    margin-bottom: 2.4rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1.2rem;
+  }
+  .disclaimer strong {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+  .disclaimer p {
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .footer-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    color: var(--faint);
+  }
+  .footer-links {
+    display: flex;
+    gap: 1.4rem;
+  }
+  .footer-links a:hover {
+    color: var(--text);
+  }
+  /* ═══════════════ Reveal ═══════════════ */
+  .reveal {
+    opacity: 0;
+    transform: translateY(26px);
+    transition:
+      opacity 0.7s ease,
+      transform 0.7s ease;
+  }
+  .reveal.in {
+    opacity: 1;
+    transform: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+    .orb,
+    .hero-badge {
+      animation: none;
+    }
+  }
+  /* ═══════════════ Live stats ═══════════════ */
+  .stats-band {
+    position: relative;
+    padding: 2.6rem 2rem;
+    overflow: hidden;
+    background:
+      radial-gradient(500px circle at 15% 0%, var(--glow-1), transparent 60%),
+      radial-gradient(500px circle at 85% 100%, var(--glow-3), transparent 60%), var(--bg-soft);
+    border: 1px solid var(--border-strong);
+    border-radius: 1.6rem;
+  }
+  .stats-band .live-tag {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.3rem 0.85rem;
+    margin-bottom: 1.8rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--brand-2);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+  }
+  .stats-band .live-tag .dot {
+    width: 7px;
+    height: 7px;
+    background: var(--brand-2);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--brand-2);
+    animation: blink 1.6s ease-in-out infinite;
+  }
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.6rem;
+    text-align: center;
+  }
+  @media (min-width: 720px) {
+    .stats-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .stat .stat-value {
+    font-family: "Baloo 2", ui-rounded, "SF Rounded", system-ui, sans-serif;
+    font-size: clamp(1.9rem, 4.5vw, 2.7rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  .stat .stat-label {
+    margin-top: 0.3rem;
+    font-size: 0.82rem;
+    color: var(--faint);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+  }
+  .stats-note {
+    margin-top: 1.8rem;
+    font-size: 0.75rem;
+    color: var(--faint);
+    text-align: center;
+  }
+  /* ═══════════════ FAQ ═══════════════ */
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    max-width: 46rem;
+    margin: 0 auto;
+  }
+  .faq {
+    padding: 0;
+    overflow: hidden;
+    border-radius: 1.1rem;
+    transition:
+      border-color 0.25s ease,
+      background 0.25s ease;
+  }
+  .faq:hover,
+  .faq[open] {
+    border-color: var(--border-strong);
+  }
+  .faq summary {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.6rem;
+    font-size: 1.02rem;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    list-style: none;
+    transition: color 0.2s;
+  }
+  .faq summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq summary::after {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    content: "";
+    background: currentColor;
+    opacity: 0.55;
+    -webkit-mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"/></svg>')
+      center / contain no-repeat;
+    mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6l6 -6"/></svg>')
+      center / contain no-repeat;
+    transition: transform 0.25s ease;
+  }
+  .faq[open] summary {
+    color: var(--accent);
+  }
+  .faq[open] summary::after {
+    transform: rotate(180deg);
+  }
+  .faq p {
+    padding: 0 1.6rem 1.35rem;
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  /* ═══════════════ Mobile menu ═══════════════ */
+  .burger {
+    display: flex;
+    padding: 6px;
+    color: var(--text);
+    cursor: pointer;
+    background: none;
+    border: none;
+  }
+  @media (min-width: 860px) {
+    .burger {
+      display: none;
+    }
+  }
+  .mobile-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: none;
+    flex-direction: column;
+    gap: 1.6rem;
+    padding: 6rem 1.5rem 2rem;
+    background: var(--bg);
+  }
+  .mobile-menu.open {
+    display: flex;
+  }
+  .mobile-menu a {
+    padding: 0.6rem 0;
+    font-size: 1.4rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-cta {
+    display: none;
+  }
+  @media (min-width: 860px) {
+    .nav-cta {
+      display: inline-flex;
+    }
+  }
+</style>
 <!-- ═══════════ Nav ═══════════ -->
-    <nav id="nav">
-      <div class="container nav-inner">
-        <a class="logo" href="#top" aria-label="FiMs — Accueil">
-          <img src="/fims.svg" alt="" width="30" height="30" />
-          FiMs
-        </a>
-        <div class="nav-links">
-          <a href="#mission">Mission</a>
-          <a href="#piliers">Piliers</a>
-          <a href="#faq">FAQ</a>
-        </div>
-        <div style="display: flex; align-items: center; gap: 0.8rem">
-          <div class="theme-toggle" role="radiogroup" aria-label="Thème">
-            <button type="button" data-theme="system" title="Thème système" aria-label="Thème système">
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M3 5a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10" />
-                <path d="M7 20h10" />
-                <path d="M9 16v4" />
-                <path d="M15 16v4" />
-              </svg>
-            </button>
-            <button type="button" data-theme="light" title="Thème clair" aria-label="Thème clair">
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
-                <path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7" />
-              </svg>
-            </button>
-            <button type="button" data-theme="dark" title="Thème sombre" aria-label="Thème sombre">
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008" />
-              </svg>
-            </button>
-          </div>
-          <a class="btn-primary nav-cta" href="https://wallet-v3.fims.fi" target="_blank" rel="noopener"
-            >Ouvrir le wallet</a
-          >
-          <button type="button" class="burger" id="burger" aria-label="Menu">
-            <svg
-              aria-hidden="true"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <path d="M4 6l16 0" />
-              <path d="M4 12l16 0" />
-              <path d="M4 18l16 0" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </nav>
-    <div class="mobile-menu" id="mobileMenu">
+<nav id="nav">
+  <div class="container nav-inner">
+    <a class="logo" href="#top" aria-label="FiMs — Accueil">
+      <img src="/fims.svg" alt="" width="30" height="30" />
+      FiMs
+    </a>
+    <div class="nav-links">
       <a href="#mission">Mission</a>
       <a href="#piliers">Piliers</a>
       <a href="#faq">FAQ</a>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.8rem">
+      <div class="theme-toggle" role="radiogroup" aria-label="Thème">
+        <button type="button" data-theme="system" title="Thème système" aria-label="Thème système">
+          <svg
+            aria-hidden="true"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 5a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10" />
+            <path d="M7 20h10" />
+            <path d="M9 16v4" />
+            <path d="M15 16v4" />
+          </svg>
+        </button>
+        <button type="button" data-theme="light" title="Thème clair" aria-label="Thème clair">
+          <svg
+            aria-hidden="true"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
+            <path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7" />
+          </svg>
+        </button>
+        <button type="button" data-theme="dark" title="Thème sombre" aria-label="Thème sombre">
+          <svg
+            aria-hidden="true"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008" />
+          </svg>
+        </button>
+      </div>
+      <a class="btn-primary nav-cta" href="https://wallet-v3.fims.fi" target="_blank" rel="noopener"
+        >Ouvrir le wallet</a
+      >
+      <button type="button" class="burger" id="burger" aria-label="Menu">
+        <svg
+          aria-hidden="true"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        >
+          <path d="M4 6l16 0" />
+          <path d="M4 12l16 0" />
+          <path d="M4 18l16 0" />
+        </svg>
+      </button>
+    </div>
+  </div>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#mission">Mission</a>
+  <a href="#piliers">Piliers</a>
+  <a href="#faq">FAQ</a>
+  <a
+    class="btn-primary"
+    style="justify-content: center; margin-top: 1rem"
+    href="https://wallet-v3.fims.fi"
+    target="_blank"
+    rel="noopener"
+    >Ouvrir le wallet</a
+  >
+</div>
+
+<!-- ═══════════ Hero ═══════════ -->
+<header class="hero" id="top">
+  <div class="orb" style="width: 560px; height: 560px; background: var(--glow-1); top: -140px; left: -120px"></div>
+  <div
+    class="orb"
+    style="width: 480px; height: 480px; background: var(--glow-2); bottom: -80px; right: -100px; animation-delay: -6s"
+  ></div>
+  <div
+    class="orb"
+    style="width: 320px; height: 320px; background: var(--glow-3); top: 38%; left: 56%; animation-delay: -3s"
+  ></div>
+
+  <div style="position: relative; z-index: 1; max-width: 64rem">
+    <div class="hero-badge glass">
+      <span class="dot"></span>
+      Une communauté à taille humaine
+    </div>
+    <h1>
+      Se réapproprier<br />
+      <span class="grad-text">l'utilisation de son argent</span>
+    </h1>
+    <p class="sub">
+      FiMs — Financement Indépendant, Militant et Solidaire. La finance pour tous : payer localement, investir sans
+      banque, s'entraider en communauté.
+    </p>
+    <div class="hero-actions">
+      <a class="btn-primary" href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">
+        Rejoindre la communauté
+        <svg
+          aria-hidden="true"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 12l14 0" />
+          <path d="M13 18l6 -6" />
+          <path d="M13 6l6 6" />
+        </svg>
+      </a>
+      <a class="btn-ghost" href="#piliers">Découvrir les piliers</a>
+    </div>
+    <div class="hero-foot">
+      <span
+        ><svg
+          aria-hidden="true"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06"
+          />
+          <path d="M15 19l2 2l4 -4" />
+        </svg>
+        Open source</span
+      >
+      <span
+        ><svg
+          aria-hidden="true"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 21c.5 -4.5 2.5 -8 7 -10" />
+          <path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0" />
+        </svg>
+        Écologique</span
+      >
+      <span
+        ><svg
+          aria-hidden="true"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
+          <path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          <path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />
+        </svg>
+        Solidaire</span
+      >
+      <span
+        ><svg
+          aria-hidden="true"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M7 20l10 0" />
+          <path d="M6 6l6 -1l6 1" />
+          <path d="M12 3l0 17" />
+          <path d="M9 12l-3 -6l-3 6a3 3 0 0 0 6 0" />
+          <path d="M21 12l-3 -6l-3 6a3 3 0 0 0 6 0" />
+        </svg>
+        Équitable</span
+      >
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════ Stats live ═══════════ -->
+<section style="padding-top: 0" id="stats" hidden>
+  <div class="container">
+    <div class="stats-band reveal">
+      <div class="live-tag"><span class="dot"></span> En direct de la communauté</div>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-value grad-text" id="statInvested">—</div>
+          <div class="stat-label">Capital investi</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value grad-text" id="statAssets">—</div>
+          <div class="stat-label">Valeur du portefeuille</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value grad-text" id="statPerf">—</div>
+          <div class="stat-label">Performance depuis le début</div>
+        </div>
+      </div>
+      <p class="stats-note">Chiffres indicatifs calculés à partir des données déclarées par la communauté.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Mission ═══════════ -->
+<section id="mission">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="eyebrow">Notre mission</div>
+      <h2>Une idée, un état d'esprit,<br /><span class="grad-text">une philosophie</span></h2>
+      <p>
+        Un partage de connaissance et d'expérience au sein d'une communauté à taille humaine. Concrètement ? FiMs, c'est
+        la finance pour tous.
+      </p>
+    </div>
+    <div class="mission-grid">
+      <div class="card glass reveal">
+        <div class="num">01 — L'IDÉE</div>
+        <div class="card-icon ci-1">
+          <svg
+            aria-hidden="true"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+            <path d="M14.8 9a2 2 0 0 0 -1.8 -1h-2a2 2 0 1 0 0 4h2a2 2 0 1 1 0 4h-2a2 2 0 0 1 -1.8 -1" />
+            <path d="M12 7v10" />
+          </svg>
+        </div>
+        <h3>L'argent comme valeur d'échange</h3>
+        <p>
+          Se réapproprier l'argent comme valeur d'échange et de partage — pas comme une fin en soi. FiMs, c'est
+          l'acronyme de <em>Financement Indépendant, Militant et Solidaire</em>.
+        </p>
+      </div>
+      <div class="card glass reveal">
+        <div class="num">02 — L'ÉTAT D'ESPRIT</div>
+        <div class="card-icon ci-3">
+          <svg
+            aria-hidden="true"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 21c.5 -4.5 2.5 -8 7 -10" />
+            <path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0" />
+          </svg>
+        </div>
+        <h3>Un capital équitable et écologique</h3>
+        <p>
+          Utiliser notre capital financier de manière équitable, écologique et solidaire. Chaque euro a un impact —
+          autant qu'il serve ce en quoi on croit.
+        </p>
+      </div>
+      <div class="card glass reveal">
+        <div class="num">03 — LA PHILOSOPHIE</div>
+        <div class="card-icon ci-2">
+          <svg
+            aria-hidden="true"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+            <path d="M3.6 9h16.8" />
+            <path d="M3.6 15h16.8" />
+            <path d="M11.5 3a17 17 0 0 0 0 18" />
+            <path d="M12.5 3a17 17 0 0 1 0 18" />
+          </svg>
+        </div>
+        <h3>L'autonomie vis-à-vis des banques</h3>
+        <p>
+          Récupérer son autonomie par rapport à la banque, comprendre comment elle fonctionne, et arrêter de cautionner
+          les atrocités qu'elle subventionne.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Piliers ═══════════ -->
+<section id="piliers" style="background: var(--bg-soft)">
+  <div class="orb" style="width: 420px; height: 420px; background: var(--glow-3); top: 10%; right: -140px"></div>
+  <div class="container" style="position: relative; z-index: 1">
+    <div class="section-head center reveal">
+      <div class="eyebrow">L'écosystème</div>
+      <h2>Quatre piliers,<br /><span class="grad-text">un seul état d'esprit</span></h2>
+    </div>
+    <div class="pillars">
+      <a class="pillar glass reveal" href="https://wallet-v3.fims.fi" target="_blank" rel="noopener">
+        <div class="card-icon ci-1">
+          <svg
+            aria-hidden="true"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M17 8v-3a1 1 0 0 0 -1 -1h-10a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3m0 4v3a1 1 0 0 1 -1 1h-12a2 2 0 0 1 -2 -2v-12"
+            />
+            <path d="M20 12v4h-4a2 2 0 0 1 0 -4h4" />
+          </svg>
+        </div>
+        <span class="tag">FiMs Pay</span>
+        <h3>Système de paiement</h3>
+        <p>
+          Un moyen de paiement simple, rapide et écologique : acheter auprès de commerçants locaux et échanger de
+          l'argent entre particuliers, directement depuis le wallet.
+        </p>
+        <span class="more"
+          >Ouvrir le wallet
+          <svg
+            aria-hidden="true"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 12l14 0" />
+            <path d="M13 18l6 -6" />
+            <path d="M13 6l6 6" /></svg
+        ></span>
+      </a>
+      <a class="pillar glass reveal" href="https://wallet-v3.fims.fi/fims" target="_blank" rel="noopener">
+        <div class="card-icon ci-3">
+          <svg
+            aria-hidden="true"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M4 19l16 0" />
+            <path d="M4 15l4 -6l4 2l4 -5l4 4" />
+          </svg>
+        </div>
+        <span class="tag">FiMs DeFi</span>
+        <h3>Finance décentralisée</h3>
+        <p>
+          Des investissements en monnaie digitale qui se passent de banque : tokens de la communauté, suivi de
+          portefeuille transparent, transparence totale sur la trésorerie.
+        </p>
+        <span class="more"
+          >Voir le dashboard
+          <svg
+            aria-hidden="true"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 12l14 0" />
+            <path d="M13 18l6 -6" />
+            <path d="M13 6l6 6" /></svg
+        ></span>
+      </a>
+      <a class="pillar glass reveal" href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">
+        <div class="card-icon ci-2">
+          <svg
+            aria-hidden="true"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1"
+            />
+          </svg>
+        </div>
+        <span class="tag">FiMs Talk</span>
+        <h3>Tout sur la finance</h3>
+        <p>
+          Un espace pour parler, échanger et questionner la finance : articles vulgarisateurs en ligne et conférences,
+          où chacun est libre de contribuer à sa façon.
+        </p>
+        <span class="more"
+          >Rejoindre la discussion
+          <svg
+            aria-hidden="true"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 12l14 0" />
+            <path d="M13 18l6 -6" />
+            <path d="M13 6l6 6" /></svg
+        ></span>
+      </a>
+      <div class="pillar glass reveal">
+        <div class="card-icon ci-4">
+          <svg
+            aria-hidden="true"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
+            <path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            <path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />
+          </svg>
+        </div>
+        <span class="tag">FiMs Share</span>
+        <h3>Tontine solidaire</h3>
+        <p>
+          Chaque participant cotise dans une cagnotte qui peut aider un membre de la communauté en cas de besoin. Si
+          l'argent n'a pas servi, la cagnotte est reversée à une œuvre de charité en fin d'année.
+        </p>
+        <span class="more" style="color: var(--muted)">Réservé aux membres</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ Communauté ═══════════ -->
+<section id="faq" style="background: var(--bg-soft)">
+  <div class="orb" style="width: 380px; height: 380px; background: var(--glow-2); bottom: -60px; left: -120px"></div>
+  <div class="container" style="position: relative; z-index: 1">
+    <div class="section-head center reveal">
+      <div class="eyebrow">FAQ</div>
+      <h2>On répond à <span class="grad-text">vos questions</span></h2>
+      <p>Simple et sans jargon — comme on se les pose entre nous.</p>
+    </div>
+    <div class="faq-list">
+      <details class="faq glass reveal" name="faq">
+        <summary>FiMs, c'est quoi exactement ?</summary>
+        <p>
+          Une communauté à taille humaine qui expérimente la finance autrement : se passer des banques, s'échanger de
+          l'argent entre membres, investir ensemble de façon transparente. FiMs = Financement Indépendant, Militant et
+          Solidaire.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>C'est une banque ou un produit d'investissement ?</summary>
+        <p>
+          Ni l'un ni l'autre. FiMs est une expérimentation communautaire, pas un établissement financier. Personne ne te
+          promet de rendement et rien ici n'est un conseil en investissement. Le site et le wallet sont des outils, les
+          décisions t'appartiennent.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Comment ça marche concrètement ?</summary>
+        <p>
+          Tu te crées un porte-monnaie (un « wallet ») en deux minutes sur wallet-v3.fims.fi, tu y mets un peu de
+          cryptomonnaie, et tu peux ensuite payer, échanger ou participer aux projets de la communauté. Tout se passe
+          sur Solana, une blockchain publique rapide et peu énergivore.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Mes euros partent où quand je « dépose » ?</summary>
+        <p>
+          Dans <strong>ton</strong> wallet, pas dans une caisse commune : 1 € déposé devient 1 € de cryptomonnaie sur
+          ton propre compte, et toi seul en détiens la clé. La crypto, c'est juste un moyen de paiement — numérique
+          comme une carte bleue, mais échangeable directement entre personnes, comme les espèces, sans passer par une
+          banque ou un tiers central. Ensuite, si tu veux participer à la tontine ou aux projets communautaires, c'est
+          toi qui décides d'y envoyer une partie — ou pas.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>C'est quoi la tontine ?</summary>
+        <p>
+          Une cagnotte solidaire entre membres : chacun cotise ce qu'il veut, et la cagnotte peut aider un membre en
+          difficulté. Si l'argent n'a pas servi dans l'année, il est reversé à une œuvre de charité choisie par la
+          communauté.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Et cette règle des « 10 % » dont on entend parler ?</summary>
+        <p>
+          Quand un membre réalise des gains, on lui propose de reverser 10 % au pot commun — c'est ce qui finance le
+          fonctionnement et la solidarité. Tant qu'un membre a une contribution due, ses actions sortantes (échanges,
+          envois) sont bloquées jusqu'à régularisation.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Combien ça coûte ?</summary>
+        <p>
+          L'inscription et l'utilisation du wallet sont gratuites. Les conversions et retraits prélèvent 0,1 % de frais
+          de fonctionnement pour la communauté, et la blockchain Solana ajoute des frais réseau de l'ordre du centime.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Je peux perdre de l'argent ?</summary>
+        <p>
+          Oui. Les crypto-actifs sont volatils : leur valeur peut monter… ou chuter fortement. Ne mets jamais plus que
+          ce que tu peux te permettre de perdre, et renseigne-toi toujours par toi-même avant de décider.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Ma « phrase de récupération », c'est quoi et pourquoi tout le monde insiste dessus ?</summary>
+        <p>
+          C'est la liste de 12 mots affichée à la création du wallet : c'est ta seule et unique clé. Qui la connaît
+          contrôle tes fonds — la communauté ne peut pas te la « réinitialiser ». Écris-la sur papier, garde-la
+          précieusement, ne la donne à personne (jamais, pas même à « l'assistance »).
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Qui voit mes données ?</summary>
+        <p>
+          La transparence est un principe FiMs : le dashboard communauté affiche les montants de chaque membre… sous un
+          pseudo. Tu choisis ton pseudo et tu peux passer ton profil en privé si tu préfères ne pas apparaître.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Le code est-il ouvert ?</summary>
+        <p>
+          Oui, tout est open source sur GitHub (FiMs-Wallet-V3). Tu peux lire, vérifier, contribuer — et la communauté
+          se réunit tous les 3 mois sur Discord pour décider ensemble de la suite.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Comment rejoindre ?</summary>
+        <p>
+          Passe dire bonjour sur le Discord — c'est là que tout se joue : présentations, réunions trimestrielles,
+          entraide. Aucune compétence technique ou financière requise, la curiosité suffit.
+        </p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CTA ═══════════ -->
+<section style="padding-top: 0">
+  <div class="container">
+    <div class="cta-band reveal">
+      <h2>Prêt à passer <span class="grad-text">à l'action</span> ?</h2>
+      <p>Crée ton porte-monnaie en deux minutes et rejoins une communauté qui reprend le contrôle de son argent.</p>
       <a
         class="btn-primary"
-        style="justify-content: center; margin-top: 1rem"
+        style="padding: 1rem 2.2rem; font-size: 1.05rem"
         href="https://wallet-v3.fims.fi"
         target="_blank"
         rel="noopener"
-        >Ouvrir le wallet</a
       >
+        Ouvrir FiMs Wallet
+        <svg
+          aria-hidden="true"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6" />
+          <path d="M11 13l9 -9" />
+          <path d="M15 4h5v5" />
+        </svg>
+      </a>
     </div>
+  </div>
+</section>
 
-    <!-- ═══════════ Hero ═══════════ -->
-    <header class="hero" id="top">
-      <div class="orb" style="width: 560px; height: 560px; background: var(--glow-1); top: -140px; left: -120px"></div>
-      <div
-        class="orb"
-        style="
-          width: 480px;
-          height: 480px;
-          background: var(--glow-2);
-          bottom: -80px;
-          right: -100px;
-          animation-delay: -6s;
-        "
-      ></div>
-      <div
-        class="orb"
-        style="width: 320px; height: 320px; background: var(--glow-3); top: 38%; left: 56%; animation-delay: -3s"
-      ></div>
-
-      <div style="position: relative; z-index: 1; max-width: 64rem">
-        <div class="hero-badge glass">
-          <span class="dot"></span>
-          Une communauté à taille humaine
-        </div>
-        <h1>
-          Se réapproprier<br />
-          <span class="grad-text">l'utilisation de son argent</span>
-        </h1>
-        <p class="sub">
-          FiMs — Financement Indépendant, Militant et Solidaire. La finance pour tous : payer localement, investir sans
-          banque, s'entraider en communauté.
-        </p>
-        <div class="hero-actions">
-          <a class="btn-primary" href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">
-            Rejoindre la communauté
-            <svg
-              aria-hidden="true"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 12l14 0" />
-              <path d="M13 18l6 -6" />
-              <path d="M13 6l6 6" />
-            </svg>
-          </a>
-          <a class="btn-ghost" href="#piliers">Découvrir les piliers</a>
-        </div>
-        <div class="hero-foot">
-          <span
-            ><svg
-              aria-hidden="true"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06"
-              />
-              <path d="M15 19l2 2l4 -4" />
-            </svg>
-            Open source</span
-          >
-          <span
-            ><svg
-              aria-hidden="true"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 21c.5 -4.5 2.5 -8 7 -10" />
-              <path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0" />
-            </svg>
-            Écologique</span
-          >
-          <span
-            ><svg
-              aria-hidden="true"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
-              <path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              <path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />
-            </svg>
-            Solidaire</span
-          >
-          <span
-            ><svg
-              aria-hidden="true"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M7 20l10 0" />
-              <path d="M6 6l6 -1l6 1" />
-              <path d="M12 3l0 17" />
-              <path d="M9 12l-3 -6l-3 6a3 3 0 0 0 6 0" />
-              <path d="M21 12l-3 -6l-3 6a3 3 0 0 0 6 0" />
-            </svg>
-            Équitable</span
-          >
-        </div>
+<!-- ═══════════ Footer ═══════════ -->
+<footer>
+  <div class="container">
+    <div class="disclaimer">
+      <strong>
+        <svg
+          aria-hidden="true"
+          width="17"
+          height="17"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06"
+          />
+          <path d="M15 19l2 2l4 -4" />
+        </svg>
+        Avertissement
+      </strong>
+      <p>
+        FiMs est une communauté expérimentale autour de la finance décentralisée. Rien sur ce site ne constitue un
+        conseil en investissement, financier, juridique ou fiscal. Les crypto-actifs présentent un risque élevé de perte
+        en capital — n'investis jamais plus que ce que tu peux te permettre de perdre. Fais toujours tes propres
+        recherches (DYOR) avant toute décision.
+      </p>
+    </div>
+    <div class="footer-row">
+      <span>© 2026 FiMs — Financement Indépendant, Militant et Solidaire</span>
+      <div class="footer-links">
+        <a href="https://github.com/flodef/FiMs-Wallet-V3" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">Discord</a>
+        <a href="https://wallet-v3.fims.fi" target="_blank" rel="noopener">Wallet</a>
       </div>
-    </header>
-
-    <!-- ═══════════ Stats live ═══════════ -->
-    <section style="padding-top: 0" id="stats" hidden>
-      <div class="container">
-        <div class="stats-band reveal">
-          <div class="live-tag"><span class="dot"></span> En direct de la communauté</div>
-          <div class="stats-grid">
-            <div class="stat">
-              <div class="stat-value grad-text" id="statInvested">—</div>
-              <div class="stat-label">Capital investi</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value grad-text" id="statAssets">—</div>
-              <div class="stat-label">Valeur du portefeuille</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value grad-text" id="statPerf">—</div>
-              <div class="stat-label">Performance depuis le début</div>
-            </div>
-          </div>
-          <p class="stats-note">Chiffres indicatifs calculés à partir des données déclarées par la communauté.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ Mission ═══════════ -->
-    <section id="mission">
-      <div class="container">
-        <div class="section-head reveal">
-          <div class="eyebrow">Notre mission</div>
-          <h2>Une idée, un état d'esprit,<br /><span class="grad-text">une philosophie</span></h2>
-          <p>
-            Un partage de connaissance et d'expérience au sein d'une communauté à taille humaine. Concrètement ? FiMs,
-            c'est la finance pour tous.
-          </p>
-        </div>
-        <div class="mission-grid">
-          <div class="card glass reveal">
-            <div class="num">01 — L'IDÉE</div>
-            <div class="card-icon ci-1">
-              <svg
-                aria-hidden="true"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
-                <path d="M14.8 9a2 2 0 0 0 -1.8 -1h-2a2 2 0 1 0 0 4h2a2 2 0 1 1 0 4h-2a2 2 0 0 1 -1.8 -1" />
-                <path d="M12 7v10" />
-              </svg>
-            </div>
-            <h3>L'argent comme valeur d'échange</h3>
-            <p>
-              Se réapproprier l'argent comme valeur d'échange et de partage — pas comme une fin en soi. FiMs, c'est
-              l'acronyme de <em>Financement Indépendant, Militant et Solidaire</em>.
-            </p>
-          </div>
-          <div class="card glass reveal">
-            <div class="num">02 — L'ÉTAT D'ESPRIT</div>
-            <div class="card-icon ci-3">
-              <svg
-                aria-hidden="true"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M5 21c.5 -4.5 2.5 -8 7 -10" />
-                <path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0" />
-              </svg>
-            </div>
-            <h3>Un capital équitable et écologique</h3>
-            <p>
-              Utiliser notre capital financier de manière équitable, écologique et solidaire. Chaque euro a un impact —
-              autant qu'il serve ce en quoi on croit.
-            </p>
-          </div>
-          <div class="card glass reveal">
-            <div class="num">03 — LA PHILOSOPHIE</div>
-            <div class="card-icon ci-2">
-              <svg
-                aria-hidden="true"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
-                <path d="M3.6 9h16.8" />
-                <path d="M3.6 15h16.8" />
-                <path d="M11.5 3a17 17 0 0 0 0 18" />
-                <path d="M12.5 3a17 17 0 0 1 0 18" />
-              </svg>
-            </div>
-            <h3>L'autonomie vis-à-vis des banques</h3>
-            <p>
-              Récupérer son autonomie par rapport à la banque, comprendre comment elle fonctionne, et arrêter de
-              cautionner les atrocités qu'elle subventionne.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ Piliers ═══════════ -->
-    <section id="piliers" style="background: var(--bg-soft)">
-      <div class="orb" style="width: 420px; height: 420px; background: var(--glow-3); top: 10%; right: -140px"></div>
-      <div class="container" style="position: relative; z-index: 1">
-        <div class="section-head center reveal">
-          <div class="eyebrow">L'écosystème</div>
-          <h2>Quatre piliers,<br /><span class="grad-text">un seul état d'esprit</span></h2>
-        </div>
-        <div class="pillars">
-          <a class="pillar glass reveal" href="https://wallet-v3.fims.fi" target="_blank" rel="noopener">
-            <div class="card-icon ci-1">
-              <svg
-                aria-hidden="true"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M17 8v-3a1 1 0 0 0 -1 -1h-10a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3m0 4v3a1 1 0 0 1 -1 1h-12a2 2 0 0 1 -2 -2v-12"
-                />
-                <path d="M20 12v4h-4a2 2 0 0 1 0 -4h4" />
-              </svg>
-            </div>
-            <span class="tag">FiMs Pay</span>
-            <h3>Système de paiement</h3>
-            <p>
-              Un moyen de paiement simple, rapide et écologique : acheter auprès de commerçants locaux et échanger de
-              l'argent entre particuliers, directement depuis le wallet.
-            </p>
-            <span class="more"
-              >Ouvrir le wallet
-              <svg
-                aria-hidden="true"
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M5 12l14 0" />
-                <path d="M13 18l6 -6" />
-                <path d="M13 6l6 6" /></svg
-            ></span>
-          </a>
-          <a class="pillar glass reveal" href="https://wallet-v3.fims.fi/fims" target="_blank" rel="noopener">
-            <div class="card-icon ci-3">
-              <svg
-                aria-hidden="true"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M4 19l16 0" />
-                <path d="M4 15l4 -6l4 2l4 -5l4 4" />
-              </svg>
-            </div>
-            <span class="tag">FiMs DeFi</span>
-            <h3>Finance décentralisée</h3>
-            <p>
-              Des investissements en monnaie digitale qui se passent de banque : tokens de la communauté, suivi de
-              portefeuille transparent, transparence totale sur la trésorerie.
-            </p>
-            <span class="more"
-              >Voir le dashboard
-              <svg
-                aria-hidden="true"
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M5 12l14 0" />
-                <path d="M13 18l6 -6" />
-                <path d="M13 6l6 6" /></svg
-            ></span>
-          </a>
-          <a class="pillar glass reveal" href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">
-            <div class="card-icon ci-2">
-              <svg
-                aria-hidden="true"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1"
-                />
-              </svg>
-            </div>
-            <span class="tag">FiMs Talk</span>
-            <h3>Tout sur la finance</h3>
-            <p>
-              Un espace pour parler, échanger et questionner la finance : articles vulgarisateurs en ligne et
-              conférences, où chacun est libre de contribuer à sa façon.
-            </p>
-            <span class="more"
-              >Rejoindre la discussion
-              <svg
-                aria-hidden="true"
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M5 12l14 0" />
-                <path d="M13 18l6 -6" />
-                <path d="M13 6l6 6" /></svg
-            ></span>
-          </a>
-          <div class="pillar glass reveal">
-            <div class="card-icon ci-4">
-              <svg
-                aria-hidden="true"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
-                <path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                <path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />
-              </svg>
-            </div>
-            <span class="tag">FiMs Share</span>
-            <h3>Tontine solidaire</h3>
-            <p>
-              Chaque participant cotise dans une cagnotte qui peut aider un membre de la communauté en cas de besoin. Si
-              l'argent n'a pas servi, la cagnotte est reversée à une œuvre de charité en fin d'année.
-            </p>
-            <span class="more" style="color: var(--muted)">Réservé aux membres</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ Communauté ═══════════ -->
-    <section id="faq" style="background: var(--bg-soft)">
-      <div
-        class="orb"
-        style="width: 380px; height: 380px; background: var(--glow-2); bottom: -60px; left: -120px"
-      ></div>
-      <div class="container" style="position: relative; z-index: 1">
-        <div class="section-head center reveal">
-          <div class="eyebrow">FAQ</div>
-          <h2>On répond à <span class="grad-text">vos questions</span></h2>
-          <p>Simple et sans jargon — comme on se les pose entre nous.</p>
-        </div>
-        <div class="faq-list">
-          <details class="faq glass reveal">
-            <summary>FiMs, c'est quoi exactement ?</summary>
-            <p>
-              Une communauté à taille humaine qui expérimente la finance autrement : se passer des banques, s'échanger
-              de l'argent entre membres, investir ensemble de façon transparente. FiMs = Financement Indépendant,
-              Militant et Solidaire.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>C'est une banque ou un produit d'investissement ?</summary>
-            <p>
-              Ni l'un ni l'autre. FiMs est une expérimentation communautaire, pas un établissement financier. Personne
-              ne te promet de rendement et rien ici n'est un conseil en investissement. Le site et le wallet sont des
-              outils, les décisions t'appartiennent.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Comment ça marche concrètement ?</summary>
-            <p>
-              Tu te crées un porte-monnaie (un « wallet ») en deux minutes sur wallet-v3.fims.fi, tu y mets un peu de
-              cryptomonnaie, et tu peux ensuite payer, échanger ou participer aux projets de la communauté. Tout se
-              passe sur Solana, une blockchain publique rapide et peu énergivore.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Mes euros partent où quand je « dépose » ?</summary>
-            <p>
-              L'apport des membres finance le portefeuille communautaire (tokens FiMs, liquidité…) dont le suivi est
-              public dans l'onglet Communauté du wallet. Chacun garde la main sur ses propres fonds : le wallet est «
-              non-custodial », FiMs ne détient pas ton argent.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>C'est quoi la tontine ?</summary>
-            <p>
-              Une cagnotte solidaire entre membres : chacun cotise ce qu'il veut, et la cagnotte peut aider un membre en
-              difficulté. Si l'argent n'a pas servi dans l'année, il est reversé à une œuvre de charité choisie par la
-              communauté.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Et cette règle des « 10 % » dont on entend parler ?</summary>
-            <p>
-              Quand un membre réalise des gains, on lui propose de reverser 10 % au pot commun — c'est ce qui finance le
-              fonctionnement et la solidarité. Tant qu'un membre a une contribution due, ses actions sortantes
-              (échanges, envois) sont bloquées jusqu'à régularisation.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Combien ça coûte ?</summary>
-            <p>
-              L'inscription et l'utilisation du wallet sont gratuites. Les conversions et retraits prélèvent 0,1 % de
-              frais de fonctionnement pour la communauté, et la blockchain Solana ajoute des frais réseau de l'ordre du
-              centime.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Je peux perdre de l'argent ?</summary>
-            <p>
-              Oui. Les crypto-actifs sont volatils : leur valeur peut monter… ou chuter fortement. Ne mets jamais plus
-              que ce que tu peux te permettre de perdre, et renseigne-toi toujours par toi-même avant de décider.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Ma « phrase de récupération », c'est quoi et pourquoi tout le monde insiste dessus ?</summary>
-            <p>
-              C'est la liste de 12 mots affichée à la création du wallet : c'est ta seule et unique clé. Qui la connaît
-              contrôle tes fonds — la communauté ne peut pas te la « réinitialiser ». Écris-la sur papier, garde-la
-              précieusement, ne la donne à personne (jamais, pas même à « l'assistance »).
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Qui voit mes données ?</summary>
-            <p>
-              La transparence est un principe FiMs : le dashboard communauté affiche les montants de chaque membre… sous
-              un pseudo. Tu choisis ton pseudo et tu peux passer ton profil en privé si tu préfères ne pas apparaître.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Le code est-il ouvert ?</summary>
-            <p>
-              Oui, tout est open source sur GitHub (FiMs-Wallet-V3). Tu peux lire, vérifier, contribuer — et la
-              communauté se réunit tous les 3 mois sur Discord pour décider ensemble de la suite.
-            </p>
-          </details>
-          <details class="faq glass reveal">
-            <summary>Comment rejoindre ?</summary>
-            <p>
-              Passe dire bonjour sur le Discord — c'est là que tout se joue : présentations, réunions trimestrielles,
-              entraide. Aucune compétence technique ou financière requise, la curiosité suffit.
-            </p>
-          </details>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ CTA ═══════════ -->
-    <section style="padding-top: 0">
-      <div class="container">
-        <div class="cta-band reveal">
-          <h2>Prêt à passer <span class="grad-text">à l'action</span> ?</h2>
-          <p>Crée ton porte-monnaie en deux minutes et rejoins une communauté qui reprend le contrôle de son argent.</p>
-          <a
-            class="btn-primary"
-            style="padding: 1rem 2.2rem; font-size: 1.05rem"
-            href="https://wallet-v3.fims.fi"
-            target="_blank"
-            rel="noopener"
-          >
-            Ouvrir FiMs Wallet
-            <svg
-              aria-hidden="true"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6" />
-              <path d="M11 13l9 -9" />
-              <path d="M15 4h5v5" />
-            </svg>
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ Footer ═══════════ -->
-    <footer>
-      <div class="container">
-        <div class="disclaimer">
-          <strong>
-            <svg
-              aria-hidden="true"
-              width="17"
-              height="17"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06"
-              />
-              <path d="M15 19l2 2l4 -4" />
-            </svg>
-            Avertissement
-          </strong>
-          <p>
-            FiMs est une communauté expérimentale autour de la finance décentralisée. Rien sur ce site ne constitue un
-            conseil en investissement, financier, juridique ou fiscal. Les crypto-actifs présentent un risque élevé de
-            perte en capital — n'investis jamais plus que ce que tu peux te permettre de perdre. Fais toujours tes
-            propres recherches (DYOR) avant toute décision.
-          </p>
-        </div>
-        <div class="footer-row">
-          <span>© 2026 FiMs — Financement Indépendant, Militant et Solidaire</span>
-          <div class="footer-links">
-            <a href="https://github.com/flodef/FiMs-Wallet-V3" target="_blank" rel="noopener">GitHub</a>
-            <a href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">Discord</a>
-            <a href="https://wallet-v3.fims.fi" target="_blank" rel="noopener">Wallet</a>
-          </div>
-        </div>
-      </div>
-    </footer>
+    </div>
+  </div>
+</footer>

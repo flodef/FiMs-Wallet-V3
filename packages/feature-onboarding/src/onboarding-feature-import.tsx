@@ -1,6 +1,7 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
 import { useTranslation } from '@workspace/i18n'
 import type { MnemonicStrength } from '@workspace/keypair/generate-mnemonic'
+import { getMnemonicWordStatus } from '@workspace/keypair/get-mnemonic-word-status'
 import { validateMnemonic } from '@workspace/keypair/validate-mnemonic'
 import { Form } from '@workspace/ui/components/form'
 import { UiBackButton } from '@workspace/ui/components/ui-back-button'
@@ -99,7 +100,7 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
   }
 
   const isFormComplete = useMemo(() => {
-    return words.slice(0, wordCount).every((word) => word.trim().length > 1)
+    return words.slice(0, wordCount).every((word) => getMnemonicWordStatus(word) === 'valid')
   }, [words, wordCount])
 
   async function submit() {

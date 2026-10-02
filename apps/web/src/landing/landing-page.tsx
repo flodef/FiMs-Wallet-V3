@@ -116,6 +116,16 @@ export function LandingPage() {
       return [card, fn] as const
     })
 
+    // Exclusive FAQ accordion — fallback for browsers without <details name>
+    const onToggle = (e: Event) => {
+      const el = e.target
+      if (!(el instanceof HTMLDetailsElement) || !el.classList.contains('faq') || !el.open) return
+      document.querySelectorAll<HTMLDetailsElement>('details.faq[open]').forEach((d) => {
+        if (d !== el) d.open = false
+      })
+    }
+    document.addEventListener('toggle', onToggle, true)
+
     // Live community stats — same-origin API, graceful if unreachable
     const EUR = new Intl.NumberFormat('fr-FR', { currency: 'EUR', maximumFractionDigits: 0, style: 'currency' })
     const countUp = (el: HTMLElement, target: number, format: (v: number) => string) => {
@@ -137,13 +147,27 @@ export function LandingPage() {
         const gains = get('Gains')
         if (!invested || !assets || !gains) return
         const stats = document.getElementById('stats')
-        if (stats) stats.hidden = false
-        const i = document.getElementById('statInvested')
-        const a = document.getElementById('statAssets')
-        const p = document.getElementById('statPerf')
-        if (i) countUp(i, invested.value, (v) => EUR.format(v))
-        if (a) countUp(a, assets.value, (v) => EUR.format(v))
-        if (p) countUp(p, gains.ratio * 100, (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} %`)
+        if (!stats) return
+        stats.hidden = false
+        // Animate only once the numbers scroll into view
+        const run = () => {
+          const i = document.getElementById('statInvested')
+          const a = document.getElementById('statAssets')
+          const p = document.getElementById('statPerf')
+          if (i) countUp(i, invested.value, (v) => EUR.format(v))
+          if (a) countUp(a, assets.value, (v) => EUR.format(v))
+          if (p) countUp(p, gains.ratio * 100, (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} %`)
+        }
+        const statsIo = new IntersectionObserver(
+          (entries) => {
+            if (entries.some((e) => e.isIntersecting)) {
+              statsIo.disconnect()
+              run()
+            }
+          },
+          { threshold: 0.3 },
+        )
+        statsIo.observe(stats)
       })
       .catch(() => {})
 
@@ -162,6 +186,7 @@ export function LandingPage() {
       menuLinks.forEach((a) => {
         a.removeEventListener('click', closeMenu)
       })
+      document.removeEventListener('toggle', onToggle, true)
       io.disconnect()
       pillarMoves.forEach(([card, fn]) => {
         card.removeEventListener('pointermove', fn)
