@@ -1,7 +1,7 @@
 // cspell:ignore unstub
 import { getBase64Decoder, type KeyPairSigner } from '@solana/kit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FIMS_PAGE_SIZE, fimsGetAll, fimsSignedFetch } from '../src/fims-api.ts'
+import { FIMS_PAGE_SIZE, fimsGetAll, fimsSignedFetch, fimsSignedGet } from '../src/fims-api.ts'
 
 const TEST_ADDRESS = '58kZikEcpFe2TZCfiomV5vP6EenGAfPsBbKazASaHbToh'
 const SIGNATURE_BYTES = new Uint8Array(64).fill(7)
@@ -91,6 +91,78 @@ describe('fims-signed-fetch', () => {
       await expect(
         fimsSignedFetch('https://api.example.com', testSigner(), 'DELETE', '/address-book/1'),
       ).rejects.toMatchObject({ status: 403 })
+    })
+  })
+})
+
+describe('fims-signed-get', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  describe('expected behavior', () => {
+    it('should sign the path with its canonical query', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      const signedContents: Uint8Array[] = []
+      const signer = {
+        address: TEST_ADDRESS,
+        signMessages: vi.fn(async (messages: readonly { content: Uint8Array }[]) => {
+          signedContents.push(messages[0]?.content ?? new Uint8Array())
+          return [{ [TEST_ADDRESS]: SIGNATURE_BYTES }]
+        }),
+        signTransactions: vi.fn(async () => []),
+      } as unknown as KeyPairSigner
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })),
+      )
+
+      // ACT
+      await fimsSignedGet('https://api.example.com', signer, '/users', { limit: '10', offset: '0' })
+
+      // ASSERT
+      expect(signedContents).toHaveLength(1)
+      const message = new TextDecoder().decode(signedContents[0])
+      expect(message).toContain('\n/fims/users?limit=10&offset=0\n')
+    })
+
+    it('should retry with the legacy path-only signature after a 401', async () => {
+      // ARRANGE
+      expect.assertions(3)
+      const signedMessages: string[] = []
+      const signer = {
+        address: TEST_ADDRESS,
+        signMessages: vi.fn(async (messages: readonly { content: Uint8Array }[]) => {
+          signedMessages.push(new TextDecoder().decode(messages[0]?.content ?? new Uint8Array()))
+          return [{ [TEST_ADDRESS]: SIGNATURE_BYTES }]
+        }),
+        signTransactions: vi.fn(async () => []),
+      } as unknown as KeyPairSigner
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      // ACT
+      const result = await fimsSignedGet('https://api.example.com', signer, '/users', { limit: '10' })
+
+      // ASSERT
+      expect(result).toEqual([])
+      expect(signedMessages[0]).toContain('\n/fims/users?limit=10\n')
+      expect(signedMessages[1]).toContain('\n/fims/users\n')
+    })
+
+    it('should not retry a 401 when the request has no query', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      const fetchMock = vi.fn(async () => new Response('unauthorized', { status: 401 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      // ACT & ASSERT
+      await expect(fimsSignedGet('https://api.example.com', testSigner(), '/votes')).rejects.toThrow()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -211,14 +211,22 @@ export async function fimsSignedGet<T>(
   for (const [key, value] of Object.entries(params ?? {})) {
     url.searchParams.set(key, value)
   }
-  const headers = await fimsAuthHeaders(
+  let headers = await fimsAuthHeaders(
     apiEndpoint,
     signer,
     'GET',
     canonicalResource(`/fims${path}`, url.searchParams),
     '',
   )
-  const res = await fetch(url, { headers })
+  let res = await fetch(url, { headers })
+  if (res.status === 401 && url.searchParams.size) {
+    // Transitional: an API deployed before query binding rejects the canonical
+    // signature. Retry once with the legacy path-only signature — signing is
+    // local and silent, so the fallback is invisible. Remove once the worker
+    // runs query-bound verification everywhere.
+    headers = await fimsAuthHeaders(apiEndpoint, signer, 'GET', `/fims${path}`, '')
+    res = await fetch(url, { headers })
+  }
   if (!res.ok) {
     const text = await res.text()
     throw new FimsApiError(res.status, text.slice(0, 200))
