@@ -16,6 +16,10 @@ export const FIMS_DONATION_RATIO = 0.1
 // withdrawals: 0.1% stays in the treasury. Mirrors FIMS_FEE_RATE in the API.
 export const FIMS_FEE_RATE = 0.001
 
+// Same 0.1% expressed in basis points for the Jupiter APIs (platformFeeBps
+// on /swap, params.feeBps on /trigger). Deposits and withdrawals are exempt.
+export const FIMS_PLATFORM_FEE_BPS = 10
+
 // Canonical mainnet mints for the major assets a member swaps into, pinned
 // client-side so a compromised API token row cannot point "USDC" at a fake
 // mint. Symbols we cannot pin (FiMs' own tokens) simply have no entry — the
@@ -23,6 +27,7 @@ export const FIMS_FEE_RATE = 0.001
 export const FIMS_KNOWN_MINTS: Readonly<Record<string, string>> = {
   cbBTC: 'cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij',
   EURC: 'HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr',
+  JupSOL: 'jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v',
   SOL: 'So11111111111111111111111111111111111111112',
   USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
@@ -48,6 +53,7 @@ export const FIMS_JUPITER_SPEND_SYMBOLS = ['USDC', 'USDT'] as const
 export const FIMS_MINT_DECIMALS: Readonly<Record<string, number>> = {
   cbBTC: 8,
   EURC: 6,
+  JupSOL: 9,
   SOL: 9,
   USDC: 6,
   USDT: 6,
@@ -60,3 +66,11 @@ export const FIMS_MAX_PRICE_IMPACT = 0.03
 // Guided-tour demo address, derived from the public demo mnemonic. Its keys
 // are public knowledge — nothing of value may ever leave or rely on it.
 export const FIMS_DEMO_ADDRESS = '5F86TNSTre3CYwZd1wELsGQGhqG2HkN3d8zxhbyBSnzm'
+
+// JupSOL mint — where accidental excess SOL above the gas reserve is
+// proposed to be parked (keeps SOL exposure, liquid staking receipt token).
+export const FIMS_JUPSOL_MINT = FIMS_KNOWN_MINTS['JupSOL'] ?? ''
+
+// SOL is gas-only in this wallet: it pays network fees and account rent.
+// The reserve kept back from every swap/convert proposal is 0.01 SOL.
+export const FIMS_SOL_GAS_RESERVE = 10_000_000n

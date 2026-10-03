@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router'
 import { useFimsSwapTo, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import type { WithdrawalTarget } from './data-access/use-withdrawal-targets.tsx'
 import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT, FIMS_MINT_DECIMALS } from './fims-constants.ts'
+import { reportGasTopupError } from './fims-gas-topup-store.ts'
 
 // Confirmation screen shown when the picked destination does not accept the
 // outgoing token (e.g. sending JUP to a Jupiter Spend address that only takes
@@ -67,7 +68,10 @@ export function FimsFeatureSendConvert({
       })
       return swapTo.mutateAsync({ destinationTokenAccount, quote: quote.data })
     },
-    onError: (error) => toastError(`Swap + send failed: ${error.message}`),
+    onError: (error) => {
+      reportGasTopupError(error)
+      toastError(`Swap + send failed: ${error.message}`)
+    },
     onSuccess: async (signature) => {
       if (signature) {
         await navigate(`/modals/complete/${signature}`)

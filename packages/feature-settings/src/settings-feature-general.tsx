@@ -10,6 +10,7 @@ import { SettingsFeatureGeneralLanguage } from './settings-feature-general-langu
 import { SettingsFeatureGeneralSecurity } from './settings-feature-general-security.tsx'
 import { SettingsFeatureGeneralSendCap } from './settings-feature-general-send-cap.tsx'
 import { SettingsFeatureGeneralTheme } from './settings-feature-general-theme.tsx'
+import { SettingsFeatureGeneralWallpaper } from './settings-feature-general-wallpaper.tsx'
 import { SettingsFeatureGeneralWithdrawal } from './settings-feature-general-withdrawal.tsx'
 
 export function SettingsFeatureGeneral() {
@@ -30,6 +31,7 @@ export function SettingsFeatureGeneral() {
       >
         <SettingsFeatureGeneralLanguage />
         <SettingsFeatureGeneralTheme />
+        <SettingsFeatureGeneralWallpaper />
         <SettingsFeatureGeneralSendCap />
         <SettingsFeatureGeneralWithdrawal />
         <SettingsFeatureGeneralSecurity />

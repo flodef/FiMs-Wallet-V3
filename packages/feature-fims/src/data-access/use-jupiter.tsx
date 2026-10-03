@@ -10,12 +10,15 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
+import { useAccountGetTransactionSigner } from '@workspace/db-react/use-account-get-transaction-signer'
 import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
 import { createKeyPairSignerFromJson } from '@workspace/keypair/create-key-pair-signer-from-json'
 import { inspectWireTransaction } from '@workspace/solana-client/inspect-wire-transaction'
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { useCallback } from 'react'
 import { z } from 'zod'
+import { FIMS_PLATFORM_FEE_BPS } from '../fims-constants.ts'
+import { ensureTreasuryFeeAccount } from './ensure-treasury-fee-account.ts'
 import { assertJupiterTransactionSafe } from './inspect-jupiter-transaction.ts'
 
 const JUPITER_API = 'https://lite-api.jup.ag'
@@ -56,6 +59,7 @@ const jupiterQuoteSchema = z
     outAmount: z.string(),
     outputMint: z.string(),
     priceImpactPct: z.string().optional(),
+    swapMode: z.string().optional(),
   })
   .passthrough()
 
@@ -65,12 +69,16 @@ export function useJupiterQuote({
   amount,
   inputMint,
   outputMint,
+  platformFeeBps,
   slippageBps = 50,
+  swapMode,
 }: {
   amount: bigint
   inputMint: string | undefined
   outputMint: string | undefined
+  platformFeeBps?: number
   slippageBps?: number
+  swapMode?: 'ExactIn' | 'ExactOut'
 }) {
   return useQuery({
     enabled: !!inputMint && !!outputMint && inputMint !== outputMint && amount > 0n,
@@ -80,25 +88,40 @@ export function useJupiterQuote({
       url.searchParams.set('outputMint', outputMint ?? '')
       url.searchParams.set('amount', String(amount))
       url.searchParams.set('slippageBps', String(slippageBps))
+      if (swapMode) {
+        url.searchParams.set('swapMode', swapMode)
+      }
+      if (platformFeeBps) {
+        url.searchParams.set('platformFeeBps', String(platformFeeBps))
+      }
       const res = await fetch(url)
       if (!res.ok) {
         throw new Error(`Jupiter quote failed: ${res.status}`)
       }
       return jupiterQuoteSchema.parse(await res.json())
     },
-    queryKey: ['fims', 'jupiter-quote', inputMint, outputMint, String(amount), slippageBps],
+    queryKey: ['fims', 'jupiter-quote', inputMint, outputMint, String(amount), slippageBps, swapMode, platformFeeBps],
     staleTime: 10_000,
   })
 }
 
 export function useFimsSwap({ account, network }: { account: Account; network: Network }) {
+  const client = useSolanaClient({ network })
+  const getTransactionSigner = useAccountGetTransactionSigner({ account })
   const signAndSendBase64Transaction = useSignAndSendTransaction({ account, network })
 
   return useMutation({
-    mutationFn: async (quote: JupiterQuote): Promise<Signature> => {
+    mutationFn: async ({ feeMint, quote }: { feeMint?: Address; quote: JupiterQuote }): Promise<Signature> => {
+      // When the quote carries platformFeeBps, /swap requires feeAccount: an
+      // initialized ATA of the fee mint owned by the treasury, created lazily
+      // on first use (user pays the one-time rent).
+      const feeAccount = feeMint
+        ? await ensureTreasuryFeeAccount(client, { mint: feeMint, transactionSigner: await getTransactionSigner() })
+        : undefined
       const res = await fetch(`${JUPITER_API}/swap/v1/swap`, {
         body: JSON.stringify({
           dynamicComputeUnitLimit: true,
+          feeAccount,
           prioritizationFeeLamports: 'auto',
           quoteResponse: quote,
           userPublicKey: account.publicKey,
@@ -111,17 +134,20 @@ export function useFimsSwap({ account, network }: { account: Account; network: N
         throw new Error(`Jupiter swap failed: ${res.status}`)
       }
       const { swapTransaction } = z.object({ swapTransaction: z.string() }).parse(await res.json())
+      // ExactOut quotes flip the meaning of otherAmountThreshold: it is the
+      // max input, not the min output. Assert the right side either way.
+      const isExactOut = quote.swapMode === 'ExactOut'
       return signAndSendBase64Transaction(
         swapTransaction,
         {
-          amount: BigInt(quote.inAmount),
+          amount: BigInt(isExactOut ? quote.otherAmountThreshold : quote.inAmount),
           mint: quote.inputMint as Address,
         },
         // The wallet must receive at least the quote's min-out of the mint
         // the user selected: a spoofed output mint or a minOut of zero is
         // rejected by the inspection, not signed.
         {
-          amount: BigInt(quote.otherAmountThreshold),
+          amount: BigInt(isExactOut ? quote.outAmount : quote.otherAmountThreshold),
           mint: quote.outputMint as Address,
         },
       )
@@ -202,26 +228,39 @@ export function useFimsTriggerOrders({ account }: { account: Account }) {
 }
 
 export function useFimsTriggerCreateOrder({ account, network }: { account: Account; network: Network }) {
+  const client = useSolanaClient({ network })
+  const getTransactionSigner = useAccountGetTransactionSigner({ account })
   const signAndSendBase64Transaction = useSignAndSendTransaction({ account, network })
 
   return useMutation({
     mutationFn: async ({
+      feeMint,
       inputMint,
       makingAmount,
       outputMint,
       takingAmount,
     }: {
+      feeMint?: Address
       inputMint: string
       makingAmount: bigint
       outputMint: string
       takingAmount: bigint
     }): Promise<Signature> => {
+      // feeBps is charged on the taken (output) mint when the order settles —
+      // the keeper executes the order without us, so the fee must be encoded
+      // in the order itself. The feeAccount is the treasury ATA of the fee
+      // mint, created lazily on first use.
+      const feeAccount = feeMint
+        ? await ensureTreasuryFeeAccount(client, { mint: feeMint, transactionSigner: await getTransactionSigner() })
+        : undefined
       const res = await fetch(`${JUPITER_API}/trigger/v1/createOrder`, {
         body: JSON.stringify({
+          feeAccount,
           inputMint,
           maker: account.publicKey,
           outputMint,
           params: {
+            feeBps: feeMint ? String(FIMS_PLATFORM_FEE_BPS) : undefined,
             makingAmount: String(makingAmount),
             takingAmount: String(takingAmount),
           },

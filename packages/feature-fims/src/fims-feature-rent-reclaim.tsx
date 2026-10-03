@@ -38,6 +38,7 @@ import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { useEffect, useMemo, useState } from 'react'
+import { reportGasTopupError } from './fims-gas-topup-store.ts'
 
 // Empty token accounts still lock ~0.002 SOL of rent each. When the wallet
 // holds any, this dialog opens once per session and offers to close them all
@@ -170,6 +171,7 @@ export function FimsFeatureRentReclaim() {
     }
     setBusy(false)
     if (lastError) {
+      reportGasTopupError(lastError)
       toastError(`${t(($) => $.rentReclaimError)}: ${lastError}`)
       return
     }

@@ -1,3 +1,4 @@
+import type { Address } from '@solana/kit'
 import type { Account } from '@workspace/db/account/account'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useGetTokenBalances } from '@workspace/feature-portfolio/data-access/use-get-token-balances'
@@ -17,6 +18,8 @@ import {
   useFimsTriggerOrders,
 } from './data-access/use-jupiter.tsx'
 import type { FimsToken } from './fims-api.ts'
+import { FIMS_PLATFORM_FEE_BPS } from './fims-constants.ts'
+import { reportGasTopupError } from './fims-gas-topup-store.ts'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
 export function FimsUiLimitOrders({
@@ -41,6 +44,11 @@ export function FimsUiLimitOrders({
   const [receiveAmount, setReceiveAmount] = useState('')
 
   const inputToken = useMemo(() => balances.find((b) => b.mint === inputMint), [balances, inputMint])
+  // Both legs are restricted to the FiMs spreadsheet tokens; SOL is gas-only.
+  const inputBalances = useMemo(
+    () => balances.filter((b) => outputTokens.some((token) => token.address === b.mint)),
+    [balances, outputTokens],
+  )
   const outputToken = useMemo(
     () => outputTokens.find((token) => token.address === outputMint),
     [outputTokens, outputMint],
@@ -53,6 +61,7 @@ export function FimsUiLimitOrders({
     if (!inputToken || !outputMint || !sellAmount || !receiveAmount) return
     try {
       await createOrder.mutateAsync({
+        feeMint: outputMint as Address,
         inputMint,
         makingAmount: parseTokenUnits(sellAmount, inputToken.decimals),
         outputMint,
@@ -62,6 +71,7 @@ export function FimsUiLimitOrders({
       setReceiveAmount('')
       await orders.refetch()
     } catch (error) {
+      reportGasTopupError(error)
       toastError(error instanceof Error ? error.message : String(error))
     }
   }
@@ -71,6 +81,7 @@ export function FimsUiLimitOrders({
       await cancelOrder.mutateAsync(orderKey)
       await orders.refetch()
     } catch (error) {
+      reportGasTopupError(error)
       toastError(error instanceof Error ? error.message : String(error))
     }
   }
@@ -86,7 +97,7 @@ export function FimsUiLimitOrders({
                 <SelectValue placeholder={t(($) => $.swapFromPlaceholder)} />
               </SelectTrigger>
               <SelectContent>
-                {balances.map((token) => (
+                {inputBalances.map((token) => (
                   <SelectItem key={token.mint} value={token.mint}>
                     {token.metadata?.symbol ?? 'SOL'} — {formatTokenUnits(token.balance, token.decimals)}
                   </SelectItem>
@@ -122,6 +133,10 @@ export function FimsUiLimitOrders({
             />
           </div>
         </div>
+
+        <p className="text-muted-foreground text-xs">
+          {t(($) => $.limitFeeNote, { fee: (FIMS_PLATFORM_FEE_BPS / 100).toFixed(1) })}
+        </p>
 
         <div className="flex justify-end">
           <Button

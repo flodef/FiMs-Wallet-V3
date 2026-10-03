@@ -1,5 +1,8 @@
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
+import { useSetting } from '@workspace/db-react/use-setting'
+import { FimsFeatureGasTopup } from '@workspace/feature-fims/fims-feature-gas-topup'
 import { FimsFeatureRentReclaim } from '@workspace/feature-fims/fims-feature-rent-reclaim'
+import { FimsFeatureSolExcess } from '@workspace/feature-fims/fims-feature-sol-excess'
 import { useTranslation } from '@workspace/i18n'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
@@ -19,6 +22,7 @@ export interface ShellLayoutLink {
 
 export function ShellUiLayout() {
   const activeNetwork = useNetworkActive()
+  const [wallpaper] = useSetting('themeWallpaper')
   const { border } = useMemo(() => getColorByName(activeNetwork.color ?? 'green'), [activeNetwork])
   const { t } = useTranslation('shell')
   const links: ShellLayoutLink[] = [
@@ -30,9 +34,22 @@ export function ShellUiLayout() {
   ]
 
   return (
-    <div className="flex h-full flex-col items-stretch justify-between">
+    <div className="relative flex h-full flex-col items-stretch justify-between">
+      {wallpaper ? (
+        <>
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-center bg-cover"
+            style={{ backgroundImage: `url(${wallpaper})` }}
+          />
+          {/* Readability scrim over the custom wallpaper. */}
+          <div aria-hidden className="absolute inset-0 -z-10 bg-background/75" />
+        </>
+      ) : null}
       <ShellUiCommandMenu />
       <FimsFeatureRentReclaim />
+      <FimsFeatureGasTopup />
+      <FimsFeatureSolExcess />
       <header
         className={cn('flex items-center justify-between bg-secondary/30', {
           [`border-b-2 ${border}`]: !!activeNetwork.color,

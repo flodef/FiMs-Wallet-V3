@@ -68,6 +68,8 @@ const config: CSpellSettings = {
     'dklen',
     'dyor',
     'ellipsify',
+    'jupsol',
+    'topup',
     'EURC',
     'fims',
     'FSOL',

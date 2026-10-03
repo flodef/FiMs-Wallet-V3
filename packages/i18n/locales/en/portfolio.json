@@ -63,6 +63,7 @@
   "sendInputDestinationInvalid": "Invalid Solana address",
   "sendInputDestinationLabel": "Destination",
   "sendInputDestinationPlaceholder": "Destination",
+  "tokenBalanceGas": "Gas",
   "viewExplorerAccount": "View account in Explorer",
   "viewExplorerToken": "View token in Explorer"
 }

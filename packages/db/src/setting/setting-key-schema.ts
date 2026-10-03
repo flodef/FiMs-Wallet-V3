@@ -9,6 +9,7 @@ export const settingKeySchema = z.enum([
   'language',
   'sendCapEur',
   'theme',
+  'themeWallpaper',
   'vaultKey',
   'vaultPasskey',
   'vaultTotp',

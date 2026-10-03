@@ -1,3 +1,4 @@
+import type { Address } from '@solana/kit'
 import type { Account } from '@workspace/db/account/account'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useGetTokenBalances } from '@workspace/feature-portfolio/data-access/use-get-token-balances'
@@ -17,7 +18,9 @@ import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
-import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT } from './fims-constants.ts'
+import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT, FIMS_PLATFORM_FEE_BPS } from './fims-constants.ts'
+import { fimsSwappableMints, isSolGasMint } from './fims-gas.ts'
+import { reportGasTopupError } from './fims-gas-topup-store.ts'
 import { FimsUiLimitOrders } from './fims-ui-limit-orders.tsx'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
@@ -36,7 +39,14 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const [amountText, setAmountText] = useState('')
 
   const inputToken = useMemo(() => balances.find((b) => b.mint === inputMint), [balances, inputMint])
-  const outputTokens = useMemo(() => (fimsTokens.data ?? []).filter((token) => token.address), [fimsTokens.data])
+  const outputTokens = useMemo(
+    () => (fimsTokens.data ?? []).filter((token) => token.address && !isSolGasMint(token.address)),
+    [fimsTokens.data],
+  )
+  // Both swap legs are restricted to the FiMs spreadsheet tokens — SOL is
+  // gas-only and never appears in the lists.
+  const swappableMints = useMemo(() => fimsSwappableMints(fimsTokens.data), [fimsTokens.data])
+  const inputBalances = useMemo(() => balances.filter((b) => swappableMints.has(b.mint)), [balances, swappableMints])
   const outputMetadata = useGetTokenMetadataJupiter(outputMint ? [outputMint] : [])
   const outputDecimals = outputMetadata.data?.[0]?.decimals ?? 9
   const outputToken = outputTokens.find((token) => token.address === outputMint)
@@ -55,7 +65,7 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
     }
   }, [amountText, inputToken])
 
-  const quote = useJupiterQuote({ amount, inputMint, outputMint })
+  const quote = useJupiterQuote({ amount, inputMint, outputMint, platformFeeBps: FIMS_PLATFORM_FEE_BPS })
   const swap = useFimsSwap({ account, network })
   const [signature, setSignature] = useState<string>('')
 
@@ -75,9 +85,10 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const handleSwap = async () => {
     if (!quote.data) return
     try {
-      const sig = await swap.mutateAsync(quote.data)
+      const sig = await swap.mutateAsync({ feeMint: outputMint as Address, quote: quote.data })
       setSignature(sig)
     } catch (error) {
+      reportGasTopupError(error)
       toastError(error instanceof Error ? error.message : String(error))
     }
   }
@@ -99,13 +110,16 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
                   <SelectValue placeholder={t(($) => $.swapFromPlaceholder)} />
                 </SelectTrigger>
                 <SelectContent>
-                  {balances.map((token) => (
+                  {inputBalances.map((token) => (
                     <SelectItem key={token.mint} value={token.mint}>
                       {token.metadata?.symbol ?? 'SOL'} — {formatTokenUnits(token.balance, token.decimals)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {!inputBalances.length ? (
+                <p className="text-muted-foreground text-xs">{t(($) => $.swapNoSwappableInput)}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label>{t(($) => $.swapAmount)}</Label>
@@ -186,6 +200,9 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
                   {t(($) => $.swapPriceImpact)}: {(Number(quote.data.priceImpactPct) * 100).toFixed(2)}%
                 </div>
               ) : null}
+              <div>
+                {t(($) => $.swapPlatformFee)}: {(FIMS_PLATFORM_FEE_BPS / 100).toFixed(1)}%
+              </div>
               <div>{t(($) => $.swapSlippage)}: 0.5%</div>
               <div>{t(($) => $.swapNetworkFeeEstimate)}: ≈ 0.00005 SOL</div>
               <div className="text-xs">{t(($) => $.swapFeesIncluded)}</div>
