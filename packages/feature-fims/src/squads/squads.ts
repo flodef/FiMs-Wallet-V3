@@ -176,9 +176,17 @@ export function decodeSquadsSpendingLimit(data: Uint8Array): SquadsSpendingLimit
   }
 }
 
-export function decodeSquadsProgramConfig(data: Uint8Array): { treasury: Address } {
+export interface SquadsProgramConfig {
+  multisigCreationFee: bigint
+  treasury: Address
+}
+
+export function decodeSquadsProgramConfig(data: Uint8Array): SquadsProgramConfig {
   const [config] = squadsAccounts.ProgramConfig.deserialize(Buffer.from(data))
-  return { treasury: config.treasury.toBase58() as Address }
+  return {
+    multisigCreationFee: BigInt(config.multisigCreationFee.toString()),
+    treasury: config.treasury.toBase58() as Address,
+  }
 }
 
 // Discriminators to tell vault transactions from config transactions at the

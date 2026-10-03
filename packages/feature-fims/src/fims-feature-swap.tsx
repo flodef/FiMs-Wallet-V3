@@ -186,6 +186,9 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
                   {t(($) => $.swapPriceImpact)}: {(Number(quote.data.priceImpactPct) * 100).toFixed(2)}%
                 </div>
               ) : null}
+              <div>{t(($) => $.swapSlippage)}: 0.5%</div>
+              <div>{t(($) => $.swapNetworkFeeEstimate)}: ≈ 0.00005 SOL</div>
+              <div className="text-xs">{t(($) => $.swapFeesIncluded)}</div>
             </div>
           ) : null}
 

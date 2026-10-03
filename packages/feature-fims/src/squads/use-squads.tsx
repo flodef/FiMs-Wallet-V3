@@ -17,6 +17,7 @@ import {
   SQUADS_PROGRAM_ID,
   SQUADS_VAULT_TX_DISCRIMINATOR,
   type SquadsMultisigInfo,
+  type SquadsProgramConfig,
   type SquadsProposalInfo,
   type SquadsSpendingLimitInfo,
   squadsProgramConfigPda,
@@ -36,12 +37,12 @@ async function fetchAccountData(client: SolanaClient, address: Address): Promise
   return value ? decodeAccountData(value.data) : null
 }
 
-export async function fetchSquadsTreasury(client: SolanaClient): Promise<Address> {
+export async function fetchSquadsProgramConfig(client: SolanaClient): Promise<SquadsProgramConfig> {
   const data = await fetchAccountData(client, squadsProgramConfigPda())
   if (!data) {
     throw new Error('Squads program config account not found on this network')
   }
-  return decodeSquadsProgramConfig(data).treasury
+  return decodeSquadsProgramConfig(data)
 }
 
 export async function fetchSquadsMultisig(

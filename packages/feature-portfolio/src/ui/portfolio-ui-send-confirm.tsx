@@ -1,5 +1,6 @@
 import { useTranslation } from '@workspace/i18n'
 import { formatSimulationFailure } from '@workspace/solana-client/format-simulation-failure'
+import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import type { SendSimulatedPreparedTransactionResult } from '@workspace/solana-client/send-prepared-transaction'
 import type { SimulatePreparedTransactionResult } from '@workspace/solana-client/simulate-prepared-transaction'
 import type { TransferRecipient } from '@workspace/solana-client/transfer-recipient'
@@ -79,7 +80,15 @@ export function PortfolioUiSendConfirm({
               </Alert>
             ) : null}
             {!isSimulating && !simulationError && simulation?.status === 'success' ? (
-              <PortfolioUiSendConfirmChanges mint={mint} simulation={simulation} />
+              <>
+                <PortfolioUiSendConfirmChanges mint={mint} simulation={simulation} />
+                {simulation.fee != null ? (
+                  <div className="flex items-center justify-between rounded-md border p-3 text-sm">
+                    <span className="text-muted-foreground">{t(($) => $.sendConfirmNetworkFee)}</span>
+                    <span className="font-mono">{lamportsToSol(simulation.fee)} SOL</span>
+                  </div>
+                ) : null}
+              </>
             ) : null}
             <PortfolioUiSendConfirmTransaction isPreparing={isPreparing} preparedTransaction={preparedTransaction} />
           </FieldSet>

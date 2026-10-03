@@ -17,7 +17,7 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
-import { type SyntheticEvent, useId, useState } from 'react'
+import { type SyntheticEvent, useId, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import {
   type SquadsMultisigInfo,
@@ -26,6 +26,7 @@ import {
   squadsMultisigPda,
   squadsVaultPda,
 } from './squads/squads.ts'
+import { SquadsCostPreview } from './squads/squads-cost-preview.tsx'
 import {
   buildConfigExecuteInstructions,
   buildCreateMultisigInstructions,
@@ -37,9 +38,9 @@ import {
 import { useMultisigRegistry } from './squads/use-multisig-registry.tsx'
 import {
   fetchSquadsMultisig,
+  fetchSquadsProgramConfig,
   fetchSquadsProposals,
   fetchSquadsSpendingLimits,
-  fetchSquadsTreasury,
   useSquadsSignAndSend,
 } from './squads/use-squads.tsx'
 
@@ -174,31 +175,40 @@ function MultisigCreateCard({
 }) {
   const { t } = useTranslation('fims')
   const { signAndSend } = useSquadsSignAndSend({ account, network })
-  const treasury = useQuery({ queryFn: () => fetchSquadsTreasury(client), queryKey: ['squads', 'treasury'] })
+  const config = useQuery({ queryFn: () => fetchSquadsProgramConfig(client), queryKey: ['squads', 'treasury'] })
   const [label, setLabel] = useState('')
   const idLabel = useId()
   const idMembers = useId()
   const idThreshold = useId()
   const [membersInput, setMembersInput] = useState('')
   const [threshold, setThreshold] = useState('2')
+  const previewCreateKey = useMemo(randomAddress, [])
+
+  const parsed = useMemo((): { error: 'address' | 'threshold' } | { members: Address[]; threshold: number } => {
+    const extras = membersInput
+      .split(/[\s,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+    if (extras.some((member) => !isAddress(member))) {
+      return { error: 'address' }
+    }
+    const members = [...new Set([account.publicKey as Address, ...extras.map((item) => address(item))])]
+    const thresholdValue = Number.parseInt(threshold, 10)
+    if (!Number.isInteger(thresholdValue) || thresholdValue < 1 || thresholdValue > members.length) {
+      return { error: 'threshold' }
+    }
+    return { members, threshold: thresholdValue }
+  }, [membersInput, threshold, account.publicKey])
+  const parsedValid = 'members' in parsed ? parsed : null
 
   const create = useMutation({
     mutationFn: async () => {
-      const extras = membersInput
-        .split(/[\s,]+/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-      for (const member of extras) {
-        if (!isAddress(member)) {
-          throw new Error(`${t(($) => $.multisigInvalidAddress)}: ${member}`)
-        }
+      if ('error' in parsed) {
+        throw new Error(
+          parsed.error === 'address' ? t(($) => $.multisigInvalidAddress) : t(($) => $.multisigInvalidThreshold),
+        )
       }
-      const members = [...new Set([account.publicKey as Address, ...extras.map((item) => address(item))])]
-      const thresholdValue = Number.parseInt(threshold, 10)
-      if (!Number.isInteger(thresholdValue) || thresholdValue < 1 || thresholdValue > members.length) {
-        throw new Error(t(($) => $.multisigInvalidThreshold))
-      }
-      if (!treasury.data) {
+      if (!config.data) {
         throw new Error(t(($) => $.multisigNoTreasury))
       }
       const createKey = randomAddress()
@@ -207,10 +217,10 @@ function MultisigCreateCard({
         buildCreateMultisigInstructions({
           createKey,
           creator: account.publicKey as Address,
-          members,
+          members: parsed.members,
           multisigPda,
-          threshold: thresholdValue,
-          treasury: treasury.data,
+          threshold: parsed.threshold,
+          treasury: config.data.treasury,
         }),
       )
       return { label, multisigPda }
@@ -255,7 +265,23 @@ function MultisigCreateCard({
             value={threshold}
           />
         </div>
-        <Button disabled={create.isPending || treasury.isLoading} type="submit">
+        <SquadsCostPreview
+          buildInstructions={() =>
+            buildCreateMultisigInstructions({
+              createKey: previewCreateKey,
+              creator: account.publicKey as Address,
+              members: parsedValid?.members ?? [],
+              multisigPda: squadsMultisigPda(previewCreateKey),
+              threshold: parsedValid?.threshold ?? 1,
+              treasury: config.data?.treasury ?? account.publicKey,
+            })
+          }
+          client={client}
+          inputKey={parsedValid && config.data ? `${parsedValid.threshold}:${parsedValid.members.join(',')}` : ''}
+          payer={account.publicKey as Address}
+          protocolFee={config.data?.multisigCreationFee}
+        />
+        <Button disabled={create.isPending || config.isLoading || !parsedValid} type="submit">
           {create.isPending ? <UiLoader /> : t(($) => $.multisigCreateButton)}
         </Button>
       </form>
@@ -418,6 +444,7 @@ function MultisigDetail({
             ))}
           </ul>
         )}
+        <p className="mt-3 text-muted-foreground text-xs">{t(($) => $.multisigVoteCost)}</p>
       </UiCard>
 
       {isMember ? (
@@ -573,6 +600,12 @@ function SpendProposalCard({
   const idSpendAmount = useId()
   const [amount, setAmount] = useState('')
 
+  const spendLamports = useMemo(() => {
+    const sol = Number.parseFloat(amount)
+    return Number.isFinite(sol) && sol > 0 ? BigInt(Math.round(sol * 1e9)) : null
+  }, [amount])
+  const spendValid = spendLamports != null && isAddress(destination.trim())
+
   const propose = useMutation({
     mutationFn: async () => {
       if (!isAddress(destination.trim())) {
@@ -620,7 +653,23 @@ function SpendProposalCard({
           <Label htmlFor={idSpendAmount}>{t(($) => $.multisigAmountSol)}</Label>
           <Input id={idSpendAmount} onChange={(event) => setAmount(event.target.value)} value={amount} />
         </div>
-        <Button disabled={propose.isPending} type="submit">
+        <SquadsCostPreview
+          buildInstructions={async () =>
+            buildVaultTransferProposalInstructions({
+              creator: account.publicKey as Address,
+              destination: address(destination.trim()),
+              lamports: spendLamports ?? 0n,
+              latestBlockhash: (await getLatestBlockhash(client)).blockhash,
+              multisigPda,
+              transactionIndex: multisigInfo.transactionIndex + 1n,
+              vaultPda,
+            })
+          }
+          client={client}
+          inputKey={spendValid ? `${destination.trim()}:${spendLamports}` : ''}
+          payer={account.publicKey as Address}
+        />
+        <Button disabled={propose.isPending || !spendValid} type="submit">
           {propose.isPending ? <UiLoader /> : t(($) => $.multisigProposeButton)}
         </Button>
       </form>
@@ -646,12 +695,21 @@ function SpendingLimitCard({
   onDone: () => void
 }) {
   const { t } = useTranslation('fims')
+  const client = useSolanaClient({ network })
   const { signAndSend } = useSquadsSignAndSend({ account, network })
   const [amount, setAmount] = useState('')
   const idLimitAmount = useId()
   const idLimitDest = useId()
   const [period, setPeriod] = useState<SquadsSpendingLimitInfo['period']>('month')
   const [destination, setDestination] = useState('')
+  const previewLimitKey = useMemo(randomAddress, [])
+
+  const limitLamports = useMemo(() => {
+    const sol = Number.parseFloat(amount)
+    return Number.isFinite(sol) && sol > 0 ? BigInt(Math.round(sol * 1e9)) : null
+  }, [amount])
+  const limitDest = destination.trim()
+  const limitValid = limitLamports != null && (!limitDest || isAddress(limitDest))
 
   const propose = useMutation({
     mutationFn: async () => {
@@ -738,7 +796,25 @@ function SpendingLimitCard({
             value={destination}
           />
         </div>
-        <Button disabled={propose.isPending} type="submit">
+        <SquadsCostPreview
+          buildInstructions={() =>
+            buildSpendingLimitProposalInstructions({
+              amount: limitLamports ?? 0n,
+              creator: account.publicKey as Address,
+              destinations: limitDest && isAddress(limitDest) ? [address(limitDest)] : [],
+              members: [],
+              mint: SOL_MINT,
+              multisigPda,
+              period,
+              spendingLimitCreateKey: previewLimitKey,
+              transactionIndex: multisigInfo.transactionIndex + 1n,
+            })
+          }
+          client={client}
+          inputKey={limitValid ? `${limitLamports}:${period}:${limitDest}` : ''}
+          payer={account.publicKey as Address}
+        />
+        <Button disabled={propose.isPending || !limitValid} type="submit">
           {propose.isPending ? <UiLoader /> : t(($) => $.multisigLimitButton)}
         </Button>
       </form>

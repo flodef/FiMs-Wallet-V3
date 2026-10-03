@@ -47,6 +47,7 @@
   "sendConfirmInstructionNoAccounts": "Ninguna",
   "sendConfirmInstructionProgram": "Programa",
   "sendConfirmInstructionUnknownAccount": "Desconocido",
+  "sendConfirmNetworkFee": "Comisión de red",
   "sendConfirmPreparingTransaction": "Preparando transacción...",
   "sendConfirmSimulatingTransaction": "Simulando transacción...",
   "sendConfirmSimulationFailed": "La simulación falló",

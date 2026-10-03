@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { AccountRole, type Address } from '@solana/kit'
+import { AccountRole, type Address, type Blockhash } from '@solana/kit'
 import { PublicKey, TransactionInstruction } from '@solana/web3.js'
 import { accounts as squadsAccounts } from '@sqds/multisig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +11,7 @@ import {
   squadsVaultPda,
   toKitInstruction,
 } from './squads.ts'
+import { squadsEstimateCost } from './squads-cost-preview.tsx'
 
 function testPubkey(seed: number): PublicKey {
   return PublicKey.unique() ?? new PublicKey(new Uint8Array(32).fill(seed))
@@ -193,6 +194,62 @@ describe('decode-squads-spending-limit', () => {
       expect(result.remainingAmount).toBe(750_000n)
       expect(result.period).toBe('week')
       expect(result.destinations).toHaveLength(1)
+    })
+  })
+})
+
+describe('squads-estimate-cost', () => {
+  const payer = testPubkey(17).toBase58() as Address
+  const other = testPubkey(18).toBase58() as Address
+
+  describe('expected behavior', () => {
+    it('should split the payer debit into network fee and other costs', () => {
+      // ARRANGE
+      expect.assertions(3)
+      const simulation = {
+        error: null,
+        fee: 5_000n,
+        latestBlockhash: { blockhash: 'bh' as Blockhash, lastValidBlockHeight: 1n },
+        logs: [],
+        solBalanceChanges: [
+          { address: payer, change: -25_000n, postBalance: 975_000n, preBalance: 1_000_000n },
+          { address: other, change: 20_000n, postBalance: 20_000n, preBalance: 0n },
+        ],
+        status: 'success' as const,
+        tokenBalanceChanges: [],
+        unitsConsumed: 1_000n,
+      }
+
+      // ACT
+      const result = squadsEstimateCost({ payer, simulation })
+
+      // ASSERT
+      expect(result.fee).toBe(5_000n)
+      expect(result.other).toBe(20_000n)
+      expect(result.total).toBe(25_000n)
+    })
+
+    it('should fall back to the fee only when the payer has no balance change', () => {
+      // ARRANGE
+      expect.assertions(3)
+      const simulation = {
+        error: null,
+        fee: 5_000n,
+        latestBlockhash: { blockhash: 'bh' as Blockhash, lastValidBlockHeight: 1n },
+        logs: [],
+        solBalanceChanges: [],
+        status: 'failure' as const,
+        tokenBalanceChanges: [],
+        unitsConsumed: 1_000n,
+      }
+
+      // ACT
+      const result = squadsEstimateCost({ payer, simulation })
+
+      // ASSERT
+      expect(result.fee).toBe(5_000n)
+      expect(result.other).toBe(0n)
+      expect(result.total).toBe(5_000n)
     })
   })
 })
