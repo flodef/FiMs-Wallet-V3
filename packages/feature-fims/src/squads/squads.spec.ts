@@ -7,11 +7,13 @@ import {
   decodeSquadsMultisig,
   decodeSquadsProposal,
   decodeSquadsSpendingLimit,
+  SQUADS_PROGRAM_ID,
   squadsMultisigPda,
   squadsVaultPda,
   toKitInstruction,
 } from './squads.ts'
 import { squadsEstimateCost } from './squads-cost-preview.tsx'
+import { buildSpendingLimitUseInstructions } from './squads-tx.ts'
 
 function testPubkey(seed: number): PublicKey {
   return PublicKey.unique() ?? new PublicKey(new Uint8Array(32).fill(seed))
@@ -250,6 +252,36 @@ describe('squads-estimate-cost', () => {
       expect(result.fee).toBe(5_000n)
       expect(result.other).toBe(0n)
       expect(result.total).toBe(5_000n)
+    })
+  })
+})
+
+describe('build-spending-limit-use-instructions', () => {
+  describe('expected behavior', () => {
+    it('should target the squads program with member, spending limit and destination accounts', () => {
+      // ARRANGE
+      expect.assertions(4)
+      const member = testPubkey(20).toBase58() as Address
+      const destination = testPubkey(21).toBase58() as Address
+      const spendingLimitPda = testPubkey(22).toBase58() as Address
+      const multisigPda = testPubkey(23).toBase58() as Address
+
+      // ACT
+      const result = buildSpendingLimitUseInstructions({
+        amount: 30_000_000n,
+        destination,
+        member,
+        multisigPda,
+        spendingLimitPda,
+        vaultIndex: 0,
+      })
+
+      // ASSERT
+      expect(result).toHaveLength(1)
+      expect(result[0]?.programAddress).toBe(SQUADS_PROGRAM_ID)
+      const addresses = (result[0]?.accounts ?? []).map((account) => account.address)
+      expect(addresses).toEqual(expect.arrayContaining([member, spendingLimitPda, destination]))
+      expect(result[0]?.accounts?.find((account) => account.address === member)?.role).toBe(AccountRole.READONLY_SIGNER)
     })
   })
 })

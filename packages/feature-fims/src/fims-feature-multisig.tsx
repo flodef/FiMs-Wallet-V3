@@ -1,4 +1,11 @@
-import { type Address, address, getBase58Decoder, isAddress } from '@solana/kit'
+import {
+  type Address,
+  address,
+  createNoopSigner,
+  generateKeyPairSigner,
+  getBase58Decoder,
+  isAddress,
+} from '@solana/kit'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Account } from '@workspace/db/account/account'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
@@ -33,6 +40,7 @@ import {
   buildExecuteInstructions,
   buildProposalVoteInstructions,
   buildSpendingLimitProposalInstructions,
+  buildSpendingLimitUseInstructions,
   buildVaultTransferProposalInstructions,
 } from './squads/squads-tx.ts'
 import { useMultisigRegistry } from './squads/use-multisig-registry.tsx'
@@ -44,7 +52,9 @@ import {
   useSquadsSignAndSend,
 } from './squads/use-squads.tsx'
 
-const SOL_MINT = 'So11111111111111111111111111111111111111112' as Address
+// Squads marks SOL spending limits with the default public key, not the WSOL
+// mint — spendingLimitUse branches on it to pick the native SOL transfer path.
+const SQUADS_SOL_MINT = '11111111111111111111111111111111' as Address
 
 function randomAddress(): Address {
   return getBase58Decoder().decode(crypto.getRandomValues(new Uint8Array(32))) as Address
@@ -182,7 +192,7 @@ function MultisigCreateCard({
   const idThreshold = useId()
   const [membersInput, setMembersInput] = useState('')
   const [threshold, setThreshold] = useState('2')
-  const previewCreateKey = useMemo(randomAddress, [])
+  const previewCreateKey = useMemo(() => createNoopSigner(randomAddress()), [])
 
   const parsed = useMemo((): { error: 'address' | 'threshold' } | { members: Address[]; threshold: number } => {
     const extras = membersInput
@@ -211,8 +221,8 @@ function MultisigCreateCard({
       if (!config.data) {
         throw new Error(t(($) => $.multisigNoTreasury))
       }
-      const createKey = randomAddress()
-      const multisigPda = squadsMultisigPda(createKey)
+      const createKey = await generateKeyPairSigner()
+      const multisigPda = squadsMultisigPda(createKey.address)
       await signAndSend(
         buildCreateMultisigInstructions({
           createKey,
@@ -271,7 +281,7 @@ function MultisigCreateCard({
               createKey: previewCreateKey,
               creator: account.publicKey as Address,
               members: parsedValid?.members ?? [],
-              multisigPda: squadsMultisigPda(previewCreateKey),
+              multisigPda: squadsMultisigPda(previewCreateKey.address),
               threshold: parsedValid?.threshold ?? 1,
               treasury: config.data?.treasury ?? account.publicKey,
             })
@@ -466,6 +476,13 @@ function MultisigDetail({
             network={network}
             onDone={refresh}
           />
+          <SpendViaLimitCard
+            account={account}
+            limits={spending.data ?? []}
+            multisigPda={multisigPda}
+            network={network}
+            onDone={refresh}
+          />
         </>
       ) : null}
       <Button onClick={onBack} variant="outline">
@@ -494,7 +511,7 @@ function ProposalRow({
   account: Account
   network: ReturnType<typeof useNetworkActive>
   onDone: () => void
-  proposal: SquadsProposalInfo & { kind: 'config' | 'unknown' | 'vault' }
+  proposal: SquadsProposalInfo & { kind: 'config' | 'unknown' | 'vault'; spendingLimitPdas: Address[] }
   threshold: number
 }) {
   const { t } = useTranslation('fims')
@@ -510,6 +527,7 @@ function ProposalRow({
                 member: me,
                 multisigPda: proposal.multisig,
                 rpcUrl: network.endpoint,
+                spendingLimitPdas: proposal.spendingLimitPdas,
                 transactionIndex: proposal.index,
               })
             : await buildExecuteInstructions({
@@ -724,8 +742,10 @@ function SpendingLimitCard({
           amount: lamports,
           creator: account.publicKey as Address,
           destinations: destination.trim() && isAddress(destination.trim()) ? [address(destination.trim())] : [],
-          members: [],
-          mint: SOL_MINT,
+          // On-chain the spending limit must name at least one member it
+          // applies to — an empty list aborts execution with EmptyMembers.
+          members: multisigInfo.members.map((member) => member.key),
+          mint: SQUADS_SOL_MINT,
           multisigPda,
           period,
           spendingLimitCreateKey: createKey,
@@ -802,8 +822,8 @@ function SpendingLimitCard({
               amount: limitLamports ?? 0n,
               creator: account.publicKey as Address,
               destinations: limitDest && isAddress(limitDest) ? [address(limitDest)] : [],
-              members: [],
-              mint: SOL_MINT,
+              members: multisigInfo.members.map((member) => member.key),
+              mint: SQUADS_SOL_MINT,
               multisigPda,
               period,
               spendingLimitCreateKey: previewLimitKey,
@@ -816,6 +836,131 @@ function SpendingLimitCard({
         />
         <Button disabled={propose.isPending || !limitValid} type="submit">
           {propose.isPending ? <UiLoader /> : t(($) => $.multisigLimitButton)}
+        </Button>
+      </form>
+    </UiCard>
+  )
+}
+
+// Direct spends under a spending limit: no proposal, no votes — the program
+// itself enforces the cap. Only SOL limits that whitelist this account count.
+function SpendViaLimitCard({
+  account,
+  limits,
+  multisigPda,
+  network,
+  onDone,
+}: {
+  account: Account
+  limits: { info: SquadsSpendingLimitInfo; pda: Address }[]
+  multisigPda: Address
+  network: ReturnType<typeof useNetworkActive>
+  onDone: () => void
+}) {
+  const { t } = useTranslation('fims')
+  const client = useSolanaClient({ network })
+  const { signAndSend } = useSquadsSignAndSend({ account, network })
+  const idUseDest = useId()
+  const idUseAmount = useId()
+  const [limitPda, setLimitPda] = useState('')
+  const [destination, setDestination] = useState('')
+  const [amount, setAmount] = useState('')
+
+  const usable = limits.filter(
+    (limit) => limit.info.mint === SQUADS_SOL_MINT && limit.info.members.includes(account.publicKey as Address),
+  )
+  const selected = usable.find((limit) => limit.pda === limitPda) ?? usable[0]
+
+  const useLamports = useMemo(() => {
+    const sol = Number.parseFloat(amount)
+    return Number.isFinite(sol) && sol > 0 ? BigInt(Math.round(sol * 1e9)) : null
+  }, [amount])
+  const useValid = selected != null && useLamports != null && isAddress(destination.trim())
+
+  const spend = useMutation({
+    mutationFn: async () => {
+      if (!selected || !useLamports) {
+        throw new Error(t(($) => $.multisigInvalidAmount))
+      }
+      await signAndSend(
+        buildSpendingLimitUseInstructions({
+          amount: useLamports,
+          destination: address(destination.trim()),
+          member: account.publicKey as Address,
+          multisigPda,
+          spendingLimitPda: selected.pda,
+          vaultIndex: selected.info.vaultIndex,
+        }),
+      )
+    },
+    onError: (error) => toastError(error instanceof Error ? error.message : String(error)),
+    onSuccess: () => {
+      toastSuccess(t(($) => $.multisigTxSent))
+      onDone()
+    },
+  })
+
+  if (usable.length === 0) {
+    return null
+  }
+
+  return (
+    <UiCard title={t(($) => $.multisigUseTitle)}>
+      <p className="text-muted-foreground text-sm">{t(($) => $.multisigUseNote)}</p>
+      <form
+        className="mt-3 space-y-3"
+        onSubmit={(event: SyntheticEvent) => {
+          event.preventDefault()
+          spend.mutate()
+        }}
+      >
+        {usable.length > 1 ? (
+          <div className="space-y-1">
+            <Label>{t(($) => $.multisigUseLimit)}</Label>
+            <Select onValueChange={setLimitPda} value={selected?.pda ?? ''}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {usable.map((limit) => (
+                  <SelectItem key={limit.pda} value={limit.pda}>
+                    {formatSol(limit.info.remainingAmount)} {t(($) => $.multisigUseRemaining)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        {selected ? (
+          <p className="text-muted-foreground text-xs">
+            {t(($) => $.multisigLimitRemaining, { amount: formatSol(selected.info.remainingAmount) })}
+          </p>
+        ) : null}
+        <div className="space-y-1">
+          <Label htmlFor={idUseDest}>{t(($) => $.multisigDestination)}</Label>
+          <Input id={idUseDest} onChange={(event) => setDestination(event.target.value)} value={destination} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={idUseAmount}>{t(($) => $.multisigAmountSol)}</Label>
+          <Input id={idUseAmount} onChange={(event) => setAmount(event.target.value)} value={amount} />
+        </div>
+        <SquadsCostPreview
+          buildInstructions={() =>
+            buildSpendingLimitUseInstructions({
+              amount: useLamports ?? 0n,
+              destination: address(destination.trim()),
+              member: account.publicKey as Address,
+              multisigPda,
+              spendingLimitPda: selected?.pda ?? multisigPda,
+              vaultIndex: selected?.info.vaultIndex ?? 0,
+            })
+          }
+          client={client}
+          inputKey={useValid ? `${selected?.pda}:${destination.trim()}:${useLamports}` : ''}
+          payer={account.publicKey as Address}
+        />
+        <Button disabled={spend.isPending || !useValid} type="submit">
+          {spend.isPending ? <UiLoader /> : t(($) => $.multisigUseButton)}
         </Button>
       </form>
     </UiCard>

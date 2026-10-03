@@ -193,3 +193,19 @@ export function decodeSquadsProgramConfig(data: Uint8Array): SquadsProgramConfig
 // shared transaction PDA when listing proposals.
 export const SQUADS_VAULT_TX_DISCRIMINATOR = squadsAccounts.vaultTransactionDiscriminator
 export const SQUADS_CONFIG_TX_DISCRIMINATOR = squadsAccounts.configTransactionDiscriminator
+
+// configTransactionExecute needs each referenced spending-limit account as an
+// extra account meta: Add actions derive the PDA from their createKey, Remove
+// actions carry the PDA directly.
+export function decodeSquadsConfigTransactionSpendingLimitPdas(data: Uint8Array, multisigPda: Address): Address[] {
+  const [transaction] = squadsAccounts.ConfigTransaction.deserialize(Buffer.from(data))
+  return transaction.actions.flatMap((action) => {
+    if (squadsTypes.isConfigActionAddSpendingLimit(action)) {
+      return [squadsSpendingLimitPda(multisigPda, action.createKey.toBase58() as Address)]
+    }
+    if (squadsTypes.isConfigActionRemoveSpendingLimit(action)) {
+      return [action.spendingLimit.toBase58() as Address]
+    }
+    return []
+  })
+}

@@ -9,6 +9,7 @@ import type { SolanaClient } from '@workspace/solana-client/solana-client'
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { useCallback } from 'react'
 import {
+  decodeSquadsConfigTransactionSpendingLimitPdas,
   decodeSquadsMultisig,
   decodeSquadsProgramConfig,
   decodeSquadsProposal,
@@ -55,6 +56,7 @@ export async function fetchSquadsMultisig(
 
 export interface SquadsProposalRow extends SquadsProposalInfo {
   kind: 'config' | 'unknown' | 'vault'
+  spendingLimitPdas: Address[]
 }
 
 function matchesDiscriminator(data: Uint8Array | null, discriminator: number[]): boolean {
@@ -101,11 +103,13 @@ export async function fetchSquadsProposals(client: SolanaClient, multisigPda: Ad
     proposals.map(async (proposal): Promise<SquadsProposalRow> => {
       const txData = await fetchAccountData(client, squadsTransactionPda(multisigPda, proposal.index))
       const kind = matchesDiscriminator(txData, SQUADS_VAULT_TX_DISCRIMINATOR)
-        ? 'vault'
+        ? ('vault' as const)
         : matchesDiscriminator(txData, SQUADS_CONFIG_TX_DISCRIMINATOR)
-          ? 'config'
-          : 'unknown'
-      return { ...proposal, kind }
+          ? ('config' as const)
+          : ('unknown' as const)
+      const spendingLimitPdas =
+        kind === 'config' && txData ? decodeSquadsConfigTransactionSpendingLimitPdas(txData, multisigPda) : []
+      return { ...proposal, kind, spendingLimitPdas }
     }),
   )
   return rows.sort((a, b) => (a.index > b.index ? -1 : 1))

@@ -1,4 +1,4 @@
-import type { Address, Instruction } from '@solana/kit'
+import type { Address, Instruction, TransactionSigner } from '@solana/kit'
 import { Connection, SystemProgram, TransactionMessage } from '@solana/web3.js'
 import { instructions as squadsInstructions } from '@sqds/multisig'
 import BN from 'bn.js'
@@ -12,7 +12,7 @@ import {
 } from './squads.ts'
 
 export interface CreateMultisigInput {
-  createKey: Address
+  createKey: TransactionSigner
   creator: Address
   members: Address[]
   multisigPda: Address
@@ -20,11 +20,14 @@ export interface CreateMultisigInput {
   treasury: Address
 }
 
+// multisigCreateV2 requires the createKey account itself to sign — it anchors
+// the multisig PDA. The kit transaction pipeline collects extra signers from
+// instruction account metas, so the signer is embedded on the createKey meta.
 export function buildCreateMultisigInstructions(input: CreateMultisigInput): Instruction[] {
-  return toKitInstructions([
+  const instructions = toKitInstructions([
     squadsInstructions.multisigCreateV2({
       configAuthority: null,
-      createKey: toPublicKey(input.createKey),
+      createKey: toPublicKey(input.createKey.address),
       creator: toPublicKey(input.creator),
       members: input.members.map((key) => ({ key: toPublicKey(key), permissions: SQUADS_MEMBER_PERMISSIONS })),
       multisigPda: toPublicKey(input.multisigPda),
@@ -34,6 +37,16 @@ export function buildCreateMultisigInstructions(input: CreateMultisigInput): Ins
       treasury: toPublicKey(input.treasury),
     }),
   ])
+  return instructions.map((instruction) => ({
+    ...instruction,
+    ...(instruction.accounts
+      ? {
+          accounts: instruction.accounts.map((meta) =>
+            meta.address === input.createKey.address ? { ...meta, signer: input.createKey } : meta,
+          ),
+        }
+      : {}),
+  }))
 }
 
 export interface VaultTransferProposalInput {
@@ -164,13 +177,45 @@ export async function buildExecuteInstructions(input: ExecuteTransactionInput): 
   return [toKitInstruction(instruction)]
 }
 
+// Executing a config transaction that adds a spending limit creates a new
+// on-chain account — the member doubles as rent payer so the program has a
+// funded signer to allocate it, and the new PDAs ride as remaining accounts.
 export function buildConfigExecuteInstructions(input: ExecuteTransactionInput): Instruction[] {
   return toKitInstructions([
     squadsInstructions.configTransactionExecute({
       member: toPublicKey(input.member),
       multisigPda: toPublicKey(input.multisigPda),
+      rentPayer: toPublicKey(input.member),
       ...(input.spendingLimitPdas ? { spendingLimits: input.spendingLimitPdas.map(toPublicKey) } : {}),
       transactionIndex: input.transactionIndex,
     }),
   ])
+}
+
+export interface SpendingLimitUseInput {
+  amount: bigint
+  destination: Address
+  member: Address
+  multisigPda: Address
+  spendingLimitPda: Address
+  vaultIndex: number
+}
+
+// spendingLimitUse lets a whitelisted member spend straight from the vault —
+// no proposal, no threshold — capped by the on-chain spending limit. SOL only:
+// mint is omitted so the program takes the native transfer path.
+export function buildSpendingLimitUseInstructions(input: SpendingLimitUseInput): Instruction[] {
+  return [
+    toKitInstruction(
+      squadsInstructions.spendingLimitUse({
+        amount: Number(input.amount),
+        decimals: 9,
+        destination: toPublicKey(input.destination),
+        member: toPublicKey(input.member),
+        multisigPda: toPublicKey(input.multisigPda),
+        spendingLimit: toPublicKey(input.spendingLimitPda),
+        vaultIndex: input.vaultIndex,
+      }),
+    ),
+  ]
 }
