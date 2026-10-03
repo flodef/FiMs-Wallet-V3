@@ -20,7 +20,15 @@ export type VaultUiUnlockDialogProps = {
 }
 
 export function VaultUiUnlockDialog({
-  actions: { cancel, changeConfirmPassword, changeCredential, changeOpen, submit: submitUnlock },
+  actions: {
+    cancel,
+    changeConfirmPassword,
+    changeCredential,
+    changeOpen,
+    changeTotp,
+    submit: submitUnlock,
+    submitPasskey,
+  },
   state: {
     cancelLabel,
     confirmPassword,
@@ -30,15 +38,21 @@ export function VaultUiUnlockDialog({
     credentialLabel,
     description,
     error,
+    hasPasskey,
     isOpen,
     isSetupMode,
     isSubmitting,
+    isTotpStep,
+    passkeyLabel,
     submitLabel,
     title,
+    totp,
+    totpLabel,
   },
 }: VaultUiUnlockDialogProps) {
   const confirmPasswordId = useId()
   const credentialId = useId()
+  const totpId = useId()
 
   function submit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -64,18 +78,33 @@ export function VaultUiUnlockDialog({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor={credentialId}>{credentialLabel}</Label>
-            <Input
-              autoComplete={isSetupMode ? 'new-password' : 'current-password'}
-              autoFocus
-              id={credentialId}
-              onChange={updateCredential}
-              type={credentialInputType}
-              value={credential}
-            />
-          </div>
-          {isSetupMode ? (
+          {isTotpStep ? (
+            <div className="space-y-2">
+              <Label htmlFor={totpId}>{totpLabel}</Label>
+              <Input
+                autoComplete="one-time-code"
+                autoFocus
+                id={totpId}
+                inputMode="numeric"
+                onChange={(event) => changeTotp(event.target.value)}
+                type="text"
+                value={totp}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor={credentialId}>{credentialLabel}</Label>
+              <Input
+                autoComplete={isSetupMode ? 'new-password' : 'current-password'}
+                autoFocus
+                id={credentialId}
+                onChange={updateCredential}
+                type={credentialInputType}
+                value={credential}
+              />
+            </div>
+          )}
+          {isSetupMode && !isTotpStep ? (
             <div className="space-y-2">
               <Label htmlFor={confirmPasswordId}>{confirmPasswordLabel}</Label>
               <Input
@@ -91,6 +120,17 @@ export function VaultUiUnlockDialog({
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
+          ) : null}
+          {hasPasskey && !isTotpStep ? (
+            <Button
+              className="w-full"
+              disabled={isSubmitting}
+              onClick={submitPasskey}
+              type="button"
+              variant="secondary"
+            >
+              {passkeyLabel}
+            </Button>
           ) : null}
           <DialogFooter>
             <Button disabled={isSubmitting} onClick={cancel} type="button" variant="outline">

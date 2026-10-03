@@ -1,4 +1,6 @@
-import { useRoutes } from 'react-router'
+import { useAccountActive } from '@workspace/db-react/use-account-active'
+import { envAdminAddresses } from '@workspace/env/env'
+import { Navigate, useRoutes } from 'react-router'
 import { SettingsFeatureAccountGenerateVanity } from './settings-feature-account-generate-vanity.tsx'
 import { SettingsFeatureGeneral } from './settings-feature-general.tsx'
 import { SettingsFeatureNetworkCreate } from './settings-feature-network-create.tsx'
@@ -14,6 +16,11 @@ import { SettingsFeatureWalletUpdate } from './settings-feature-wallet-update.ts
 import { SettingsUiLayout } from './ui/settings-ui-layout.tsx'
 
 export default function SettingsRoutes() {
+  // Network create/update can point the app at a hostile RPC — admin-only,
+  // enforced here too (not just hidden in the page list) since URLs can be
+  // navigated to directly.
+  const account = useAccountActive()
+  const isAdmin = envAdminAddresses().includes(account.publicKey)
   return useRoutes([
     {
       children: [
@@ -33,9 +40,15 @@ export default function SettingsRoutes() {
         },
         {
           children: [
-            { element: <SettingsFeatureNetworkList />, index: true },
-            { element: <SettingsFeatureNetworkCreate />, path: 'create' },
-            { element: <SettingsFeatureNetworkUpdate />, path: ':networkId' },
+            { element: isAdmin ? <SettingsFeatureNetworkList /> : <Navigate replace to="/settings" />, index: true },
+            {
+              element: isAdmin ? <SettingsFeatureNetworkCreate /> : <Navigate replace to="/settings" />,
+              path: 'create',
+            },
+            {
+              element: isAdmin ? <SettingsFeatureNetworkUpdate /> : <Navigate replace to="/settings" />,
+              path: ':networkId',
+            },
           ],
           path: 'networks',
         },

@@ -7,9 +7,10 @@ import { Link } from 'react-router'
 import { useSettingsPage } from './data-access/use-settings-page.tsx'
 import { SettingsFeatureGeneralApiSettings } from './settings-feature-general-api-settings.tsx'
 import { SettingsFeatureGeneralLanguage } from './settings-feature-general-language.tsx'
+import { SettingsFeatureGeneralSecurity } from './settings-feature-general-security.tsx'
 import { SettingsFeatureGeneralSendCap } from './settings-feature-general-send-cap.tsx'
 import { SettingsFeatureGeneralTheme } from './settings-feature-general-theme.tsx'
-import { SettingsFeatureGeneralWarningAcceptExperimental } from './settings-feature-general-warning-accept-experimental.tsx'
+import { SettingsFeatureGeneralWithdrawal } from './settings-feature-general-withdrawal.tsx'
 
 export function SettingsFeatureGeneral() {
   const { t } = useTranslation('settings')
@@ -30,7 +31,8 @@ export function SettingsFeatureGeneral() {
         <SettingsFeatureGeneralLanguage />
         <SettingsFeatureGeneralTheme />
         <SettingsFeatureGeneralSendCap />
-        <SettingsFeatureGeneralWarningAcceptExperimental />
+        <SettingsFeatureGeneralWithdrawal />
+        <SettingsFeatureGeneralSecurity />
       </UiCard>
       {isAdmin ? (
         <UiCard

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { decryptWithPassword } from '../src/encrypted-value.ts'
 import { createVault, type VaultStorage } from '../src/vault.ts'
 
 let vaultKey: string | undefined
@@ -48,6 +49,23 @@ describe('vault', () => {
       // ASSERT
       expect(vault1.isUnlocked()).toBe(false)
       expect(vault2.isUnlocked()).toBe(true)
+    })
+
+    it('should unlock with recovered key material instead of the password', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      const vault = createVault(storage)
+      await vault.create({ password: 'password-one' })
+      const keyMaterial = await decryptWithPassword({ encrypted: vaultKey as string, password: 'password-one' })
+      vault.lock()
+      const vault2 = createVault(storage)
+
+      // ACT
+      await vault2.unlockWithKeyMaterial({ keyMaterial })
+
+      // ASSERT
+      expect(vault.isUnlocked()).toBe(false)
+      expect(vault2.requireDefaultKey()).toBeDefined()
     })
   })
 

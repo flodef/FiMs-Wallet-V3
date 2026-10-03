@@ -10,7 +10,7 @@ import { getAmountForMint } from './data-access/get-amount-for-mint.ts'
 import { usePortfolioTokenMint } from './data-access/use-portfolio-token-mint.tsx'
 import { type PortfolioPreparedTransaction, usePortfolioTxPrepare } from './data-access/use-portfolio-tx-prepare.tsx'
 import { usePortfolioTxSend } from './data-access/use-portfolio-tx-send.tsx'
-import type { SendBlockContext } from './portfolio-modals.tsx'
+import type { SendBlockContext, SendOverrideContext } from './portfolio-modals.tsx'
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
 import { PortfolioUiSendConfirm } from './ui/portfolio-ui-send-confirm.tsx'
 
@@ -19,6 +19,7 @@ export function PortfolioFeatureModalConfirm({
   getSendBlock,
   getTransactionSigner,
   network,
+  renderSendOverride,
 }: {
   address: Address
   // Returns a user-facing message when this send must be blocked
@@ -26,6 +27,9 @@ export function PortfolioFeatureModalConfirm({
   getSendBlock?: ((send: SendBlockContext) => null | string) | undefined
   getTransactionSigner: GetTransactionSigner
   network: Network
+  // Replacement confirmation view for sends needing special handling
+  // (auto-conversion); null falls through to the normal confirm.
+  renderSendOverride?: ((send: SendOverrideContext) => React.ReactNode) | undefined
 }) {
   const { t } = useTranslation('portfolio')
   const { amount, destination, token } = useParams<{ amount: string; destination: string; token: string }>()
@@ -76,6 +80,14 @@ export function PortfolioFeatureModalConfirm({
         <UiError message={new Error(sendBlock)} title="Send blocked" />
       </PortfolioUiModal>
     )
+  }
+  const sendOverride = renderSendOverride?.({
+    amount,
+    destination: destination as Address,
+    mint,
+  })
+  if (sendOverride) {
+    return <PortfolioUiModal title={t(($) => $.actionConfirm)}>{sendOverride}</PortfolioUiModal>
   }
   if (prepareQuery.error) {
     return <UiError message={prepareQuery.error} title="Transaction preview failed" />

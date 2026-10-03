@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '@workspace/context-react/use-app-context'
+import { decryptWithVaultKey } from '@workspace/vault/encrypted-value'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { optionsVault, vaultStatusQueryKey } from './options-vault.ts'
+import { hasPasskey, unlockVaultWithPasskey } from './passkey.ts'
+import { verifyTotp } from './totp.ts'
 import type { VaultUnlockDialogContext, VaultUnlockRequest } from './use-vault-unlock-dialog.ts'
 import { useVaultUnlockDialogCopy } from './use-vault-unlock-dialog-copy.ts'
 import { submitVaultPassword } from './vault-password-submit.ts'
@@ -11,7 +14,9 @@ export interface VaultUnlockDialogActions {
   changeConfirmPassword(value: string): void
   changeCredential(value: string): void
   changeOpen(open: boolean): void
+  changeTotp(value: string): void
   submit(): void
+  submitPasskey(): void
 }
 
 export interface VaultUnlockDialogState {
@@ -23,11 +28,16 @@ export interface VaultUnlockDialogState {
   credentialLabel: string
   description: string
   error: string | null
+  hasPasskey: boolean
   isOpen: boolean
   isSetupMode: boolean
   isSubmitting: boolean
+  isTotpStep: boolean
+  passkeyLabel: string
   submitLabel: string
   title: string
+  totp: string
+  totpLabel: string
 }
 
 export interface VaultUnlockProviderValue {
@@ -52,11 +62,19 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
   const context = useAppContext()
   const copy = useVaultUnlockDialogCopy()
   const pendingRef = useRef<PendingVaultUnlockRequest | null>(null)
+  // Set when this request already unlocked key material, so a cancel during
+  // the TOTP step can roll the unlock back instead of leaving keys cached.
+  const rollbackUnlockRef = useRef<null | (() => void)>(null)
   const queryClient = useQueryClient()
   const [confirmPassword, setConfirmPassword] = useState('')
   const [credential, setCredential] = useState('')
+  const [hasPasskeyState, setHasPasskeyState] = useState(false)
+  const [isTotpStep, setIsTotpStep] = useState(false)
   const [pending, setPending] = useState<PendingVaultUnlockRequest | null>(null)
   const [setupMode, setSetupMode] = useState(false)
+  const [totp, setTotp] = useState('')
+  const [totpError, setTotpError] = useState(false)
+  const [totpSecret, setTotpSecret] = useState<string | null>(null)
   const {
     error: unlockError,
     isPending: isSubmitting,
@@ -69,11 +87,14 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
           confirmPassword: setupMode ? confirmPassword : undefined,
           password: credential,
         })
+        rollbackUnlockRef.current = () => context.vault.lock()
       } else {
         if (!pending.walletId) {
           throw new Error('Wallet id is required')
         }
-        await context.vault.unlockWallet({ credential, walletId: pending.walletId })
+        const walletId = pending.walletId
+        await context.vault.unlockWallet({ credential, walletId })
+        rollbackUnlockRef.current = () => context.vault.clearWalletKey({ walletId })
       }
       await queryClient.invalidateQueries({ queryKey: vaultStatusQueryKey })
     },
@@ -82,12 +103,20 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
   const resetForm = useCallback(() => {
     setConfirmPassword('')
     setCredential('')
+    setIsTotpStep(false)
+    setTotp('')
+    setTotpError(false)
+    setTotpSecret(null)
     resetSubmitUnlock()
     setSetupMode(false)
   }, [resetSubmitUnlock])
 
   const close = useCallback(
     (value: boolean) => {
+      if (!value) {
+        rollbackUnlockRef.current?.()
+      }
+      rollbackUnlockRef.current = null
       const request = pendingRef.current
       pendingRef.current = null
       setPending(null)
@@ -176,6 +205,8 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
         const status = await queryClient.fetchQuery(optionsVault.status(context))
         setSetupMode(!status.isConfigured)
         setPending(request)
+        const stored = await context.db.settings.get({ key: 'vaultPasskey' })
+        setHasPasskeyState(hasPasskey(stored?.value))
       } catch (error) {
         pendingRef.current = null
         setPending(null)
@@ -188,21 +219,104 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
     [context, queryClient],
   )
 
+  // After a credential unlock succeeds, an enrolled TOTP secret demands a
+  // second step: the dialog stays open on the code input until verifyTotp
+  // accepts — or the user cancels, which resolves the request as failed and
+  // rolls the unlock back via close(false).
+  const completeUnlock = useCallback(async () => {
+    const totpSetting = (await context.db.settings.get({ key: 'vaultTotp' }))?.value
+    if (totpSetting && context.vault.isUnlocked()) {
+      // The secret is wrapped under the vault key so an IndexedDB dump alone
+      // does not reveal it; fall back to the raw value for blobs written by
+      // development builds before encryption existed.
+      let secret = totpSetting
+      try {
+        secret = await decryptWithVaultKey({ encrypted: totpSetting, key: context.vault.requireDefaultKey() })
+      } catch {
+        // Not an EncryptedValue — treat as a legacy raw secret.
+      }
+      setTotpSecret(secret)
+      setIsTotpStep(true)
+      return
+    }
+    close(true)
+  }, [close, context.db.settings, context.vault])
+
   const submit = useCallback(() => {
     if (!pending || isSubmitting) {
+      return
+    }
+
+    if (isTotpStep) {
+      const secret = totpSecret
+      if (!secret) {
+        return
+      }
+      void verifyTotp({ code: totp, secret }).then((valid) => {
+        if (valid) {
+          close(true)
+        } else {
+          setTotp('')
+          setTotpError(true)
+        }
+      })
       return
     }
 
     submitUnlock(
       { confirmPassword, credential, pending, setupMode },
       {
-        onSuccess: () => close(true),
+        onSuccess: () => void completeUnlock(),
       },
     )
-  }, [close, confirmPassword, credential, isSubmitting, pending, setupMode, submitUnlock])
+  }, [
+    close,
+    completeUnlock,
+    confirmPassword,
+    credential,
+    isSubmitting,
+    isTotpStep,
+    pending,
+    setupMode,
+    submitUnlock,
+    totp,
+    totpSecret,
+  ])
+
+  const submitPasskey = useCallback(() => {
+    if (!pending || isSubmitting) {
+      return
+    }
+    void (async () => {
+      try {
+        const stored = (await context.db.settings.get({ key: 'vaultPasskey' }))?.value
+        if (!stored) {
+          throw new Error('No passkey enrolled')
+        }
+        const keyMaterial = await unlockVaultWithPasskey(stored)
+        await context.vault.unlockWithKeyMaterial({ keyMaterial })
+        rollbackUnlockRef.current = () => context.vault.lock()
+        await queryClient.invalidateQueries({ queryKey: vaultStatusQueryKey })
+        await completeUnlock()
+      } catch {
+        close(false)
+      }
+    })()
+  }, [close, completeUnlock, context, isSubmitting, pending, queryClient])
+
+  const changeTotp = useCallback((value: string) => {
+    setTotp(value.replace(/[^\d]/g, '').slice(0, 6))
+    setTotpError(false)
+  }, [])
 
   const contextValue = useMemo<VaultUnlockDialogContext>(() => ({ requestUnlock }), [requestUnlock])
-  const error = unlockError ? (unlockError instanceof Error ? unlockError.message : 'Unable to unlock') : null
+  const error = totpError
+    ? copy.totpInvalid
+    : unlockError
+      ? unlockError instanceof Error
+        ? unlockError.message
+        : 'Unable to unlock'
+      : null
 
   return {
     actions: {
@@ -210,7 +324,9 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
       changeConfirmPassword,
       changeCredential,
       changeOpen,
+      changeTotp,
       submit,
+      submitPasskey,
     },
     contextValue,
     state: {
@@ -222,11 +338,16 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
       credentialLabel: pending?.mode === 'pin' ? copy.pinLabel : copy.passwordLabel,
       description: setupMode ? copy.setupDescription : (pending?.description ?? copy.defaultDescription),
       error,
+      hasPasskey: hasPasskeyState && pending?.mode === 'password' && !setupMode,
       isOpen: Boolean(pending),
       isSetupMode: setupMode,
       isSubmitting,
+      isTotpStep,
+      passkeyLabel: copy.passkeyLabel,
       submitLabel: copy.actionContinue,
       title: setupMode ? copy.setupTitle : (pending?.title ?? copy.defaultTitle),
+      totp,
+      totpLabel: copy.totpLabel,
     },
   }
 }

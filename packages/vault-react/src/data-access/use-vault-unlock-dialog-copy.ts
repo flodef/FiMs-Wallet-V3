@@ -9,9 +9,12 @@ export function useVaultUnlockDialogCopy() {
     confirmPasswordLabel: t(($) => $.unlockDialogConfirmPasswordLabel),
     defaultDescription: t(($) => $.unlockDialogDefaultDescription),
     defaultTitle: t(($) => $.unlockDialogDefaultTitle),
+    passkeyLabel: t(($) => $.unlockDialogPasskeyLabel),
     passwordLabel: t(($) => $.unlockDialogPasswordLabel),
     pinLabel: t(($) => $.unlockDialogPinLabel),
     setupDescription: t(($) => $.unlockDialogSetupDescription),
     setupTitle: t(($) => $.unlockDialogSetupTitle),
+    totpInvalid: t(($) => $.unlockDialogTotpInvalid),
+    totpLabel: t(($) => $.unlockDialogTotpLabel),
   }
 }

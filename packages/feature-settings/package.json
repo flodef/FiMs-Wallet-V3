@@ -7,6 +7,7 @@
     "@workspace/db-react": "workspace:*",
     "@workspace/env": "workspace:*",
     "@workspace/feature-explorer": "workspace:*",
+    "@workspace/feature-fims": "workspace:*",
     "@workspace/i18n": "workspace:*",
     "@workspace/keypair": "workspace:*",
     "@workspace/solana-client": "workspace:*",

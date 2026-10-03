@@ -3,8 +3,6 @@
   "actionRemove": "Retirer",
   "actionSave": "Enregistrer",
   "errorTitle": "Oups, une erreur est survenue",
-  "experimentalWarningDescription": "Utilisez ce wallet à vos risques et périls. N'utilisez pas de fonds réels.",
-  "experimentalWarningTitle": "Logiciel expérimental.",
   "notFoundDescription": "La page que vous cherchez n'existe pas.",
   "notFoundTitle": "404 - Page introuvable",
   "relativeDateToday": "Aujourd'hui",

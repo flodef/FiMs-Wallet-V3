@@ -24,6 +24,7 @@ export interface Vault {
   requireWalletKey(input: { walletId: string }): Promise<CryptoKey>
   unlock(input: { password: string }): Promise<void>
   unlockWallet(input: { credential: string; walletId: string }): Promise<void>
+  unlockWithKeyMaterial(input: { keyMaterial: string }): Promise<void>
 }
 
 export function createVault(store: VaultStorage): Vault {
@@ -135,6 +136,15 @@ export function createVault(store: VaultStorage): Vault {
         }
       } catch (error) {
         throw new Error('Unable to unlock wallet', { cause: error })
+      }
+    },
+    async unlockWithKeyMaterial({ keyMaterial }) {
+      try {
+        key = await importVaultKey({ keyMaterial })
+      } catch (error) {
+        key = null
+        walletKeys.clear()
+        throw new Error('Unable to unlock vault', { cause: error })
       }
     },
   }

@@ -4,11 +4,14 @@
   "unlockDialogConfirmPasswordLabel": "Confirm password",
   "unlockDialogDefaultDescription": "Unlock to continue with this sensitive action.",
   "unlockDialogDefaultTitle": "Unlock wallet",
+  "unlockDialogPasskeyLabel": "Use fingerprint",
   "unlockDialogPasswordLabel": "Password",
   "unlockDialogPasswordMaxLengthMessage": "Password must be at most {{passwordMaxLength, number}} characters",
   "unlockDialogPasswordMinLengthMessage": "Password must be at least {{passwordMinLength, number}} characters",
   "unlockDialogPasswordMismatchMessage": "Passwords do not match",
   "unlockDialogPinLabel": "PIN",
   "unlockDialogSetupDescription": "Create an app password once. You can add wallets later without repeating setup.",
-  "unlockDialogSetupTitle": "Create app password"
+  "unlockDialogSetupTitle": "Create app password",
+  "unlockDialogTotpInvalid": "Invalid code",
+  "unlockDialogTotpLabel": "Authenticator code"
 }

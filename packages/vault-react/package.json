@@ -17,7 +17,9 @@
     "vitest": "catalog:"
   },
   "exports": {
-    "./*": "./src/*.tsx"
+    "./*": "./src/*.tsx",
+    "./data-access/passkey": "./src/data-access/passkey.ts",
+    "./data-access/totp": "./src/data-access/totp.ts"
   },
   "license": "MIT",
   "name": "@workspace/vault-react",

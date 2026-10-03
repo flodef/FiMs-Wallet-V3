@@ -6,6 +6,7 @@ import { useTranslation } from '@workspace/i18n'
 import type { UiGroupedComboboxInputGroup } from '@workspace/ui/components/ui-grouped-combobox-input'
 import { UiNotFound } from '@workspace/ui/components/ui-not-found'
 import { useRoutes } from 'react-router'
+import type { TokenBalance } from './data-access/use-get-token-balances.ts'
 import { PortfolioFeatureModalBurn } from './portfolio-feature-modal-burn.tsx'
 import { PortfolioFeatureModalComplete } from './portfolio-feature-modal-complete.tsx'
 import { PortfolioFeatureModalConfirm } from './portfolio-feature-modal-confirm.tsx'
@@ -23,12 +24,22 @@ export interface SendBlockContext {
   mint: Address
 }
 
+export interface SendOverrideContext {
+  amount: string
+  destination: Address
+  mint: TokenBalance
+}
+
 export default function PortfolioModals({
   extraDestinationGroups,
   getSendBlock,
+  renderSendOverride,
 }: {
   extraDestinationGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
   getSendBlock?: ((send: SendBlockContext) => null | string) | undefined
+  // When a send needs special handling (e.g. auto-conversion for a restricted
+  // destination), return the replacement confirmation view; null = normal send.
+  renderSendOverride?: ((send: SendOverrideContext) => React.ReactNode) | undefined
 }) {
   const { t } = useTranslation('ui')
   const account = useAccountActive()
@@ -49,6 +60,7 @@ export default function PortfolioModals({
           getSendBlock={getSendBlock}
           getTransactionSigner={getTransactionSigner}
           network={network}
+          renderSendOverride={renderSendOverride}
         />
       ),
       path: 'confirm/:token/:destination/:amount',

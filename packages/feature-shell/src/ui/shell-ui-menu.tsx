@@ -5,6 +5,7 @@ import { useNetworkLive } from '@workspace/db-react/use-network-live'
 import { useSetting } from '@workspace/db-react/use-setting'
 import { useWalletActive } from '@workspace/db-react/use-wallet-active'
 import { useWalletLive } from '@workspace/db-react/use-wallet-live'
+import { envAdminAddresses } from '@workspace/env/env'
 import { getDevOptions } from '@workspace/feature-dev/dev-features'
 import { Menubar } from '@workspace/ui/components/menubar'
 import { ShellUiMenuDevelopment } from './shell-ui-menu-development.tsx'
@@ -30,7 +31,11 @@ export function ShellUiMenu() {
         setActiveAccount={(id: string) => setActiveMutation.mutateAsync({ id })}
         wallets={wallets}
       />
-      <ShellUiMenuNetwork active={activeNetwork} networks={networks} setActive={setActiveNetworkId} />
+      {/* Network switching is admin-only: pointing the app at a hostile RPC is
+          a security risk ordinary users should never be able to trigger. */}
+      {envAdminAddresses().includes(activeAccount.publicKey) ? (
+        <ShellUiMenuNetwork active={activeNetwork} networks={networks} setActive={setActiveNetworkId} />
+      ) : null}
       <ShellUiMenuDevelopment items={getDevOptions()} />
     </Menubar>
   )

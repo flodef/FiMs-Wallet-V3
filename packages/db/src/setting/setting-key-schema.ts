@@ -10,5 +10,9 @@ export const settingKeySchema = z.enum([
   'sendCapEur',
   'theme',
   'vaultKey',
-  'warningAcceptExperimental',
+  'vaultPasskey',
+  'vaultTotp',
+  'withdrawExchangeAddress',
+  'withdrawExchangeProvider',
+  'withdrawJupiterSpend',
 ])

@@ -1,4 +1,5 @@
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
+import { FimsFeatureRentReclaim } from '@workspace/feature-fims/fims-feature-rent-reclaim'
 import { useTranslation } from '@workspace/i18n'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
@@ -9,7 +10,6 @@ import { NavLink, Outlet } from 'react-router'
 import { ShellUiCommandMenu } from './shell-ui-command-menu.tsx'
 import { ShellUiMenu } from './shell-ui-menu.tsx'
 import { ShellUiMenuActions } from './shell-ui-menu-actions.tsx'
-import { ShellUiWarningExperimental } from './shell-ui-warning-experimental.tsx'
 
 export interface ShellLayoutLink {
   icon: UiIconName
@@ -31,8 +31,8 @@ export function ShellUiLayout() {
 
   return (
     <div className="flex h-full flex-col items-stretch justify-between">
-      <ShellUiWarningExperimental />
       <ShellUiCommandMenu />
+      <FimsFeatureRentReclaim />
       <header
         className={cn('flex items-center justify-between bg-secondary/30', {
           [`border-b-2 ${border}`]: !!activeNetwork.color,

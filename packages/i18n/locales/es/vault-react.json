@@ -4,11 +4,14 @@
   "unlockDialogConfirmPasswordLabel": "Confirmar contraseña",
   "unlockDialogDefaultDescription": "Desbloquea para continuar con esta acción confidencial.",
   "unlockDialogDefaultTitle": "Desbloquear billetera",
+  "unlockDialogPasskeyLabel": "Usar huella",
   "unlockDialogPasswordLabel": "Contraseña",
   "unlockDialogPasswordMaxLengthMessage": "La contraseña debe tener como máximo {{passwordMaxLength, number}} caracteres",
   "unlockDialogPasswordMinLengthMessage": "La contraseña debe tener al menos {{passwordMinLength, number}} caracteres",
   "unlockDialogPasswordMismatchMessage": "Las contraseñas no coinciden",
   "unlockDialogPinLabel": "PIN",
   "unlockDialogSetupDescription": "Crea una contraseña de app una vez. Puedes agregar billeteras más tarde sin repetir la configuración.",
-  "unlockDialogSetupTitle": "Crear contraseña de app"
+  "unlockDialogSetupTitle": "Crear contraseña de app",
+  "unlockDialogTotpInvalid": "Código inválido",
+  "unlockDialogTotpLabel": "Código de autenticación"
 }

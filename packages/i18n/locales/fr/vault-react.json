@@ -4,11 +4,14 @@
   "unlockDialogConfirmPasswordLabel": "Confirmer le mot de passe",
   "unlockDialogDefaultDescription": "Déverrouillez pour continuer avec cette action sensible.",
   "unlockDialogDefaultTitle": "Déverrouiller le wallet",
+  "unlockDialogPasskeyLabel": "Utiliser l'empreinte",
   "unlockDialogPasswordLabel": "Mot de passe",
   "unlockDialogPasswordMaxLengthMessage": "Le mot de passe doit contenir au maximum {{passwordMaxLength, number}} caractères",
   "unlockDialogPasswordMinLengthMessage": "Le mot de passe doit contenir au moins {{passwordMinLength, number}} caractères",
   "unlockDialogPasswordMismatchMessage": "Les mots de passe ne correspondent pas",
   "unlockDialogPinLabel": "PIN",
   "unlockDialogSetupDescription": "Créez un mot de passe d'application une seule fois. Vous pourrez ajouter des wallets plus tard sans répéter cette étape.",
-  "unlockDialogSetupTitle": "Créer un mot de passe d'application"
+  "unlockDialogSetupTitle": "Créer un mot de passe d'application",
+  "unlockDialogTotpInvalid": "Code invalide",
+  "unlockDialogTotpLabel": "Code d'authentification"
 }

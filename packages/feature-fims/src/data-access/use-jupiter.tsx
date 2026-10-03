@@ -129,6 +129,48 @@ export function useFimsSwap({ account, network }: { account: Account; network: N
   })
 }
 
+// Swap whose output mint is delivered straight into somebody else's token
+// account (exchange / Jupiter Spend deposit). Jupiter builds a single
+// transaction containing the swap plus the transfer — and the ATA creation
+// for the destination when needed — so the user signs once.
+export function useFimsSwapTo({ account, network }: { account: Account; network: Network }) {
+  const signAndSendBase64Transaction = useSignAndSendTransaction({ account, network })
+
+  return useMutation({
+    mutationFn: async ({
+      destinationTokenAccount,
+      quote,
+    }: {
+      destinationTokenAccount: Address
+      quote: JupiterQuote
+    }): Promise<Signature> => {
+      const res = await fetch(`${JUPITER_API}/swap/v1/swap`, {
+        body: JSON.stringify({
+          destinationTokenAccount,
+          dynamicComputeUnitLimit: true,
+          prioritizationFeeLamports: 'auto',
+          quoteResponse: quote,
+          userPublicKey: account.publicKey,
+          wrapAndUnwrapSol: true,
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+      if (!res.ok) {
+        throw new Error(`Jupiter swap failed: ${res.status}`)
+      }
+      const { swapTransaction } = z.object({ swapTransaction: z.string() }).parse(await res.json())
+      // The output lands in the destination's ATA, not ours — the wallet
+      // spends the input mint and receives nothing, so only the spend side
+      // is asserted (expectedReceive stays undefined on purpose).
+      return signAndSendBase64Transaction(swapTransaction, {
+        amount: BigInt(quote.inAmount),
+        mint: quote.inputMint as Address,
+      })
+    },
+  })
+}
+
 const triggerOrderSchema = z
   .object({
     inputMint: z.string().optional(),
