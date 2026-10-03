@@ -115,3 +115,9 @@ it('should throw an error with an invalid key', async () => {
 3. **Console Mocking**: Unexpected behavior tests must mock console.log to avoid noise
 4. **Type Errors**: Use `// @ts-expect-error: Testing invalid input` for intentional type violations
 5. **Clear Descriptions**: Test descriptions should clearly state what is being tested and under what conditions
+
+## Devnet Testing
+
+- A funded throwaway devnet wallet exists for live devnet verification: `GyU9ZpTL3ce8kfS6XSpoiXaiiGb9svJfFEWer33SMmPS`.
+- Its keypair lives locally at `~/.config/fims/devnet-test-wallet.json` (never committed). Top it up via the user or a faucet when drained — do not regenerate a new one.
+- Jupiter APIs are mainnet-only: swaps/quotes cannot be E2E-tested on devnet, only account-level flows (mint/ATA creation, transfers).
