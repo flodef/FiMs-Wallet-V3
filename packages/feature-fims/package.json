@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "@solana/kit": "catalog:",
+    "@solana/web3.js": "1.99.0",
+    "@sqds/multisig": "2.1.4",
     "@tanstack/react-query": "catalog:",
     "@workspace/db": "workspace:*",
     "@workspace/db-react": "workspace:*",
@@ -11,6 +13,7 @@
     "@workspace/solana-client": "workspace:*",
     "@workspace/solana-client-react": "workspace:*",
     "@workspace/ui": "workspace:*",
+    "bn.js": "5.2.2",
     "react-router": "catalog:",
     "recharts": "catalog:",
     "zod": "catalog:"

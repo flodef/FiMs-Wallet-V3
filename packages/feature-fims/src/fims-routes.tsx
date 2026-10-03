@@ -7,6 +7,7 @@ import { FIMS_AUDIT_URL, FIMS_TREASURY_ADDRESS, FIMS_TREASURY_DOMAIN } from './f
 import { FimsFeatureCommunity } from './fims-feature-community.tsx'
 import { FimsFeatureLearn } from './fims-feature-learn.tsx'
 import { FimsFeatureMember } from './fims-feature-member.tsx'
+import { FimsFeatureMultisig } from './fims-feature-multisig.tsx'
 import { FimsFeatureSwap } from './fims-feature-swap.tsx'
 import { FimsFeatureTontine } from './fims-feature-tontine.tsx'
 import { FimsFeatureVotes } from './fims-feature-votes.tsx'
@@ -44,6 +45,11 @@ export default function FimsRoutes() {
             element: <FimsFeatureVotes account={account} />,
             label: t(($) => $.tabVotes),
             path: 'votes',
+          },
+          {
+            element: <FimsFeatureMultisig account={account} />,
+            label: t(($) => $.tabMultisig),
+            path: 'multisig',
           },
           {
             element: <FimsFeatureLearn />,
