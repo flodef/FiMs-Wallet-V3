@@ -4,6 +4,7 @@ import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.js'
 import {
   addressBook,
+  adminAuditLog,
   dashboardMetrics,
   historic,
   prices,
@@ -15,12 +16,13 @@ import {
   voteOptions,
   votes,
 } from '../../db/schema.js'
-import { DatabaseError, DatabaseService, withDb } from '../../db/service.js'
+import { DatabaseError, DatabaseService, withDb, withTransaction } from '../../db/service.js'
 import {
   AuthForbidden,
   isAdminAddress,
   optionalWalletRequest,
   requireAdmin,
+  requireNotDemo,
   requireOwnerOrAdmin,
   verifyWalletRequest,
 } from '../../services/auth/service.js'
@@ -174,6 +176,29 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
 // The residual stays in the treasury — it is not credited to anyone.
 const FIMS_FEE_RATE = 0.001
 
+// Prices feed ledger writes: a price older than the feed cadence is a free
+// option against the treasury, so conversions refuse to use it.
+const PRICE_STALE_MS = 10 * 60 * 1000
+// Bounds what a stolen member key can bleed through back-and-forth
+// conversions (each round-trip burns the fee). Generous enough to never
+// block a legitimate rebalance.
+const MAX_DAILY_CONVERT_EUR = 250_000
+
+// Append-only record of privileged actions. Only logged when an admin acts
+// on a resource they do not own — that is exactly the set of writes that
+// move the community ledger or other members' data.
+const auditAdmin = (signer: string, action: string, resourceId: string, detail?: unknown) =>
+  isAdminAddress(signer)
+    ? withDb((db) =>
+        db.insert(adminAuditLog).values({
+          action,
+          adminAddress: signer,
+          detail: detail === undefined ? null : JSON.stringify(detail).slice(0, 2000),
+          resourceId,
+        }),
+      )
+    : Effect.void
+
 const deriveTransactionType = (
   movement: number,
   cost: number,
@@ -214,7 +239,12 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            yield* requireOwnerOrAdmin(signer, payload.address)
+            // Self-registration only: the owner check is inlined (not
+            // requireOwnerOrAdmin) because the public demo wallet must be
+            // allowed to register its own row during the guided tour.
+            if (signer !== payload.address) {
+              yield* requireAdmin(signer)
+            }
             // Display names are unique across members — same rule as
             // updateUser. Without it, self-registration could squat another
             // member's public name. Admins keep the override.
@@ -228,6 +258,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const rows = yield* withDb((db) => db.insert(users).values(payload).returning())
             const created = rows[0]
             if (!created) return yield* Effect.fail(insertFailed())
+            yield* auditAdmin(signer, 'create_user', String(created.id), payload)
             return created
           }),
         )
@@ -277,6 +308,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             const updated = rows[0]
             if (!updated) return yield* Effect.fail(notFound(`user ${path.id}`))
+            yield* auditAdmin(signer, 'update_user', String(updated.id), payload)
             return updated
           }),
         )
@@ -290,6 +322,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               db.delete(users).where(eq(users.id, path.id)).returning({ id: users.id }),
             )
             if (!rows[0]) return yield* Effect.fail(notFound(`user ${path.id}`))
+            yield* auditAdmin(signer, 'delete_user', String(path.id))
             return `deleted user ${path.id}`
           }),
         )
@@ -330,8 +363,10 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const signer = yield* verifyWalletRequest(request)
             yield* requireAdmin(signer)
             yield* userAccessOfId(payload.userId)
-            // A transaction whose address is registered as an exchange in the
-            // address book is categorized cex_in/cex_out automatically.
+            // Exchange tagging is scoped to the transaction owner's own
+            // address book: an entry in ANOTHER member's book must not
+            // reclassify this member's flows (that would let anyone skew
+            // the community accounting by tagging shared exchange wallets).
             const cexRows = yield* withDb((db) =>
               db
                 .select({ id: addressBook.id })
@@ -339,6 +374,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                 .where(
                   and(
                     eq(addressBook.address, payload.address),
+                    eq(addressBook.userId, payload.userId),
                     inArray(addressBook.type, ['binance', 'coinbase', 'nexo']),
                   ),
                 ),
@@ -354,6 +390,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             const created = rows[0]
             if (!created) return yield* Effect.fail(insertFailed())
+            yield* auditAdmin(signer, 'create_transaction', String(created.id), payload)
             return created
           }),
         )
@@ -368,6 +405,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             const updated = rows[0]
             if (!updated) return yield* Effect.fail(notFound(`transaction ${path.id}`))
+            yield* auditAdmin(signer, 'update_transaction', String(path.id), payload)
             return updated
           }),
         )
@@ -381,6 +419,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               db.delete(transactions).where(eq(transactions.id, path.id)).returning({ id: transactions.id }),
             )
             if (!rows[0]) return yield* Effect.fail(notFound(`transaction ${path.id}`))
+            yield* auditAdmin(signer, 'delete_transaction', String(path.id))
             return `deleted transaction ${path.id}`
           }),
         )
@@ -465,6 +504,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             const created = rows[0]
             if (!created) return yield* Effect.fail(insertFailed())
+            yield* auditAdmin(signer, 'create_address_book_entry', String(created.id), payload)
             return created
           }),
         )
@@ -479,6 +519,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             const updated = rows[0]
             if (!updated) return yield* Effect.fail(notFound(`address book entry ${path.id}`))
+            yield* auditAdmin(signer, 'update_address_book_entry', String(path.id), payload)
             return updated
           }),
         )
@@ -492,6 +533,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               db.delete(addressBook).where(eq(addressBook.id, path.id)).returning({ id: addressBook.id }),
             )
             if (!rows[0]) return yield* Effect.fail(notFound(`address book entry ${path.id}`))
+            yield* auditAdmin(signer, 'delete_address_book_entry', String(path.id))
             return `deleted address book entry ${path.id}`
           }),
         )
@@ -502,6 +544,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
+            yield* requireNotDemo(signer)
             const memberRows = yield* withDb((db) =>
               db.select({ id: users.id }).from(users).where(eq(users.address, signer)),
             )
@@ -511,30 +554,59 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               return yield* Effect.fail(new BadRequest({ reason: 'source and destination tokens must differ' }))
             const priceRows = yield* withDb((db) =>
               db
-                .select({ symbol: tokens.symbol, value: tokens.value })
+                .select({ symbol: tokens.symbol, updatedAt: tokens.updatedAt, value: tokens.value })
                 .from(tokens)
                 .where(inArray(tokens.symbol, [payload.fromToken, payload.toToken])),
             )
-            const priceOf = new Map(priceRows.map((r) => [r.symbol, r.value]))
-            const fromPrice = priceOf.get(payload.fromToken)
-            const toPrice = priceOf.get(payload.toToken)
+            const priceOf = new Map(priceRows.map((r) => [r.symbol, r]))
+            const fromToken = priceOf.get(payload.fromToken)
+            const toToken = priceOf.get(payload.toToken)
+            const fromPrice = fromToken?.value
+            const toPrice = toToken?.value
             if (fromPrice == null || fromPrice <= 0 || toPrice == null || toPrice <= 0)
               return yield* Effect.fail(new BadRequest({ reason: 'unknown or unpriced token' }))
-            const unitRows = (yield* withDb((db) =>
+            // A stale price is a free option against the treasury: if the
+            // feed stalls, conversions stop instead of trading at it.
+            for (const token of [fromToken, toToken]) {
+              if (token && Date.now() - token.updatedAt.getTime() > PRICE_STALE_MS)
+                return yield* Effect.fail(
+                  new BadRequest({
+                    reason: `stale price for ${token.symbol}: ${token.updatedAt.toISOString()}`,
+                  }),
+                )
+            }
+            // The per-day cap bounds what a stolen member key can bleed
+            // through back-and-forth conversions (each round-trip burns the
+            // fee). Generous enough to never block a legitimate rebalance.
+            const dailyRows = (yield* withDb((db) =>
               db.execute(
-                sql`SELECT COALESCE(SUM(amount), 0)::float AS units FROM transactions WHERE user_id = ${member.id} AND token = ${payload.fromToken}`,
+                sql`SELECT COALESCE(SUM(-movement), 0)::float AS eur FROM transactions WHERE user_id = ${member.id} AND type = 'conversion' AND movement < 0 AND date >= NOW() - INTERVAL '24 hours'`,
               ),
-            )).rows as { units: number }[]
-            const available = Number(unitRows[0]?.units ?? 0) * fromPrice
-            if (payload.eurAmount > available * 1.001 + 0.01)
+            )).rows as { eur: number }[]
+            if (Number(dailyRows[0]?.eur ?? 0) + payload.eurAmount > MAX_DAILY_CONVERT_EUR)
               return yield* Effect.fail(
-                new BadRequest({
-                  reason: `amount exceeds position: ${payload.eurAmount} > ${available.toFixed(2)} ${payload.fromToken}`,
-                }),
+                new BadRequest({ reason: `daily conversion limit of ${MAX_DAILY_CONVERT_EUR} EUR exceeded` }),
               )
             const now = new Date()
-            const rows = yield* withDb((db) =>
-              db
+            // Session-level transaction: the member row lock serializes
+            // concurrent conversions so each one re-reads the position
+            // under the lock before writing — a racy double-read can no
+            // longer overdraw the position. (user_id, request_id) is
+            // unique, so a retried submission is deduplicated.
+            const outcome = yield* withTransaction(async (tx) => {
+              await tx.execute(sql`SELECT id FROM users WHERE id = ${member.id} FOR UPDATE`)
+              const lockedUnits = (
+                await tx.execute(
+                  sql`SELECT COALESCE(SUM(amount), 0)::float AS units FROM transactions WHERE user_id = ${member.id} AND token = ${payload.fromToken}`,
+                )
+              ).rows as { units: number }[]
+              const available = Number(lockedUnits[0]?.units ?? 0) * fromPrice
+              if (payload.eurAmount > available * 1.001 + 0.01) {
+                return {
+                  insufficient: `amount exceeds position: ${payload.eurAmount} > ${available.toFixed(2)} ${payload.fromToken}`,
+                } as const
+              }
+              const inserted = await tx
                 .insert(transactions)
                 .values([
                   {
@@ -542,8 +614,9 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                     amount: -payload.eurAmount / fromPrice,
                     date: now,
                     movement: -payload.eurAmount,
+                    requestId: payload.requestId,
                     token: payload.fromToken,
-                    type: 'conversion',
+                    type: 'conversion' as const,
                     userId: member.id,
                   },
                   {
@@ -553,14 +626,38 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                     amount: (payload.eurAmount * (1 - FIMS_FEE_RATE)) / toPrice,
                     date: now,
                     movement: payload.eurAmount * (1 - FIMS_FEE_RATE),
+                    // Suffixed id keeps the credit leg tagged for dedup while
+                    // staying a distinct key under the (user_id, request_id)
+                    // unique index — the pair cannot collide with itself.
+                    requestId: `${payload.requestId}:credit`,
                     token: payload.toToken,
-                    type: 'conversion',
+                    type: 'conversion' as const,
                     userId: member.id,
                   },
                 ])
-                .returning(),
+                .onConflictDoNothing({ target: [transactions.userId, transactions.requestId] })
+                .returning()
+              return { inserted } as const
+            })
+            if ('insufficient' in outcome) return yield* Effect.fail(new BadRequest({ reason: outcome.insufficient }))
+            if (outcome.inserted.length) return outcome.inserted
+            // Conflict on request_id: the same conversion was already
+            // applied by an earlier attempt — return that pair, don't
+            // double-apply.
+            const existing = yield* withDb((db) =>
+              db
+                .select()
+                .from(transactions)
+                .where(
+                  and(
+                    eq(transactions.userId, member.id),
+                    inArray(transactions.requestId, [payload.requestId, `${payload.requestId}:credit`]),
+                  ),
+                )
+                .orderBy(asc(transactions.id)),
             )
-            return rows
+            if (!existing.length) return yield* Effect.fail(insertFailed())
+            return existing
           }),
         )
         .handle('votes', () =>
@@ -588,6 +685,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             const vote = created[0]
             if (!vote) return yield* Effect.fail(insertFailed())
+            yield* auditAdmin(signer, 'create_vote', String(vote.id), payload)
             yield* withDb((db) =>
               db
                 .insert(voteOptions)
@@ -608,6 +706,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               db.update(votes).set({ status: payload.status }).where(eq(votes.id, path.id)).returning(),
             )
             if (!rows[0]) return yield* Effect.fail(notFound(`vote ${path.id}`))
+            yield* auditAdmin(signer, 'update_vote', String(path.id), payload)
             const list = yield* loadVotesWithResults(Option.some(signer))
             const found = list.find((v) => v.id === path.id)
             if (!found) return yield* Effect.fail(notFound(`vote ${path.id}`))
@@ -618,6 +717,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
+            yield* requireNotDemo(signer)
             const voteRows = yield* withDb((db) => db.select().from(votes).where(eq(votes.id, path.id)))
             const vote = voteRows[0]
             if (!vote) return yield* Effect.fail(notFound(`vote ${path.id}`))

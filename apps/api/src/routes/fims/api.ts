@@ -372,6 +372,10 @@ export class FimsApi extends HttpApiGroup.make('Fims')
         Schema.Struct({
           eurAmount: Schema.Number.pipe(Schema.greaterThan(0)),
           fromToken: Schema.String,
+          // Idempotency key the client generates per conversion intent:
+          // retried submissions are deduplicated by (user_id, request_id)
+          // instead of double-applying the ledger pair.
+          requestId: Schema.String.pipe(Schema.minLength(8), Schema.maxLength(64)),
           toToken: Schema.String,
         }),
       )

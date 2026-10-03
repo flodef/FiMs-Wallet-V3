@@ -8,7 +8,7 @@ import { useMemo } from 'react'
 import { useFimsAddressBook, useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsDebt } from './data-access/use-fims-debt.tsx'
-import { FIMS_TREASURY_ADDRESS } from './fims-constants.ts'
+import { FIMS_DEMO_ADDRESS, FIMS_TREASURY_ADDRESS } from './fims-constants.ts'
 
 // Wraps the portfolio send/receive modals and injects the member's FiMs address
 // book as an extra destination group.
@@ -42,10 +42,12 @@ export default function FimsModals() {
 
   // Outgoing send guards. Sends to the treasury always stay open — that is how
   // a debt gets settled on-chain and it is not an "external" withdrawal.
+  // 0. Demo guard: the demo account's keys are public — it must never send.
   // 1. Debt guard: outgoing sends are blocked while the member owes FiMs.
   // 2. Send cap: optional EUR limit (Settings → Send limit). The token's EUR
   //    price comes from the FiMs token list; unpriced tokens are not capped —
   //    this is a convenience guard, not a custody policy.
+  const isDemo = account.publicKey === FIMS_DEMO_ADDRESS
   const getSendBlock = useMemo(() => {
     const cap = Number.parseFloat(sendCapSetting ?? '')
     const hasCap = Number.isFinite(cap) && cap > 0
@@ -54,10 +56,13 @@ export default function FimsModals() {
     // is allowed — fail closed rather than open a bypass window on slow
     // networks. Non-members never trigger this (their queries stay disabled).
     const checkingDebt = Boolean(member) && debtLoading
-    if (!hasDebt && !hasCap && !checkingDebt) {
+    if (!isDemo && !hasDebt && !hasCap && !checkingDebt) {
       return undefined
     }
     return (send: SendBlockContext): null | string => {
+      if (isDemo) {
+        return t(($) => $.demoSendBlocked)
+      }
       if (send.destination === FIMS_TREASURY_ADDRESS) {
         return null
       }
@@ -76,7 +81,7 @@ export default function FimsModals() {
       }
       return null
     }
-  }, [debt, debtLoading, member, sendCapSetting, tokens.data, t, format])
+  }, [debt, debtLoading, isDemo, member, sendCapSetting, tokens.data, t, format])
 
   return <PortfolioModals extraDestinationGroups={groups} getSendBlock={getSendBlock} />
 }

@@ -22,15 +22,20 @@ const JUPITER_API = 'https://lite-api.jup.ag'
 
 // Every transaction Jupiter hands us is inspected locally before signing:
 // fee payer / signers / program allowlist are checked statically, and the
-// transaction is simulated to cap what can leave the wallet. A tampered or
-// malicious Jupiter response is rejected instead of being signed blindly.
+// transaction is simulated to cap what can leave the wallet AND what must
+// come back. A tampered or malicious Jupiter response is rejected instead
+// of being signed blindly.
 function useSignAndSendTransaction({ account, network }: { account: Account; network: Network }) {
   const client = useSolanaClient({ network })
   const accountSecretKey = useAccountSecretKey()
   return useCallback(
-    async (base64Transaction: string, expectedSpend?: { amount: bigint; mint: Address }): Promise<Signature> => {
+    async (
+      base64Transaction: string,
+      expectedSpend?: { amount: bigint; mint: Address },
+      expectedReceive?: { amount: bigint; mint: Address },
+    ): Promise<Signature> => {
       const inspection = await inspectWireTransaction(client, base64Transaction)
-      assertJupiterTransactionSafe({ account: account.publicKey, expectedSpend, inspection })
+      assertJupiterTransactionSafe({ account: account.publicKey, expectedReceive, expectedSpend, inspection })
       const decoded = getTransactionDecoder().decode(getBase64Encoder().encode(base64Transaction))
       const json = await accountSecretKey({ account })
       const signer = await createKeyPairSignerFromJson({ json })
@@ -106,10 +111,20 @@ export function useFimsSwap({ account, network }: { account: Account; network: N
         throw new Error(`Jupiter swap failed: ${res.status}`)
       }
       const { swapTransaction } = z.object({ swapTransaction: z.string() }).parse(await res.json())
-      return signAndSendBase64Transaction(swapTransaction, {
-        amount: BigInt(quote.inAmount),
-        mint: quote.inputMint as Address,
-      })
+      return signAndSendBase64Transaction(
+        swapTransaction,
+        {
+          amount: BigInt(quote.inAmount),
+          mint: quote.inputMint as Address,
+        },
+        // The wallet must receive at least the quote's min-out of the mint
+        // the user selected: a spoofed output mint or a minOut of zero is
+        // rejected by the inspection, not signed.
+        {
+          amount: BigInt(quote.otherAmountThreshold),
+          mint: quote.outputMint as Address,
+        },
+      )
     },
   })
 }

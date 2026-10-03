@@ -35,6 +35,20 @@
       "tag": "0004_simple_johnny_storm",
       "version": "7",
       "when": 1790872183590
+    },
+    {
+      "breakpoints": true,
+      "idx": 5,
+      "tag": "0005_security_audit",
+      "version": "7",
+      "when": 1791055707822
+    },
+    {
+      "breakpoints": true,
+      "idx": 6,
+      "tag": "0006_is_public_default_private",
+      "version": "7",
+      "when": 1791057033501
     }
   ],
   "version": "7"

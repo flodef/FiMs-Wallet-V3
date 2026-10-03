@@ -10,8 +10,10 @@ if (!root) {
 
 // Same deployment serves both sites: fims.fi hosts the landing page, the
 // wallet domains host the wallet app.
+// Keep the marketing landing off the wallet origins: serving both from one
+// origin blurs the trust boundary a phishing page could exploit.
 const LANDING_HOSTS = new Set(['fims.fi', 'www.fims.fi'])
-const isLandingHost = LANDING_HOSTS.has(window.location.hostname) || window.location.pathname === '/landing'
+const isLandingHost = LANDING_HOSTS.has(window.location.hostname)
 const LandingPage = lazy(() => import('./landing/landing-page.tsx').then((m) => ({ default: m.LandingPage })))
 
 // PWA: register the passthrough service worker so the app is installable.

@@ -3,8 +3,8 @@ import { useTranslation } from '@workspace/i18n'
 import type { MnemonicStrength } from '@workspace/keypair/generate-mnemonic'
 import { generateMnemonic } from '@workspace/keypair/generate-mnemonic'
 import type { MnemonicLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
-import { mnemonicLanguageFromAppLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
 import { validateMnemonic } from '@workspace/keypair/validate-mnemonic'
+import { Alert, AlertDescription } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
 import { Form } from '@workspace/ui/components/form'
 import { UiBackButton } from '@workspace/ui/components/ui-back-button'
@@ -38,8 +38,10 @@ const onboardingGenerateSchema = z.object({
 type OnboardingGenerateForm = z.infer<typeof onboardingGenerateSchema>
 
 export function OnboardingFeatureGenerate({ redirectTo }: { redirectTo: string }) {
-  const { i18n, t } = useTranslation('onboarding')
-  const defaultLanguage: MnemonicLanguage = mnemonicLanguageFromAppLanguage(i18n.language)
+  const { t } = useTranslation('onboarding')
+  // English is the safe default: non-English BIP-39 wordlists are not widely
+  // importable by other wallets, so FR/ES must be an explicit opt-in.
+  const defaultLanguage: MnemonicLanguage = 'en'
   const create = useCreateNewWallet()
   const navigate = useNavigate()
   const [pin, setPin] = useState('')
@@ -127,6 +129,11 @@ export function OnboardingFeatureGenerate({ redirectTo }: { redirectTo: string }
                     setValue('mnemonic', generateMnemonic({ language: newLanguage, strength }))
                   }}
                 />
+                {language !== 'en' ? (
+                  <Alert variant="warning">
+                    <AlertDescription>{t(($) => $.generateMnemonicLanguageWarning)}</AlertDescription>
+                  </Alert>
+                ) : null}
                 <OnboardingUiMnemonicSelectStrength
                   setStrength={(newStrength: MnemonicStrength) => {
                     setValue('strength', newStrength)

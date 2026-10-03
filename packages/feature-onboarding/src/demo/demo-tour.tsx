@@ -1,7 +1,9 @@
 import type { Address } from '@solana/kit'
 import { useQueryClient } from '@tanstack/react-query'
+import { useAppContext } from '@workspace/context-react/use-app-context'
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
+import { walletDelete } from '@workspace/db/wallet/wallet-delete'
 import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
 import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useNetworkLive } from '@workspace/db-react/use-network-live'
@@ -77,6 +79,7 @@ function DemoMemberRegistration({ account }: { account: Account }) {
 
 export function DemoTour() {
   const { t } = useTranslation('onboarding')
+  const context = useAppContext()
   const demo = useDemoState()
   const navigate = useNavigate()
   const networks = useNetworkLive()
@@ -165,6 +168,26 @@ export function DemoTour() {
     }
     if (previousNetworkId && previousNetworkId !== activeNetworkId) {
       await setActiveNetworkId(previousNetworkId).catch(() => {})
+    }
+    // The demo keys are public knowledge — never leave an unsecured wallet
+    // holding them behind: anything that lands on that address is public
+    // property for bots and curious readers.
+    if (demoAccount) {
+      await walletDelete(context, demoAccount.walletId).catch(async () => {
+        // Deleting the active wallet is refused: the demo tour ends with no
+        // other account only on a fresh install, so purge the rows directly
+        // and clear the dangling active-account pointer.
+        await context.db
+          .transaction('rw', context.db.accounts, context.db.wallets, context.db.settings, async () => {
+            await context.db.accounts.where('walletId').equals(demoAccount.walletId).delete()
+            await context.db.wallets.delete(demoAccount.walletId)
+            const activeSetting = await context.db.settings.get({ key: 'activeAccountId' })
+            if (activeSetting?.value === demoAccount.id) {
+              await context.db.settings.delete(activeSetting.id)
+            }
+          })
+          .catch(() => {})
+      })
     }
   }
 

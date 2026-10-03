@@ -1,7 +1,10 @@
+import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useSetting } from '@workspace/db-react/use-setting'
+import { useWalletFindUnique } from '@workspace/db-react/use-wallet-find-unique'
 import { useTranslation } from '@workspace/i18n'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
+import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
 import { useEffect, useId, useRef, useState } from 'react'
 
 // Optional EUR ceiling applied to outgoing transfers (client-side guard).
@@ -11,6 +14,9 @@ export function SettingsFeatureGeneralSendCap() {
   const [sendCap, setSendCap] = useSetting('sendCapEur')
   const [input, setInput] = useState('')
   const initialized = useRef(false)
+  const account = useAccountActive()
+  const wallet = useWalletFindUnique({ id: account.walletId })
+  const { requestUnlock } = useVaultUnlockDialog()
 
   // Hydrate the input once when the stored value first resolves; afterwards the
   // field is owned by the user so typing decimals is not reformatted mid-edit.
@@ -21,14 +27,26 @@ export function SettingsFeatureGeneralSendCap() {
     }
   }, [sendCap])
 
-  function handleChange(value: string) {
+  async function handleChange(value: string) {
     setInput(value)
     const parsed = Number.parseFloat(value)
-    if (!value.trim().length || !Number.isFinite(parsed) || parsed <= 0) {
-      void setSendCap('')
-      return
+    const next = !value.trim().length || !Number.isFinite(parsed) || parsed <= 0 ? 0 : parsed
+    const previous = Number.parseFloat(sendCap ?? '')
+    // Raising or clearing the cap widens the theft window — re-authenticate
+    // first, so a hijacked unlocked session cannot silently lift the guard.
+    const weakens = previous > 0 && (next === 0 || next > previous)
+    if (weakens && wallet) {
+      const unlocked = await requestUnlock({
+        mode: wallet.protectionMode,
+        reason: 'generic',
+        walletId: wallet.id,
+      })
+      if (!unlocked) {
+        setInput(sendCap ?? '')
+        return
+      }
     }
-    void setSendCap(`${parsed}`)
+    void setSendCap(next > 0 ? `${next}` : '')
   }
 
   return (
@@ -38,7 +56,7 @@ export function SettingsFeatureGeneralSendCap() {
         id={sendCapId}
         inputMode="decimal"
         min="0"
-        onChange={(event) => handleChange(event.target.value)}
+        onChange={(event) => void handleChange(event.target.value)}
         placeholder={t(($) => $.pageGeneralSendCapPlaceholder)}
         type="number"
         value={input}

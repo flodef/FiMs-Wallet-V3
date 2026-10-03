@@ -17,6 +17,7 @@ import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
+import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT } from './fims-constants.ts'
 import { FimsUiLimitOrders } from './fims-ui-limit-orders.tsx'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
@@ -61,6 +62,15 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const canSign = account.type !== 'Watched'
   const outAmount = quote.data ? formatTokenUnits(BigInt(quote.data.outAmount), outputDecimals) : null
   const minOut = quote.data ? formatTokenUnits(BigInt(quote.data.otherAmountThreshold), outputDecimals) : null
+
+  // Safety gates that block the swap entirely: a pinned-symbol mint that
+  // does not match (tampered token list) and a quote whose price impact
+  // blows past the limit (manipulated route or fake liquidity).
+  const pinnedMint = outputToken ? FIMS_KNOWN_MINTS[outputToken.symbol] : undefined
+  const mintMismatch = Boolean(pinnedMint && pinnedMint !== outputMint)
+  const impactPct = quote.data?.priceImpactPct ? Number(quote.data.priceImpactPct) : 0
+  const impactBlocked = Number.isFinite(impactPct) && impactPct > FIMS_MAX_PRICE_IMPACT
+  const swapBlocked = mintMismatch || impactBlocked
 
   const handleSwap = async () => {
     if (!quote.data) return
@@ -146,6 +156,21 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
             </div>
           ) : null}
 
+          {mintMismatch ? (
+            <p className="rounded-md border border-red-500 p-3 text-red-600 text-sm dark:text-red-400">
+              <UiIcon className="mr-1 inline size-4" icon="alert" />
+              {t(($) => $.swapUnsafeMint, { symbol: outputSymbol })}
+            </p>
+          ) : null}
+          {impactBlocked ? (
+            <p className="rounded-md border border-red-500 p-3 text-red-600 text-sm dark:text-red-400">
+              <UiIcon className="mr-1 inline size-4" icon="alert" />
+              {t(($) => $.swapImpactBlocked, {
+                impact: (impactPct * 100).toFixed(2),
+                max: (FIMS_MAX_PRICE_IMPACT * 100).toFixed(0),
+              })}
+            </p>
+          ) : null}
           {quote.isFetching ? <UiLoader className="size-6" /> : null}
           {quote.isError ? <p className="text-destructive text-sm">{t(($) => $.swapQuoteError)}</p> : null}
           {quote.data ? (
@@ -175,7 +200,10 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
           ) : null}
 
           <div className="flex justify-end">
-            <Button disabled={!canSign || !quote.data || swap.isPending || debtBlocked} onClick={handleSwap}>
+            <Button
+              disabled={!canSign || !quote.data || swap.isPending || debtBlocked || swapBlocked}
+              onClick={handleSwap}
+            >
               {swap.isPending ? <UiLoader className="size-4" /> : null}
               {t(($) => $.swapAction)}
             </Button>

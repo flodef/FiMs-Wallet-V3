@@ -15,3 +15,21 @@ export const FIMS_DONATION_RATIO = 0.1
 // Operating fee deducted from the credited side of conversions and from
 // withdrawals: 0.1% stays in the treasury. Mirrors FIMS_FEE_RATE in the API.
 export const FIMS_FEE_RATE = 0.001
+
+// Canonical mainnet mints for the major assets a member swaps into, pinned
+// client-side so a compromised API token row cannot point "USDC" at a fake
+// mint. Symbols we cannot pin (FiMs' own tokens) simply have no entry — the
+// check only bites for symbols we DO pin.
+export const FIMS_KNOWN_MINTS: Readonly<Record<string, string>> = {
+  SOL: 'So11111111111111111111111111111111111111112',
+  USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+}
+
+// Swaps quoting a worse price impact are refused: a huge impact means a
+// manipulated route or an illiquid fake mint.
+export const FIMS_MAX_PRICE_IMPACT = 0.03
+
+// Guided-tour demo address, derived from the public demo mnemonic. Its keys
+// are public knowledge — nothing of value may ever leave or rely on it.
+export const FIMS_DEMO_ADDRESS = '5F86TNSTre3CYwZd1wELsGQGhqG2HkN3d8zxhbyBSnzm'

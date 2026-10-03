@@ -2,7 +2,10 @@
 import { Headers, type HttpServerRequest } from '@effect/platform'
 import { ed25519 } from '@noble/curves/ed25519'
 import { getBase58Encoder } from '@solana/codecs-strings'
+import { sql } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'
+import { usedSignatures } from '../../db/schema.js'
+import { DatabaseError, DatabaseService } from '../../db/service.js'
 
 export class AuthUnauthorized extends Schema.TaggedError<AuthUnauthorized>()('AuthUnauthorized', {
   reason: Schema.String,
@@ -89,16 +92,27 @@ export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest
 
     const query = canonicalizeQuery(url.searchParams)
     const valid = yield* verify(query ? `${url.pathname}?${query}` : url.pathname)
+    if (!valid) return yield* fail('bad signature')
 
-    if (!valid && query) {
-      // Transitional: accept the legacy signature that signed the bare path
-      // without the query, so already-deployed clients keep working. A captured
-      // legacy signature stays replayable with swapped query params until the
-      // window closes — remove this fallback once clients are updated.
-      const legacyValid = yield* verify(url.pathname)
-      if (!legacyValid) return yield* fail('bad signature')
-    } else if (!valid) {
-      return yield* fail('bad signature')
+    // Replay lock for mutating requests: a valid signature is burned on
+    // first use, so an intercepted request (or a client retry that re-sends
+    // the exact same signed request) cannot apply the mutation twice within
+    // the timestamp window. GET/HEAD are skipped — their signatures cannot
+    // be replayed against a different resource anyway (method is signed).
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      const { db } = yield* DatabaseService
+      const inserted = yield* Effect.tryPromise({
+        catch: (cause) => new DatabaseError({ cause }),
+        try: () => db.insert(usedSignatures).values({ signature: sigHeader }).onConflictDoNothing().returning(),
+      })
+      if (!inserted.length) return yield* fail('signature already used')
+      // Opportunistic purge: rows are only meaningful for MAX_SKEW_MS.
+      if (Math.random() < 0.02) {
+        yield* Effect.tryPromise({
+          catch: () => new DatabaseError({ cause: 'signature purge failed' }),
+          try: () => db.execute(sql`DELETE FROM used_signatures WHERE created_at < NOW() - INTERVAL '15 minutes'`),
+        }).pipe(Effect.ignoreLogged)
+      }
     }
     return address
   })
@@ -124,11 +138,25 @@ const adminAddresses = () =>
 
 export const isAdminAddress = (signer: string) => adminAddresses().includes(signer)
 
+// The guided-tour mnemonic ships in the repository, so its derived address
+// is an open secret — anyone can produce valid signatures for it. The demo
+// member must stay readable but must never write to shared data (votes,
+// conversions, address book): those are ledger-relevant and would be open
+// to anonymous griefing. Admins can still manage the demo member.
+const DEMO_ADDRESSES = new Set(['5F86TNSTre3CYwZd1wELsGQGhqG2HkN3d8zxhbyBSnzm'])
+
+export function requireNotDemo(signer: string) {
+  return DEMO_ADDRESSES.has(signer) ? Effect.fail(new AuthForbidden({ address: signer })) : Effect.void
+}
+
 export function requireAdmin(signer: string) {
   return isAdminAddress(signer) ? Effect.void : Effect.fail(new AuthForbidden({ address: signer }))
 }
 
 export function requireOwnerOrAdmin(signer: string, ownerAddress: string) {
+  if (DEMO_ADDRESSES.has(signer)) {
+    return Effect.fail(new AuthForbidden({ address: signer }))
+  }
   return signer === ownerAddress || isAdminAddress(signer)
     ? Effect.void
     : Effect.fail(new AuthForbidden({ address: signer }))

@@ -63,34 +63,39 @@ export function OnboardingUiWalletProtection({
           </ToggleGroupItem>
         </ToggleGroup>
         {protectionMode === 'pin' ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={pinId}>{t(($) => $.walletProtectionPinLabel)}</Label>
-              <Input
-                autoComplete="off"
-                id={pinId}
-                inputMode="numeric"
-                maxLength={VAULT_PIN_MAX_LENGTH}
-                minLength={VAULT_PIN_MIN_LENGTH}
-                onChange={(event) => onPinChange(event.target.value)}
-                pattern="[0-9]*"
-                type="password"
-                value={pin}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={pinConfirmId}>{t(($) => $.walletProtectionPinConfirmLabel)}</Label>
-              <Input
-                autoComplete="off"
-                id={pinConfirmId}
-                inputMode="numeric"
-                maxLength={VAULT_PIN_MAX_LENGTH}
-                minLength={VAULT_PIN_MIN_LENGTH}
-                onChange={(event) => onPinConfirmChange(event.target.value)}
-                pattern="[0-9]*"
-                type="password"
-                value={pinConfirm}
-              />
+          <div className="space-y-3">
+            <Alert variant="warning">
+              <AlertDescription>{t(($) => $.walletProtectionPinWarning)}</AlertDescription>
+            </Alert>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor={pinId}>{t(($) => $.walletProtectionPinLabel)}</Label>
+                <Input
+                  autoComplete="off"
+                  id={pinId}
+                  inputMode="numeric"
+                  maxLength={VAULT_PIN_MAX_LENGTH}
+                  minLength={VAULT_PIN_MIN_LENGTH}
+                  onChange={(event) => onPinChange(event.target.value)}
+                  pattern="[0-9]*"
+                  type="password"
+                  value={pin}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={pinConfirmId}>{t(($) => $.walletProtectionPinConfirmLabel)}</Label>
+                <Input
+                  autoComplete="off"
+                  id={pinConfirmId}
+                  inputMode="numeric"
+                  maxLength={VAULT_PIN_MAX_LENGTH}
+                  minLength={VAULT_PIN_MIN_LENGTH}
+                  onChange={(event) => onPinConfirmChange(event.target.value)}
+                  pattern="[0-9]*"
+                  type="password"
+                  value={pinConfirm}
+                />
+              </div>
             </div>
           </div>
         ) : null}

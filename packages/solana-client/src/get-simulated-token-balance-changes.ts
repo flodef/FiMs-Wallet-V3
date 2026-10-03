@@ -298,3 +298,113 @@ function isNonZeroTokenBalanceChange(
 function isOwnedByTokenProgram(accountInfo: RawParsedAccount | null | undefined): accountInfo is RawParsedAccount {
   return accountInfo?.owner === TOKEN_2022_PROGRAM_ADDRESS || accountInfo?.owner === TOKEN_PROGRAM_ADDRESS
 }
+
+// Security-relevant view of every token account touched by the simulated
+// transaction: ownership, delegation and destruction are invisible to the
+// balance deltas (a SetAuthority moves zero units), so the wire-transaction
+// inspector exposes them separately for the pre-signing policy check.
+export interface SimulatedTokenAccountState {
+  account: Address
+  closeAuthorityAfter?: Address | undefined
+  delegateAfter: boolean
+  // The account held token-account data before the transaction and holds
+  // none (or no account at all) after it: a CloseAccount instruction, or a
+  // data wipe.
+  destroyed: boolean
+  mint: Address
+  ownerAfter?: Address | undefined
+  ownerBefore?: Address | undefined
+}
+
+export function getSimulatedTokenAccountStates({
+  accountAddresses,
+  postAccounts,
+  preAccounts,
+}: {
+  accountAddresses: Address[]
+  postAccounts: readonly (RawParsedAccount | null)[] | undefined
+  preAccounts: readonly (RawParsedAccount | null)[]
+}): SimulatedTokenAccountState[] {
+  if (!postAccounts?.length) {
+    return []
+  }
+  const rows: SimulatedTokenAccountState[] = []
+  for (const [index, account] of accountAddresses.entries()) {
+    const post = getParsedTokenAccountState(postAccounts[index])
+    const pre = getParsedTokenAccountState(preAccounts[index])
+    if (!post && !pre) {
+      continue
+    }
+    const balance = post ?? pre
+    if (!balance) {
+      continue
+    }
+    rows.push({
+      account,
+      destroyed: Boolean(pre && !post),
+      mint: balance.mint,
+      ...(post?.closeAuthority ? { closeAuthorityAfter: post.closeAuthority } : undefined),
+      ...(post?.hasDelegate !== undefined ? { delegateAfter: post.hasDelegate } : { delegateAfter: false }),
+      ...(post?.owner ? { ownerAfter: post.owner } : undefined),
+      ...(pre?.owner ? { ownerBefore: pre.owner } : undefined),
+    })
+  }
+  return rows
+}
+
+interface ParsedTokenAccountState {
+  closeAuthority?: Address | undefined
+  hasDelegate: boolean
+  mint: Address
+  owner?: Address | undefined
+}
+
+function getParsedTokenAccountState(
+  accountInfo: RawParsedAccount | null | undefined,
+): ParsedTokenAccountState | undefined {
+  const decoded = getDecodedTokenAccountData(accountInfo)
+  if (decoded) {
+    return {
+      hasDelegate: optionAddress(decoded.delegate) !== undefined,
+      mint: decoded.mint,
+      owner: decoded.owner,
+      ...(optionAddress(decoded.closeAuthority)
+        ? { closeAuthority: optionAddress(decoded.closeAuthority) }
+        : undefined),
+    }
+  }
+
+  const parsed = getParsedTokenAccountData(accountInfo)
+  if (!parsed) {
+    return undefined
+  }
+  const mint = getAddressFromRecord(parsed, 'mint')
+  if (!mint) {
+    return undefined
+  }
+  return {
+    hasDelegate: getAddressFromRecord(parsed, 'delegate') !== undefined,
+    mint,
+    ...(getAddressFromRecord(parsed, 'closeAuthority')
+      ? { closeAuthority: getAddressFromRecord(parsed, 'closeAuthority') }
+      : undefined),
+    ...(getAddressFromRecord(parsed, 'owner') ? { owner: getAddressFromRecord(parsed, 'owner') } : undefined),
+  }
+}
+
+// @solana/options Option<Address> decodes to {__option:'Some',value} | {__option:'None'}
+function optionAddress(value: unknown): Address | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const option = value as { __option?: string; value?: unknown }
+  if (option.__option !== 'Some' || typeof option.value !== 'string') {
+    return undefined
+  }
+  try {
+    assertIsAddress(option.value)
+    return option.value
+  } catch {
+    return undefined
+  }
+}

@@ -36,6 +36,7 @@
   "requestAirdropTitle": "Demander un airdrop",
   "searchInputSelect": "Choisir un token...",
   "sendConfirmAddressLabel": "Adresse",
+  "sendConfirmAddressLookalike": "Cette adresse ressemble fortement à une adresse que vous connaissez sans être identique. Vérifiez chaque caractère avant de signer — il peut s'agir d'une tentative d'address poisoning.",
   "sendConfirmChangeLabel": "Variation",
   "sendConfirmExpectedChanges": "Changements attendus",
   "sendConfirmInstructionAccounts": "Comptes",

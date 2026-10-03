@@ -5,6 +5,7 @@ import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useSetting } from '@workspace/db-react/use-setting'
 import { env, envAdminAddresses } from '@workspace/env/env'
 import { createKeyPairSignerFromJson } from '@workspace/keypair/create-key-pair-signer-from-json'
+import { useRef } from 'react'
 import type {
   FimsAddressBookEntry,
   FimsAddressBookType,
@@ -234,12 +235,25 @@ export function useFimsVoteUpdate(account: Account, voteId: number) {
 
 // Rebalance: converts `eurAmount` of `fromToken` into `toToken` — the API
 // prices the units server-side and writes the two `conversion` transactions.
+// requestId is generated once per mutation so network retries of the same
+// call are deduplicated server-side instead of double-applying the pair.
 export function useFimsConvert(account: Account) {
   const signedFetch = useFimsSignedFetch(account)
   const queryClient = useQueryClient()
+  // The id is minted once per mutation lifecycle (not per mutationFn call):
+  // TanStack retries re-invoke mutationFn, and those retries must carry the
+  // SAME requestId for the server-side dedup to bite.
+  const requestId = useRef('')
   return useMutation({
-    mutationFn: (input: { eurAmount: number; fromToken: string; toToken: string }) =>
-      signedFetch<FimsTransaction[]>('POST', '/conversions', input),
+    mutationFn: (input: { eurAmount: number; fromToken: string; toToken: string }) => {
+      if (!requestId.current) {
+        requestId.current = crypto.randomUUID()
+      }
+      return signedFetch<FimsTransaction[]>('POST', '/conversions', { ...input, requestId: requestId.current })
+    },
+    onSettled: () => {
+      requestId.current = ''
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'transactions'] }),
   })
 }

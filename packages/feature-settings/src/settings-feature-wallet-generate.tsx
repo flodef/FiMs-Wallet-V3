@@ -3,7 +3,7 @@ import { useWalletGenerateWithAccount } from '@workspace/db-react/use-wallet-gen
 import { useTranslation } from '@workspace/i18n'
 import { generateMnemonic } from '@workspace/keypair/generate-mnemonic'
 import type { MnemonicLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
-import { mnemonicLanguageFromAppLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
+import { Alert, AlertDescription } from '@workspace/ui/components/alert'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
 import { useMemo, useState } from 'react'
@@ -13,10 +13,12 @@ import { SettingsUiWalletMnemonicLanguage } from './ui/settings-ui-wallet-mnemon
 import { SettingsUiWalletMnemonicStrength } from './ui/settings-ui-wallet-mnemonic-strength.tsx'
 
 export function SettingsFeatureWalletGenerate() {
-  const { i18n, t } = useTranslation('settings')
+  const { t } = useTranslation('settings')
   const generateWalletWithAccountMutation = useWalletGenerateWithAccount()
   const navigate = useNavigate()
-  const [language, setLanguage] = useState<MnemonicLanguage>(() => mnemonicLanguageFromAppLanguage(i18n.language))
+  // English is the safe default: non-English BIP-39 wordlists are not widely
+  // importable by other wallets, so FR/ES must be an explicit opt-in.
+  const [language, setLanguage] = useState<MnemonicLanguage>('en')
   const [strength, setStrength] = useState<128 | 256>(128)
   const name = useWalletDetermineName()
   const mnemonic = useMemo(() => generateMnemonic({ language, strength }), [language, strength])
@@ -32,6 +34,11 @@ export function SettingsFeatureWalletGenerate() {
         <SettingsUiWalletMnemonicLanguage language={language} setLanguage={setLanguage} />
         <SettingsUiWalletMnemonicStrength setStrength={setStrength} strength={strength} />
       </div>
+      {language !== 'en' ? (
+        <Alert variant="warning">
+          <AlertDescription>{t(($) => $.walletPageMnemonicLanguageWarning)}</AlertDescription>
+        </Alert>
+      ) : null}
       <SettingsUiWalletFormGenerate
         mnemonic={mnemonic}
         name={name}

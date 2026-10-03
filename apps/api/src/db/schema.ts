@@ -9,6 +9,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
 export const transactionType = pgEnum('transaction_type', [
@@ -38,7 +39,7 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   id: serial('id').primaryKey(),
   isPro: boolean('is_pro').notNull().default(false),
-  isPublic: boolean('is_public').notNull().default(true),
+  isPublic: boolean('is_public').notNull().default(false),
   name: text('name').notNull().unique(),
   // Last member-initiated profile edit (name/privacy). Admin corrections do not
   // touch this — the once-a-day limit only applies to self-service edits.
@@ -63,19 +64,48 @@ export const tokens = pgTable('tokens', {
   yearlyYield: numeric('yearly_yield', { mode: 'number' }),
 })
 
-export const transactions = pgTable('transactions', {
-  address: text('address').notNull(),
-  amount: numeric('amount', { mode: 'number' }),
-  cost: numeric('cost', { mode: 'number' }).notNull().default(0),
+export const transactions = pgTable(
+  'transactions',
+  {
+    address: text('address').notNull(),
+    amount: numeric('amount', { mode: 'number' }),
+    cost: numeric('cost', { mode: 'number' }).notNull().default(0),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    date: timestamp('date', { mode: 'date' }).notNull(),
+    donationTarget: text('donation_target'),
+    id: serial('id').primaryKey(),
+    movement: numeric('movement', { mode: 'number' }).notNull().default(0),
+    // Client-generated idempotency key for member-initiated operations
+    // (conversions): a retried submission is deduplicated instead of
+    // double-applying. NULL rows (ETL writes) never collide — unique()
+    // treats nulls as distinct.
+    requestId: text('request_id'),
+    signature: text('signature'),
+    token: text('token'),
+    type: transactionType('type'),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [uniqueIndex('transactions_user_request_uniq').on(t.userId, t.requestId)],
+)
+
+// Replay lock for signed requests: every accepted signature on a mutating
+// request is recorded here, so the same signed request cannot be applied
+// twice inside its 5-minute validity window.
+export const usedSignatures = pgTable('used_signatures', {
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-  date: timestamp('date', { mode: 'date' }).notNull(),
-  donationTarget: text('donation_target'),
+  signature: text('signature').primaryKey(),
+})
+
+// Append-only trail of privileged actions. Only rows where an admin acted
+// on a resource they do not own land here — the ledger money moves through
+// these endpoints, so every admin write must be reconstructible.
+export const adminAuditLog = pgTable('admin_audit_log', {
+  action: text('action').notNull(),
+  adminAddress: text('admin_address').notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  detail: text('detail'),
   id: serial('id').primaryKey(),
-  movement: numeric('movement', { mode: 'number' }).notNull().default(0),
-  signature: text('signature'),
-  token: text('token'),
-  type: transactionType('type'),
-  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  resourceId: text('resource_id'),
 })
 
 export const dashboardMetrics = pgTable('dashboard_metrics', {

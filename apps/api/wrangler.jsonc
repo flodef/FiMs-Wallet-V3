@@ -8,7 +8,11 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
-  "preview_urls": true,
+  // Preview deployments share the production secrets and vars (DATABASE_URL,
+  // ADMIN_ADDRESSES, CORS_ORIGINS): any branch would get a writable API —
+  // disabled deliberately. Previews can be re-enabled with a dedicated
+  // preview database and empty ADMIN_ADDRESSES if ever needed.
+  "preview_urls": false,
   // Requires the fims.fi zone on Cloudflare (currently OVH DNS).
   // Until then the API is served at https://fims-wallet-api.fims-fi.workers.dev
   // "routes": [

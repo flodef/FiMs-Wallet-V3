@@ -1,9 +1,10 @@
 import type { HttpServerRequest } from '@effect/platform'
 import { ed25519 } from '@noble/curves/ed25519'
 import { getBase58Decoder } from '@solana/codecs-strings'
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DatabaseService } from '../../db/service.ts'
 import { canonicalizeQuery, verifyWalletRequest } from './service.ts'
 
 const privateKey = ed25519.utils.randomPrivateKey()
@@ -16,6 +17,33 @@ async function sha256Hex(text: string): Promise<string> {
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
 }
+
+// In-memory stand-in for the used_signatures table: the first insert of a
+// signature returns a row, every subsequent one returns an empty conflict.
+function makeReplayAwareDb() {
+  const used = new Set<string>()
+  return {
+    execute: async () => ({ rows: [] }),
+    insert: () => ({
+      values: (row: { signature: string }) => ({
+        onConflictDoNothing: () => ({
+          returning: async () => {
+            if (used.has(row.signature)) {
+              return []
+            }
+            used.add(row.signature)
+            return [row]
+          },
+        }),
+      }),
+    }),
+  }
+}
+
+const testDb = (db = makeReplayAwareDb()) => Layer.succeed(DatabaseService, DatabaseService.make({ db: db as never }))
+
+const run = <A, E>(effect: Effect.Effect<A, E, DatabaseService>, db?: ReturnType<typeof makeReplayAwareDb>) =>
+  Effect.runPromise(effect.pipe(Effect.provide(testDb(db))))
 
 // Builds the signed request exactly like the client does
 // (packages/feature-fims/src/fims-api.ts): the signed resource is the pathname
@@ -99,7 +127,7 @@ describe('verify-wallet-request', () => {
       const request = await signedRequest({ url: `https://${HOST}/fims/votes` })
 
       // ACT
-      const result = await Effect.runPromise(verifyWalletRequest(request))
+      const result = await run(verifyWalletRequest(request))
 
       // ASSERT
       expect(result).toBe(address)
@@ -111,7 +139,7 @@ describe('verify-wallet-request', () => {
       const request = await signedRequest({ url: `https://${HOST}/fims/users?limit=2000&offset=0` })
 
       // ACT
-      const result = await Effect.runPromise(verifyWalletRequest(request))
+      const result = await run(verifyWalletRequest(request))
 
       // ASSERT
       expect(result).toBe(address)
@@ -123,20 +151,19 @@ describe('verify-wallet-request', () => {
       const request = await signedRequest({ url: `https://${HOST}/fims/users?offset=0&limit=2000` })
 
       // ACT
-      const result = await Effect.runPromise(verifyWalletRequest(request))
+      const result = await run(verifyWalletRequest(request))
 
       // ASSERT
       expect(result).toBe(address)
     })
 
-    it('should accept a legacy signature without query binding during the transition', async () => {
+    it('should accept a mutation once per signature', async () => {
       // ARRANGE
       expect.assertions(1)
-      const url = `https://${HOST}/fims/users?limit=2000&offset=0`
-      const request = await signedRequest({ signedResource: '/fims/users', url })
+      const request = await signedRequest({ body: '{}', method: 'POST', url: `https://${HOST}/fims/conversions` })
 
       // ACT
-      const result = await Effect.runPromise(verifyWalletRequest(request))
+      const result = await run(verifyWalletRequest(request))
 
       // ASSERT
       expect(result).toBe(address)
@@ -162,7 +189,30 @@ describe('verify-wallet-request', () => {
       })
 
       // ACT & ASSERT
-      await expect(Effect.runPromise(verifyWalletRequest(request))).rejects.toThrow()
+      await expect(run(verifyWalletRequest(request))).rejects.toThrow()
+    })
+
+    it('should reject a signature that omits the query binding', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      // The removed legacy mode signed only the pathname — a captured signature
+      // was replayable with arbitrary query parameters, so it must fail now.
+      const url = `https://${HOST}/fims/users?limit=2000&offset=0`
+      const request = await signedRequest({ signedResource: '/fims/users', url })
+
+      // ACT & ASSERT
+      await expect(run(verifyWalletRequest(request))).rejects.toThrow()
+    })
+
+    it('should reject the same mutation signature when replayed', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const db = makeReplayAwareDb()
+      const request = await signedRequest({ body: '{}', method: 'POST', url: `https://${HOST}/fims/conversions` })
+      await run(verifyWalletRequest(request), db)
+
+      // ACT & ASSERT — the second use of the exact same signature burns out
+      await expect(run(verifyWalletRequest(request), db)).rejects.toThrow()
     })
 
     it('should reject a request with a stale timestamp', async () => {
@@ -174,7 +224,7 @@ describe('verify-wallet-request', () => {
       })
 
       // ACT & ASSERT
-      await expect(Effect.runPromise(verifyWalletRequest(request))).rejects.toThrow()
+      await expect(run(verifyWalletRequest(request))).rejects.toThrow()
     })
 
     it('should reject a request with a malformed address header', async () => {
@@ -184,7 +234,7 @@ describe('verify-wallet-request', () => {
       ;(request.headers as Record<string, string>)['x-fims-address'] = 'not-base58!!'
 
       // ACT & ASSERT
-      await expect(Effect.runPromise(verifyWalletRequest(request))).rejects.toThrow()
+      await expect(run(verifyWalletRequest(request))).rejects.toThrow()
     })
 
     it('should reject a request with missing auth headers', async () => {
@@ -198,7 +248,7 @@ describe('verify-wallet-request', () => {
       } as unknown as HttpServerRequest.HttpServerRequest
 
       // ACT & ASSERT
-      await expect(Effect.runPromise(verifyWalletRequest(request))).rejects.toThrow()
+      await expect(run(verifyWalletRequest(request))).rejects.toThrow()
     })
   })
 })

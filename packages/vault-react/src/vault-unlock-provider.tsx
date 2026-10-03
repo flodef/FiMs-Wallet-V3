@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useVaultAutoLock } from './data-access/use-vault-auto-lock.ts'
 import { VaultUnlockDialogReact } from './data-access/use-vault-unlock-dialog.ts'
 import { useVaultUnlockProvider } from './data-access/use-vault-unlock-provider.ts'
 import { VaultUiUnlockDialog } from './ui/vault-ui-unlock-dialog.tsx'
@@ -15,6 +16,7 @@ export {
 
 export function VaultUnlockProvider({ children }: { children: ReactNode }) {
   const { actions, contextValue, state } = useVaultUnlockProvider()
+  useVaultAutoLock()
 
   return (
     <VaultUnlockDialogReact.Provider value={contextValue}>

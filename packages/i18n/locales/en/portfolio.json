@@ -36,6 +36,7 @@
   "requestAirdropTitle": "Request Airdrop",
   "searchInputSelect": "Select token...",
   "sendConfirmAddressLabel": "Address",
+  "sendConfirmAddressLookalike": "This address closely resembles an address you know but is not identical. Double-check every character before signing — it may be an address-poisoning attempt.",
   "sendConfirmChangeLabel": "Change",
   "sendConfirmExpectedChanges": "Expected changes",
   "sendConfirmInstructionAccounts": "Accounts",
