@@ -7,7 +7,6 @@ type Listener = () => void
 
 const listeners = new Set<Listener>()
 let open = false
-let promptedThisSession = false
 
 function emit() {
   for (const listener of listeners) {
@@ -31,16 +30,6 @@ export function reportGasTopupError(error: unknown): void {
   if (isInsufficientGasError(error)) {
     requestGasTopup()
   }
-}
-
-// Proactive prompt (first deposit / drained reserve): opens at most once per
-// session so it cannot nag on every render.
-export function requestGasTopupOncePerSession(): void {
-  if (promptedThisSession) {
-    return
-  }
-  promptedThisSession = true
-  requestGasTopup()
 }
 
 export function useGasTopupOpen(): boolean {

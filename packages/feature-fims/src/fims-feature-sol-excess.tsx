@@ -19,15 +19,15 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
-import { FIMS_JUPSOL_MINT, FIMS_PLATFORM_FEE_BPS, FIMS_SOL_GAS_RESERVE } from './fims-constants.ts'
+import { FIMS_FSOL_MINT, FIMS_PLATFORM_FEE_BPS, FIMS_SOL_GAS_RESERVE } from './fims-constants.ts'
 import { solExcessAboveReserve } from './fims-gas.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
 import { formatTokenUnits } from './fims-units.ts'
 
 // SOL deposited by accident sits idle — the wallet only needs
 // FIMS_SOL_GAS_RESERVE for gas. When more than that is detected, propose
-// once per session to convert the excess into JupSOL (keeps SOL exposure,
-// liquid staking receipt token that is itself a swappable asset).
+// once per session to convert the excess into FSOL (FiMs' own SOL wrapper,
+// a spreadsheet token that stays swappable back).
 export function FimsFeatureSolExcess() {
   const { t } = useTranslation('fims')
   const account = useAccountActive()
@@ -53,7 +53,7 @@ export function FimsFeatureSolExcess() {
   const quote = useJupiterQuote({
     amount: excess,
     inputMint: open ? NATIVE_MINT : undefined,
-    outputMint: FIMS_JUPSOL_MINT,
+    outputMint: FIMS_FSOL_MINT,
     platformFeeBps: FIMS_PLATFORM_FEE_BPS,
   })
   const [signature, setSignature] = useState('')
@@ -63,7 +63,7 @@ export function FimsFeatureSolExcess() {
       return
     }
     try {
-      const sig = await swap.mutateAsync({ feeMint: FIMS_JUPSOL_MINT as Address, quote: quote.data })
+      const sig = await swap.mutateAsync({ feeMint: FIMS_FSOL_MINT as Address, quote: quote.data })
       setSignature(sig)
       await queryClient.invalidateQueries()
       setOpen(false)
@@ -96,7 +96,7 @@ export function FimsFeatureSolExcess() {
             {outAmount ? (
               <>
                 <div>
-                  {t(($) => $.solExcessReceive)} ≈ {outAmount} JupSOL
+                  {t(($) => $.solExcessReceive)} ≈ {outAmount} FSOL
                 </div>
                 <div>
                   {t(($) => $.swapPlatformFee)}: {(FIMS_PLATFORM_FEE_BPS / 100).toFixed(1)}%

@@ -64,7 +64,6 @@
   "sendInputDestinationInvalid": "Dirección de Solana no válida",
   "sendInputDestinationLabel": "Destino",
   "sendInputDestinationPlaceholder": "Destino",
-  "tokenBalanceGas": "Gas",
   "viewExplorerAccount": null,
   "viewExplorerToken": null
 }

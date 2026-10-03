@@ -1,6 +1,6 @@
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
 import { describe, expect, it } from 'vitest'
-import { FIMS_PLATFORM_FEE_BPS, FIMS_SOL_GAS_RESERVE } from '../src/fims-constants.ts'
+import { FIMS_FSOL_MINT, FIMS_KNOWN_MINTS, FIMS_PLATFORM_FEE_BPS, FIMS_SOL_GAS_RESERVE } from '../src/fims-constants.ts'
 import {
   fimsSwappableMints,
   isInsufficientGasError,
@@ -123,5 +123,14 @@ describe('FIMS_PLATFORM_FEE_BPS', () => {
     // ARRANGE & ACT & ASSERT
     expect.assertions(1)
     expect(FIMS_PLATFORM_FEE_BPS).toBe(10)
+  })
+})
+
+describe('FIMS_FSOL_MINT', () => {
+  it('should be the canonical FSOL mint pinned in the known mints', () => {
+    // ARRANGE & ACT & ASSERT
+    expect.assertions(2)
+    expect(FIMS_FSOL_MINT).toBe('6hoGUYo5VengrsRtyyvs2y7KPf4mwWdv7V8C7GJg6Uy')
+    expect(FIMS_KNOWN_MINTS['FSOL']).toBe(FIMS_FSOL_MINT)
   })
 })

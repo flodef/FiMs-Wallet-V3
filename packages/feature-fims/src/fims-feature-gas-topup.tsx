@@ -18,16 +18,16 @@ import { Label } from '@workspace/ui/components/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { toastError } from '@workspace/ui/lib/toast-error'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import { fimsSwappableMints, solGasDeficit } from './fims-gas.ts'
-import { closeGasTopup, requestGasTopupOncePerSession, useGasTopupOpen } from './fims-gas-topup-store.ts'
+import { closeGasTopup, useGasTopupOpen } from './fims-gas-topup-store.ts'
 import { formatTokenUnits } from './fims-units.ts'
 
-// Gas top-up: when a transaction cannot go through because the wallet is out
-// of SOL, explain why SOL is needed and offer to convert part of an existing
-// token back into exactly the missing amount (up to the 0.01 SOL reserve).
+// Gas top-up: when a transaction fails because the wallet is out of SOL,
+// explain why SOL is needed and offer to convert part of an existing token
+// back into roughly the missing amount (up to the 0.01 SOL reserve).
 // This is a recovery operation, not a conversion — no platform fee applies.
 export function FimsFeatureGasTopup() {
   const { t } = useTranslation('fims')
@@ -50,20 +50,21 @@ export function FimsFeatureGasTopup() {
   const [sourceMint, setSourceMint] = useState('')
   const sourceToken = candidates.find((b) => b.mint === sourceMint)
 
-  // Proactive prompt: SOL below the reserve while the wallet holds swappable
-  // tokens (covers the "first deposit" case where SOL is zero).
-  useEffect(() => {
-    if (deficit > 0n && candidates.length > 0 && account.type !== 'Watched') {
-      requestGasTopupOncePerSession()
-    }
-  }, [deficit, candidates.length, account.type])
-
-  // ExactOut quote: we want precisely `deficit` lamports of SOL back.
+  // Approximate top-up: quote how much of the chosen token the missing
+  // lamports are worth (SOL -> token), then swap that token amount back to
+  // SOL. The result lands within slippage of the 0.01 reserve — good enough
+  // for gas.
+  const target = deficit > 0n ? deficit : 10_000_000n
+  const estimate = useJupiterQuote({
+    amount: target,
+    inputMint: NATIVE_MINT,
+    outputMint: sourceMint || undefined,
+  })
+  const topupAmount = estimate.data ? BigInt(estimate.data.outAmount) : 0n
   const quote = useJupiterQuote({
-    amount: deficit,
+    amount: topupAmount,
     inputMint: sourceMint,
     outputMint: NATIVE_MINT,
-    swapMode: 'ExactOut',
   })
   const [signature, setSignature] = useState('')
 
@@ -84,6 +85,7 @@ export function FimsFeatureGasTopup() {
 
   const inAmount =
     quote.data && sourceToken ? formatTokenUnits(BigInt(quote.data.inAmount), sourceToken.decimals) : null
+  const outSol = quote.data ? lamportsToSol(BigInt(quote.data.outAmount)) : null
 
   return (
     <Dialog onOpenChange={(next) => !next && closeGasTopup()} open={open}>
@@ -115,15 +117,15 @@ export function FimsFeatureGasTopup() {
               </Select>
             </div>
             {sourceToken ? (
-              quote.isFetching ? (
+              estimate.isFetching || quote.isFetching ? (
                 <UiLoader className="size-6" />
-              ) : quote.isError ? (
+              ) : estimate.isError || quote.isError ? (
                 <p className="text-destructive text-sm">{t(($) => $.gasTopupQuoteError)}</p>
-              ) : inAmount ? (
+              ) : inAmount && outSol ? (
                 <p className="text-muted-foreground text-sm">
                   {t(($) => $.gasTopupCost, {
                     amount: inAmount,
-                    sol: lamportsToSol(deficit),
+                    sol: outSol,
                     symbol: sourceToken.metadata?.symbol ?? '',
                   })}
                 </p>
