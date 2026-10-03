@@ -7,6 +7,7 @@ import { UiBottomSheet } from '@workspace/ui/components/ui-bottom-sheet'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { UiTextCopyButton } from '@workspace/ui/components/ui-text-copy-button'
 import { toastError } from '@workspace/ui/lib/toast-error'
+import { useConcealOnBlur } from '@workspace/ui/lib/use-conceal-on-blur'
 import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
 import { useRef, useState } from 'react'
 import { SettingsUiExportConfirm } from './settings-ui-export-confirm.tsx'
@@ -26,6 +27,7 @@ export function SettingsUiBottomSheetExportAccountSecretKey({
   const sessionRef = useRef(0)
   const [revealed, setRevealed] = useState(false)
   const [secretKey, setSecretKey] = useState<string>()
+  useConcealOnBlur(revealed, () => setRevealed(false))
   const wallet = useWalletFindUnique({ id: account.walletId })
   const readSecretKeyMutation = useAccountReadSecretKey()
 

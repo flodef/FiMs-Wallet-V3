@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { generateMnemonic } from './generate-mnemonic.ts'
 import { validateMnemonic } from './validate-mnemonic.ts'
 
 describe('validate-mnemonic', () => {
@@ -7,6 +8,14 @@ describe('validate-mnemonic', () => {
     it('should not throw an error for a valid mnemonic', () => {
       // ARRANGE
       const mnemonic = 'pill tomorrow foster begin walnut borrow virtual kick shift mutual shoe scatter'
+
+      // ACT & ASSERT
+      expect(() => validateMnemonic({ mnemonic })).not.toThrow()
+    })
+
+    it('should not throw an error for a valid French mnemonic', () => {
+      // ARRANGE
+      const mnemonic = generateMnemonic({ language: 'fr' })
 
       // ACT & ASSERT
       expect(() => validateMnemonic({ mnemonic })).not.toThrow()

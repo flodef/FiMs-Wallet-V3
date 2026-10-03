@@ -10,6 +10,7 @@ import { getAmountForMint } from './data-access/get-amount-for-mint.ts'
 import { usePortfolioTokenMint } from './data-access/use-portfolio-token-mint.tsx'
 import { type PortfolioPreparedTransaction, usePortfolioTxPrepare } from './data-access/use-portfolio-tx-prepare.tsx'
 import { usePortfolioTxSend } from './data-access/use-portfolio-tx-send.tsx'
+import type { SendBlockContext } from './portfolio-modals.tsx'
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
 import { PortfolioUiSendConfirm } from './ui/portfolio-ui-send-confirm.tsx'
 
@@ -20,9 +21,9 @@ export function PortfolioFeatureModalConfirm({
   network,
 }: {
   address: Address
-  // Returns a user-facing message when this destination must not be sent to
-  // (e.g. FiMs debt guard), or null/undefined to allow the send.
-  getSendBlock?: ((destination: Address) => null | string) | undefined
+  // Returns a user-facing message when this send must be blocked
+  // (e.g. FiMs debt guard, configured send cap), or null/undefined to allow it.
+  getSendBlock?: ((send: SendBlockContext) => null | string) | undefined
   getTransactionSigner: GetTransactionSigner
   network: Network
 }) {
@@ -68,7 +69,7 @@ export function PortfolioFeatureModalConfirm({
     return <UiError message={new Error('Parameter destination is unknown')} title="No destination" />
   }
   assertIsAddress(destination)
-  const sendBlock = getSendBlock?.(destination)
+  const sendBlock = getSendBlock?.({ amount, destination: destination as Address, mint: mint.mint })
   if (sendBlock) {
     return (
       <PortfolioUiModal title={t(($) => $.actionSend)}>

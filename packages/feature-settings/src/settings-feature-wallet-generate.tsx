@@ -2,20 +2,23 @@ import { useWalletDetermineName } from '@workspace/db-react/use-wallet-determine
 import { useWalletGenerateWithAccount } from '@workspace/db-react/use-wallet-generate-with-account'
 import { useTranslation } from '@workspace/i18n'
 import { generateMnemonic } from '@workspace/keypair/generate-mnemonic'
+import type { MnemonicLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { SettingsUiWalletFormGenerate } from './ui/settings-ui-wallet-form-generate.tsx'
+import { SettingsUiWalletMnemonicLanguage } from './ui/settings-ui-wallet-mnemonic-language.tsx'
 import { SettingsUiWalletMnemonicStrength } from './ui/settings-ui-wallet-mnemonic-strength.tsx'
 
 export function SettingsFeatureWalletGenerate() {
   const { t } = useTranslation('settings')
   const generateWalletWithAccountMutation = useWalletGenerateWithAccount()
   const navigate = useNavigate()
+  const [language, setLanguage] = useState<MnemonicLanguage>('en')
   const [strength, setStrength] = useState<128 | 256>(128)
   const name = useWalletDetermineName()
-  const mnemonic = useMemo(() => generateMnemonic({ strength }), [strength])
+  const mnemonic = useMemo(() => generateMnemonic({ language, strength }), [language, strength])
   const { requestUnlock } = useVaultUnlockDialog()
 
   return (
@@ -24,7 +27,10 @@ export function SettingsFeatureWalletGenerate() {
       contentProps={{ className: 'space-y-2 md:space-y-6' }}
       title={t(($) => $.walletPageGenerateTitle)}
     >
-      <SettingsUiWalletMnemonicStrength setStrength={setStrength} strength={strength} />
+      <div className="flex items-center justify-between gap-2">
+        <SettingsUiWalletMnemonicLanguage language={language} setLanguage={setLanguage} />
+        <SettingsUiWalletMnemonicStrength setStrength={setStrength} strength={strength} />
+      </div>
       <SettingsUiWalletFormGenerate
         mnemonic={mnemonic}
         name={name}

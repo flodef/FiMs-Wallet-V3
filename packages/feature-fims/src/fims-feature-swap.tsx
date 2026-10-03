@@ -38,7 +38,12 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const outputTokens = useMemo(() => (fimsTokens.data ?? []).filter((token) => token.address), [fimsTokens.data])
   const outputMetadata = useGetTokenMetadataJupiter(outputMint ? [outputMint] : [])
   const outputDecimals = outputMetadata.data?.[0]?.decimals ?? 9
-  const outputSymbol = outputTokens.find((token) => token.address === outputMint)?.symbol ?? ''
+  const outputToken = outputTokens.find((token) => token.address === outputMint)
+  const outputSymbol = outputToken?.symbol ?? ''
+  // FiMs volatility is normalized 0 (stable) → 1 (most volatile asset tracked).
+  const outputVolatility = outputToken?.volatility ?? null
+  const riskLevel =
+    outputVolatility == null || outputVolatility <= 0 ? 'none' : outputVolatility >= 0.7 ? 'high' : 'moderate'
 
   const amount = useMemo(() => {
     if (!inputToken || !amountText) return 0n
@@ -127,6 +132,19 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
               </SelectContent>
             </Select>
           </div>
+
+          {riskLevel !== 'none' ? (
+            <div
+              className={`rounded-md border p-3 text-sm ${
+                riskLevel === 'high' ? 'border-red-500 text-red-600 dark:text-red-400' : 'border-amber-500'
+              }`}
+            >
+              <UiIcon className="mr-1 inline size-4" icon="alert" />
+              {t(($) => (riskLevel === 'high' ? $.swapRiskWarningHigh : $.swapRiskWarning), {
+                symbol: outputSymbol,
+              })}
+            </div>
+          ) : null}
 
           {quote.isFetching ? <UiLoader className="size-6" /> : null}
           {quote.isError ? <p className="text-destructive text-sm">{t(($) => $.swapQuoteError)}</p> : null}

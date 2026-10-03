@@ -28,6 +28,17 @@ describe('generate-mnemonic', () => {
       expect(result.split(' ').length).toEqual(24)
       expect(result.split(' ').every((word) => wordlist.includes(word))).toEqual(true)
     })
+
+    it('should generate a French 12-word mnemonic', () => {
+      // ARRANGE
+      expect.assertions(2)
+      const wordlist = getMnemonicWordlist('fr')
+      // ACT
+      const result = generateMnemonic({ language: 'fr' })
+      // ASSERT
+      expect(result.split(' ').length).toEqual(12)
+      expect(result.split(' ').every((word) => wordlist.includes(word))).toEqual(true)
+    })
   })
 
   describe('unexpected behavior', () => {

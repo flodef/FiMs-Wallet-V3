@@ -7,6 +7,7 @@ import { Link } from 'react-router'
 import { useSettingsPage } from './data-access/use-settings-page.tsx'
 import { SettingsFeatureGeneralApiSettings } from './settings-feature-general-api-settings.tsx'
 import { SettingsFeatureGeneralLanguage } from './settings-feature-general-language.tsx'
+import { SettingsFeatureGeneralSendCap } from './settings-feature-general-send-cap.tsx'
 import { SettingsFeatureGeneralTheme } from './settings-feature-general-theme.tsx'
 import { SettingsFeatureGeneralWarningAcceptExperimental } from './settings-feature-general-warning-accept-experimental.tsx'
 
@@ -28,6 +29,7 @@ export function SettingsFeatureGeneral() {
       >
         <SettingsFeatureGeneralLanguage />
         <SettingsFeatureGeneralTheme />
+        <SettingsFeatureGeneralSendCap />
         <SettingsFeatureGeneralWarningAcceptExperimental />
       </UiCard>
       {isAdmin ? (

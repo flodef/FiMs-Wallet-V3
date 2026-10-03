@@ -46,6 +46,7 @@ const config: CSpellSettings = {
     // English
     'arweave',
     'beeman',
+    'bitpanda',
     'blockhash',
     'bootsplash',
     'bunx',
@@ -56,6 +57,7 @@ const config: CSpellSettings = {
     'cutover',
     'datetimepicker',
     'devnet',
+    'dca',
     'dklen',
     'dyor',
     'ellipsify',
@@ -90,6 +92,7 @@ const config: CSpellSettings = {
     'sidepanel',
     'skia',
     'solscan',
+    'stablecoins',
     'surfpool',
     'sysvar',
     'testnet',
@@ -108,11 +111,16 @@ const config: CSpellSettings = {
     'worklets',
     // French
     'démo',
+    'dispo',
+    'français',
     // Spanish
+    'agregador',
+    'anualizada',
     'cripto',
+    'mnemónica',
+    'modifícalo',
     'rebalancear',
     'rebalanceo',
-    'mnemónica',
     'redirecciona',
   ],
 }

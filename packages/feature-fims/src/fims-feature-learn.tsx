@@ -3,7 +3,7 @@ import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
 
-type LearnEntry = { body: string; term: string }
+type LearnEntry = { body: string; href?: string; term: string }
 type LearnSection = { description: string; entries: LearnEntry[]; icon: UiIconName; title: string }
 
 // Educational page: explains the figures shown in the app, the crypto basics
@@ -51,6 +51,50 @@ export function FimsFeatureLearn() {
       icon: 'alert',
       title: t(($) => $.learnRisksTitle),
     },
+    {
+      description: t(($) => $.learnMethodsDesc),
+      entries: [
+        { body: t(($) => $.learnDcaBody), term: t(($) => $.learnDcaTerm) },
+        { body: t(($) => $.learnStablecoinsBody), term: t(($) => $.learnStablecoinsTerm) },
+        { body: t(($) => $.learnDiversifyBody), term: t(($) => $.learnDiversifyTerm) },
+        { body: t(($) => $.learnYieldRiskBody), term: t(($) => $.learnYieldRiskTerm) },
+        { body: t(($) => $.learnYieldCurrentBody), term: t(($) => $.learnYieldCurrentTerm) },
+      ],
+      icon: 'handCoins',
+      title: t(($) => $.learnMethodsTitle),
+    },
+    {
+      description: t(($) => $.learnServicesDesc),
+      entries: [
+        {
+          body: t(($) => $.learnMultisigBody),
+          href: 'https://squads.xyz',
+          term: t(($) => $.learnMultisigTerm),
+        },
+        {
+          body: t(($) => $.learnCoinbaseBody),
+          href: 'https://www.coinbase.com',
+          term: t(($) => $.learnCoinbaseTerm),
+        },
+        {
+          body: t(($) => $.learnNexoBody),
+          href: 'https://nexo.com',
+          term: t(($) => $.learnNexoTerm),
+        },
+        {
+          body: t(($) => $.learnBitpandaBody),
+          href: 'https://www.bitpanda.com',
+          term: t(($) => $.learnBitpandaTerm),
+        },
+        {
+          body: t(($) => $.learnJupiterBody),
+          href: 'https://jup.ag',
+          term: t(($) => $.learnJupiterTerm),
+        },
+      ],
+      icon: 'tools',
+      title: t(($) => $.learnServicesTitle),
+    },
   ]
 
   return (
@@ -69,7 +113,15 @@ export function FimsFeatureLearn() {
           <dl className="space-y-3">
             {section.entries.map((entry) => (
               <div key={entry.term}>
-                <dt className="font-medium text-sm">{entry.term}</dt>
+                <dt className="font-medium text-sm">
+                  {entry.href ? (
+                    <a className="text-primary underline" href={entry.href} rel="noreferrer" target="_blank">
+                      {entry.term}
+                    </a>
+                  ) : (
+                    entry.term
+                  )}
+                </dt>
                 <dd className="text-muted-foreground text-sm">{entry.body}</dd>
               </div>
             ))}

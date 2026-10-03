@@ -16,12 +16,19 @@ import { PortfolioFeatureModalSelectTokens } from './portfolio-feature-modal-sel
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
 import type { DestinationAccount } from './ui/portfolio-ui-send-destination.tsx'
 
+export interface SendBlockContext {
+  // Amount in token UI units (the value the user typed)
+  amount: string
+  destination: Address
+  mint: Address
+}
+
 export default function PortfolioModals({
   extraDestinationGroups,
   getSendBlock,
 }: {
   extraDestinationGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
-  getSendBlock?: ((destination: Address) => null | string) | undefined
+  getSendBlock?: ((send: SendBlockContext) => null | string) | undefined
 }) {
   const { t } = useTranslation('ui')
   const account = useAccountActive()

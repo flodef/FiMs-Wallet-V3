@@ -7,6 +7,7 @@ export const settingKeySchema = z.enum([
   'fimsCurrency',
   'fimsLastSeenTransaction',
   'language',
+  'sendCapEur',
   'theme',
   'vaultKey',
   'warningAcceptExperimental',

@@ -2,9 +2,11 @@ import { useTranslation } from '@workspace/i18n'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
-import { useFimsDashboard, useFimsHistoric, useFimsTokens } from './data-access/use-fims.tsx'
+import { useMemo } from 'react'
+import { useFimsDashboard, useFimsHistoric, useFimsPrices, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatPercent } from './fims-format.ts'
+import { computePeriodReturns } from './fims-performance.ts'
 import { FimsUiConverter } from './fims-ui-converter.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiTokenChart } from './fims-ui-token-chart.tsx'
@@ -16,6 +18,8 @@ export function FimsFeatureCommunity() {
   const tokens = useFimsTokens()
   const historic = useFimsHistoric()
   const latest = historic.data?.at(-1)
+  const prices = useFimsPrices()
+  const perf30d = useMemo(() => computePeriodReturns(prices.data ?? [], 30), [prices.data])
 
   return (
     <div className="space-y-4">
@@ -54,6 +58,7 @@ export function FimsFeatureCommunity() {
                 <TableRow>
                   <TableHead>{t(($) => $.columnToken)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnValue)}</TableHead>
+                  <TableHead className="text-right">{t(($) => $.columnPerf)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnYield)}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -65,6 +70,18 @@ export function FimsFeatureCommunity() {
                       <div className="text-muted-foreground text-xs">{token.label}</div>
                     </TableCell>
                     <TableCell className="text-right">{token.value != null ? format(token.value) : '—'}</TableCell>
+                    <TableCell className="text-right">
+                      {(() => {
+                        const perf = perf30d.get(token.symbol)
+                        return perf != null ? (
+                          <span className={perf >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>
+                            {formatPercent(perf)}
+                          </span>
+                        ) : (
+                          '—'
+                        )
+                      })()}
+                    </TableCell>
                     <TableCell className="text-right">
                       {token.yearlyYield != null ? formatPercent(token.yearlyYield) : '—'}
                     </TableCell>
