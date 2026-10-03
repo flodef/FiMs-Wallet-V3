@@ -22,7 +22,26 @@ const initialState: DemoState = {
   walletCreated: false,
 }
 
-let state = initialState
+// The tour state survives a page refresh (presenters do reload mid-demo):
+// without it, a reload would drop the overlay while leaving the demo account
+// active — the presenter would land on an unfamiliar empty wallet with no way
+// to tell it apart from their own. sessionStorage (not localStorage) so the
+// demo never bleeds into a later browser session.
+const STORAGE_KEY = 'fims:demo'
+
+function loadPersisted(): DemoState {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    if (!raw) {
+      return initialState
+    }
+    return { ...initialState, ...(JSON.parse(raw) as Partial<DemoState>) }
+  } catch {
+    return initialState
+  }
+}
+
+let state: DemoState = typeof sessionStorage === 'undefined' ? initialState : loadPersisted()
 const listeners = new Set<() => void>()
 
 function getSnapshot() {
@@ -38,6 +57,15 @@ function subscribe(listener: () => void) {
 
 export function demoSetState(partial: Partial<DemoState>) {
   state = { ...state, ...partial }
+  try {
+    if (state.active) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY)
+    }
+  } catch {
+    // Storage may be unavailable (private mode) — the demo just won't resume.
+  }
   for (const listener of listeners) {
     listener()
   }

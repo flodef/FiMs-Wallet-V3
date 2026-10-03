@@ -13,7 +13,7 @@ export class AuthForbidden extends Schema.TaggedError<AuthForbidden>()('AuthForb
 }) {}
 
 // 5 min window — a signed request is replayable only within it, and only
-// for the same host+method+path+body (all are part of the signed message).
+// for the same host+method+path+query+body (all are part of the signed message).
 const MAX_SKEW_MS = 5 * 60 * 1000
 
 const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
@@ -27,17 +27,28 @@ const sha256Hex = (text: string) =>
       .join(''),
   )
 
+// Canonical query serialization, signed along with the path. The client runs
+// the identical algorithm (packages/feature-fims/src/fims-canonical-query.ts):
+// decode each pair, sort by key then value, re-encode with URLSearchParams
+// (form-urlencoded). Sorting makes `?a=1&b=2` and `?b=2&a=1` sign identically.
+export function canonicalizeQuery(searchParams: URLSearchParams): string {
+  const pairs = [...searchParams.entries()]
+  pairs.sort((a, b) => (a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : a[0] < b[0] ? -1 : 1))
+  return new URLSearchParams(pairs).toString()
+}
+
 /**
  * Wallet-signed auth. The client signs:
- *   `fims-wallet-v3\n{HOST}\n{METHOD}\n{PATHNAME}\n{TIMESTAMP_MS}\n{SHA256_HEX(BODY)}`
+ *   `fims-wallet-v3\n{HOST}\n{METHOD}\n{PATHNAME[?CANONICAL_QUERY]}\n{TIMESTAMP_MS}\n{SHA256_HEX(BODY)}`
  * with its Solana keypair and sends:
  *   x-fims-address:   base58 public key
  *   x-fims-ts:        unix timestamp (ms)
  *   x-fims-sig:       ed25519 signature, base64
  *
  * Binding the host stops signatures captured on a rogue endpoint from being
- * replayed against the real API; binding the body hash stops a captured
- * signature from being replayed with a swapped payload.
+ * replayed against the real API; binding the canonical query stops a captured
+ * GET signature from being replayed with swapped parameters; binding the body
+ * hash stops a captured signature from being replayed with a swapped payload.
  */
 export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
@@ -59,19 +70,36 @@ export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest
     const host = header(request, 'host') || url.host
     const bodyText = yield* Effect.catchAll(request.text, () => Effect.succeed(''))
     const bodyHash = yield* sha256Hex(bodyText)
-    const message = `fims-wallet-v3\n${host}\n${request.method}\n${url.pathname}\n${ts}\n${bodyHash}`
+    // Malformed base58/base64 headers must fail with 401, not as a defect.
+    const decode = <T>(decodeFn: () => T) =>
+      Effect.try({ catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }), try: decodeFn })
+    const publicKey = yield* decode(() => Uint8Array.from(getBase58Encoder().encode(address)))
+    const signature = yield* decode(() => b64ToBytes(sigHeader))
 
-    const valid = yield* Effect.try({
-      catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),
-      try: () =>
-        ed25519.verify(
-          b64ToBytes(sigHeader),
-          new TextEncoder().encode(message),
-          Uint8Array.from(getBase58Encoder().encode(address)),
-        ),
-    })
+    const verify = (resource: string) =>
+      Effect.try({
+        catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),
+        try: () =>
+          ed25519.verify(
+            signature,
+            new TextEncoder().encode(`fims-wallet-v3\n${host}\n${request.method}\n${resource}\n${ts}\n${bodyHash}`),
+            publicKey,
+          ),
+      })
 
-    if (!valid) return yield* fail('bad signature')
+    const query = canonicalizeQuery(url.searchParams)
+    const valid = yield* verify(query ? `${url.pathname}?${query}` : url.pathname)
+
+    if (!valid && query) {
+      // Transitional: accept the legacy signature that signed the bare path
+      // without the query, so already-deployed clients keep working. A captured
+      // legacy signature stays replayable with swapped query params until the
+      // window closes — remove this fallback once clients are updated.
+      const legacyValid = yield* verify(url.pathname)
+      if (!legacyValid) return yield* fail('bad signature')
+    } else if (!valid) {
+      return yield* fail('bad signature')
+    }
     return address
   })
 }

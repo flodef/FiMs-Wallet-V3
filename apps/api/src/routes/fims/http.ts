@@ -215,6 +215,16 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
             yield* requireOwnerOrAdmin(signer, payload.address)
+            // Display names are unique across members — same rule as
+            // updateUser. Without it, self-registration could squat another
+            // member's public name. Admins keep the override.
+            if (!isAdminAddress(signer)) {
+              const taken = yield* withDb((db) =>
+                db.select({ id: users.id }).from(users).where(eq(users.name, payload.name)),
+              )
+              if (taken.length)
+                return yield* Effect.fail(new BadRequest({ reason: `name already taken: ${payload.name}` }))
+            }
             const rows = yield* withDb((db) => db.insert(users).values(payload).returning())
             const created = rows[0]
             if (!created) return yield* Effect.fail(insertFailed())

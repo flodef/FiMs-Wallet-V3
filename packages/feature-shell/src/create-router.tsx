@@ -66,7 +66,9 @@ function getAppRoutes(): RouteObject[] {
     { element: <Navigate replace to="/portfolio" />, index: true },
     {
       children: [
-        { element: <DevRoutes />, path: 'dev/*' },
+        // Dev tooling (raw IndexedDB writes, vault inspection) can corrupt the
+        // local wallet store — never mount it in production builds.
+        ...(import.meta.env.DEV ? [{ element: <DevRoutes />, path: 'dev/*' }] : []),
         { element: <ExplorerRoutes basePath="/explorer" />, path: 'explorer/*' },
         { element: <FimsRoutes />, path: 'fims/*' },
         { element: <PortfolioRoutes />, path: 'portfolio/*' },

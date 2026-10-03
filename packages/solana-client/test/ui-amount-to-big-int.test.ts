@@ -54,6 +54,45 @@ describe('ui-amount-to-big-int', () => {
       // ASSERT
       expect(result).toBe(1_500_000_000n)
     })
+
+    it('should convert a negative-exponent scientific notation amount', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const amount = '1e-8'
+      const decimals = 9
+
+      // ACT
+      const result = uiAmountToBigInt(amount, decimals)
+
+      // ASSERT
+      expect(result).toBe(10n)
+    })
+
+    it('should convert a positive-exponent scientific notation amount', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const amount = '2.5E2'
+      const decimals = 6
+
+      // ACT
+      const result = uiAmountToBigInt(amount, decimals)
+
+      // ASSERT
+      expect(result).toBe(250_000_000n)
+    })
+
+    it('should truncate precision beyond the token decimals', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const amount = '0.0000000019'
+      const decimals = 9
+
+      // ACT
+      const result = uiAmountToBigInt(amount, decimals)
+
+      // ASSERT
+      expect(result).toBe(1n)
+    })
   })
 
   describe('unexpected behavior', () => {

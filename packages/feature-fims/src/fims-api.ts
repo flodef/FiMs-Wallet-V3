@@ -1,4 +1,5 @@
 import { getBase64Decoder, type KeyPairSigner } from '@solana/kit'
+import { canonicalResource } from './fims-canonical-query.ts'
 
 // Types mirror the Effect schemas in apps/api/src/routes/fims/api.ts
 export interface FimsUser {
@@ -170,21 +171,22 @@ async function sha256Hex(text: string): Promise<string> {
 
 // Requests are authenticated by a wallet signature, verified by the API.
 // The signer signs:
-//   `fims-wallet-v3\n{HOST}\n{METHOD}\n{PATHNAME}\n{TIMESTAMP_MS}\n{SHA256_HEX(BODY)}`
+//   `fims-wallet-v3\n{HOST}\n{METHOD}\n{PATHNAME[?CANONICAL_QUERY]}\n{TIMESTAMP_MS}\n{SHA256_HEX(BODY)}`
 // Binding the host prevents signatures captured on a rogue endpoint from being
-// replayed against the real API; binding the body hash prevents replay with a
-// swapped payload.
+// replayed against the real API; binding the canonical query prevents replaying
+// a signed GET with swapped parameters; binding the body hash prevents replay
+// with a swapped payload.
 async function fimsAuthHeaders(
   apiEndpoint: string,
   signer: KeyPairSigner,
   method: 'DELETE' | 'GET' | 'PATCH' | 'POST',
-  path: string,
+  resource: string,
   bodyText: string,
 ): Promise<Record<string, string>> {
   const ts = Date.now()
   const host = new URL(apiEndpoint).host
   const bodyHash = await sha256Hex(bodyText)
-  const content = new TextEncoder().encode(`fims-wallet-v3\n${host}\n${method}\n/fims${path}\n${ts}\n${bodyHash}`)
+  const content = new TextEncoder().encode(`fims-wallet-v3\n${host}\n${method}\n${resource}\n${ts}\n${bodyHash}`)
   const [signatures] = await signer.signMessages([{ content, signatures: {} }])
   const signature = signatures?.[signer.address]
   if (!signature) {
@@ -209,7 +211,13 @@ export async function fimsSignedGet<T>(
   for (const [key, value] of Object.entries(params ?? {})) {
     url.searchParams.set(key, value)
   }
-  const headers = await fimsAuthHeaders(apiEndpoint, signer, 'GET', path, '')
+  const headers = await fimsAuthHeaders(
+    apiEndpoint,
+    signer,
+    'GET',
+    canonicalResource(`/fims${path}`, url.searchParams),
+    '',
+  )
   const res = await fetch(url, { headers })
   if (!res.ok) {
     const text = await res.text()
@@ -235,7 +243,7 @@ export async function fimsSignedFetch<T>(
   body?: unknown,
 ): Promise<T> {
   const bodyText = body === undefined ? '' : JSON.stringify(body)
-  const headers = await fimsAuthHeaders(apiEndpoint, signer, method, path, bodyText)
+  const headers = await fimsAuthHeaders(apiEndpoint, signer, method, `/fims${path}`, bodyText)
 
   const url = `${apiEndpoint.replace(/\/+$/, '')}/fims${path}`
   const res = await fetch(url, {

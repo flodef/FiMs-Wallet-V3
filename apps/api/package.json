@@ -11,10 +11,12 @@
     "@cloudflare/workers-types": "catalog:",
     "@types/bun": "catalog:",
     "@workspace/config-typescript": "workspace:*",
+    "@workspace/config-vitest": "workspace:*",
     "drizzle-kit": "catalog:",
     "firebase": "catalog:",
     "postgres": "catalog:",
     "typescript": "catalog:",
+    "vitest": "catalog:",
     "wrangler": "catalog:"
   },
   "name": "api",
@@ -24,7 +26,9 @@
     "check-types": "tsc --noEmit",
     "deploy": "wrangler deploy --minify",
     "dev": "wrangler dev",
-    "postinstall": "[ -f .env.example ] && [ ! -f .env ] && cp -v .env.example .env || true; bun run cf-typegen"
+    "postinstall": "[ -f .env.example ] && [ ! -f .env ] && cp -v .env.example .env || true; bun run cf-typegen",
+    "test": "vitest run",
+    "test:watch": "vitest --watch"
   },
   "type": "module",
   "version": "0.0.0"

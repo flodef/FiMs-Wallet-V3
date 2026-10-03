@@ -34,9 +34,11 @@ export function FimsUiRebalance({
 
   const [target, setTarget] = useState<number>(member.riskTarget ?? 50)
   const [editing, setEditing] = useState(false)
+  // A refetch landing mid-edit must not yank the slider back under the user's
+  // finger — only re-sync while not editing.
   useEffect(() => {
-    if (member.riskTarget != null) setTarget(member.riskTarget)
-  }, [member.riskTarget])
+    if (!editing && member.riskTarget != null) setTarget(member.riskTarget)
+  }, [editing, member.riskTarget])
 
   const plan = member.riskTarget != null ? computeRebalancePlan(positions, member.riskTarget / 100) : null
 

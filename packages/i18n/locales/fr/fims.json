@@ -41,6 +41,7 @@
   "dashboardTitle": "Tableau de bord communauté",
   "debtBlockedBody": "Il te reste {{amount}} à verser (règle des 10% des gains). Les échanges et envois sont bloqués jusqu'à régularisation — verse ta contribution à la Tontine ou fais un don avec justificatif.",
   "debtBlockedTitle": "Solde à régulariser",
+  "debtCheckPending": "Envois temporairement bloqués : vérification de vos règles FiMs en cours — réessayez dans un instant.",
   "debtSendBlocked": "Envois bloqués : il te reste {{amount}} à verser (règle des 10% des gains). Seul un envoi vers la trésorerie FiMs est autorisé pour régulariser.",
   "disclaimer": "FiMs Wallet est un outil de suivi de portefeuille, pas un conseil en investissement. Les performances passées ne préjugent pas des performances futures. Chacun est seul responsable de ses décisions et de ses pertes éventuelles.",
   "donationsCount_many": "",

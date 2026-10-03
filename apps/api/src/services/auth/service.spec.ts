@@ -1,0 +1,204 @@
+import type { HttpServerRequest } from '@effect/platform'
+import { ed25519 } from '@noble/curves/ed25519'
+import { getBase58Decoder } from '@solana/codecs-strings'
+import { Effect } from 'effect'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { canonicalizeQuery, verifyWalletRequest } from './service.ts'
+
+const privateKey = ed25519.utils.randomPrivateKey()
+const address = getBase58Decoder().decode(ed25519.getPublicKey(privateKey))
+const HOST = 'api.fims.test'
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+// Builds the signed request exactly like the client does
+// (packages/feature-fims/src/fims-api.ts): the signed resource is the pathname
+// plus its canonical query.
+async function signedRequest({
+  body = '',
+  method = 'GET',
+  signedResource,
+  ts = Date.now(),
+  url,
+}: {
+  body?: string
+  method?: string
+  signedResource?: string
+  ts?: number
+  url: string
+}): Promise<HttpServerRequest.HttpServerRequest> {
+  const parsed = new URL(url)
+  const query = canonicalizeQuery(parsed.searchParams)
+  const resource = signedResource ?? (query ? `${parsed.pathname}?${query}` : parsed.pathname)
+  const message = `fims-wallet-v3\n${HOST}\n${method}\n${resource}\n${ts}\n${await sha256Hex(body)}`
+  const signature = ed25519.sign(new TextEncoder().encode(message), privateKey)
+  return {
+    headers: {
+      host: HOST,
+      'x-fims-address': address,
+      'x-fims-sig': btoa(String.fromCharCode(...signature)),
+      'x-fims-ts': String(ts),
+    },
+    method,
+    text: Effect.succeed(body),
+    url,
+  } as unknown as HttpServerRequest.HttpServerRequest
+}
+
+describe('canonicalize-query', () => {
+  describe('expected behavior', () => {
+    it('should serialize an empty query to an empty string', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const params = new URLSearchParams('')
+
+      // ACT
+      const result = canonicalizeQuery(params)
+
+      // ASSERT
+      expect(result).toBe('')
+    })
+
+    it('should sort pairs by key then value', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const params = new URLSearchParams('b=2&a=1&a=0')
+
+      // ACT
+      const result = canonicalizeQuery(params)
+
+      // ASSERT
+      expect(result).toBe('a=0&a=1&b=2')
+    })
+
+    it('should produce the same canonical form for reordered input', () => {
+      // ARRANGE
+      expect.assertions(1)
+
+      // ACT
+      const result = canonicalizeQuery(new URLSearchParams('offset=0&limit=2000'))
+      const result2 = canonicalizeQuery(new URLSearchParams('limit=2000&offset=0'))
+
+      // ASSERT
+      expect(result).toBe(result2)
+    })
+  })
+})
+
+describe('verify-wallet-request', () => {
+  describe('expected behavior', () => {
+    it('should return the signer address for a valid request without query', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const request = await signedRequest({ url: `https://${HOST}/fims/votes` })
+
+      // ACT
+      const result = await Effect.runPromise(verifyWalletRequest(request))
+
+      // ASSERT
+      expect(result).toBe(address)
+    })
+
+    it('should return the signer address for a valid request with canonical query', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const request = await signedRequest({ url: `https://${HOST}/fims/users?limit=2000&offset=0` })
+
+      // ACT
+      const result = await Effect.runPromise(verifyWalletRequest(request))
+
+      // ASSERT
+      expect(result).toBe(address)
+    })
+
+    it('should verify a signature when query parameters arrive in a different order', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const request = await signedRequest({ url: `https://${HOST}/fims/users?offset=0&limit=2000` })
+
+      // ACT
+      const result = await Effect.runPromise(verifyWalletRequest(request))
+
+      // ASSERT
+      expect(result).toBe(address)
+    })
+
+    it('should accept a legacy signature without query binding during the transition', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const url = `https://${HOST}/fims/users?limit=2000&offset=0`
+      const request = await signedRequest({ signedResource: '/fims/users', url })
+
+      // ACT
+      const result = await Effect.runPromise(verifyWalletRequest(request))
+
+      // ASSERT
+      expect(result).toBe(address)
+    })
+  })
+
+  describe('unexpected behavior', () => {
+    beforeEach(() => {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('should reject a signed request replayed with swapped query parameters', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      // Signed for limit=2000, replayed against limit=1.
+      const request = await signedRequest({
+        signedResource: '/fims/users?limit=2000&offset=0',
+        url: `https://${HOST}/fims/users?limit=1&offset=0`,
+      })
+
+      // ACT & ASSERT
+      await expect(Effect.runPromise(verifyWalletRequest(request))).rejects.toThrow()
+    })
+
+    it('should reject a request with a stale timestamp', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const request = await signedRequest({
+        ts: Date.now() - 10 * 60 * 1000,
+        url: `https://${HOST}/fims/votes`,
+      })
+
+      // ACT & ASSERT
+      await expect(Effect.runPromise(verifyWalletRequest(request))).rejects.toThrow()
+    })
+
+    it('should reject a request with a malformed address header', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const request = await signedRequest({ url: `https://${HOST}/fims/votes` })
+      ;(request.headers as Record<string, string>)['x-fims-address'] = 'not-base58!!'
+
+      // ACT & ASSERT
+      await expect(Effect.runPromise(verifyWalletRequest(request))).rejects.toThrow()
+    })
+
+    it('should reject a request with missing auth headers', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const request = {
+        headers: { host: HOST },
+        method: 'GET',
+        text: Effect.succeed(''),
+        url: `https://${HOST}/fims/votes`,
+      } as unknown as HttpServerRequest.HttpServerRequest
+
+      // ACT & ASSERT
+      await expect(Effect.runPromise(verifyWalletRequest(request))).rejects.toThrow()
+    })
+  })
+})

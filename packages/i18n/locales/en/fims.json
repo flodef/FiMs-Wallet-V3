@@ -41,6 +41,7 @@
   "dashboardTitle": "Community dashboard",
   "debtBlockedBody": "You still owe {{amount}} (10%-of-gains rule). Swaps and sends are blocked until settled — contribute to the Tontine or make a donation with a receipt.",
   "debtBlockedTitle": "Balance due",
+  "debtCheckPending": "Sends temporarily blocked: checking your FiMs balance rules — retry in a moment.",
   "debtSendBlocked": "Sends blocked: you still owe {{amount}} (10%-of-gains rule). Only a send to the FiMs treasury is allowed to settle it.",
   "disclaimer": "FiMs Wallet is a portfolio tracking tool, not investment advice. Past performance is no guarantee of future results. Everyone is solely responsible for their own decisions and any losses.",
   "donationsCount_one": "donationsCount",

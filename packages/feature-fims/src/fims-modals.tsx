@@ -18,7 +18,7 @@ export default function FimsModals() {
   const account = useAccountActive()
   const { member } = useFimsMember(account.publicKey, account)
   const entries = useFimsAddressBook(member?.id, account)
-  const { debt } = useFimsDebt(member, account)
+  const { debt, isLoading: debtLoading } = useFimsDebt(member, account)
   const [sendCapSetting] = useSetting('sendCapEur')
   const tokens = useFimsTokens()
 
@@ -50,12 +50,19 @@ export default function FimsModals() {
     const cap = Number.parseFloat(sendCapSetting ?? '')
     const hasCap = Number.isFinite(cap) && cap > 0
     const hasDebt = typeof debt === 'number' && debt > 0
-    if (!hasDebt && !hasCap) {
+    // While a member's debt position is still loading we cannot prove the send
+    // is allowed — fail closed rather than open a bypass window on slow
+    // networks. Non-members never trigger this (their queries stay disabled).
+    const checkingDebt = Boolean(member) && debtLoading
+    if (!hasDebt && !hasCap && !checkingDebt) {
       return undefined
     }
     return (send: SendBlockContext): null | string => {
       if (send.destination === FIMS_TREASURY_ADDRESS) {
         return null
+      }
+      if (checkingDebt) {
+        return t(($) => $.debtCheckPending)
       }
       if (hasDebt) {
         return t(($) => $.debtSendBlocked, { amount: format(debt) })
@@ -69,7 +76,7 @@ export default function FimsModals() {
       }
       return null
     }
-  }, [debt, sendCapSetting, tokens.data, t, format])
+  }, [debt, debtLoading, member, sendCapSetting, tokens.data, t, format])
 
   return <PortfolioModals extraDestinationGroups={groups} getSendBlock={getSendBlock} />
 }

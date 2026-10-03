@@ -286,6 +286,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 400 })
+      .addError(BadRequest, { status: 400 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )
