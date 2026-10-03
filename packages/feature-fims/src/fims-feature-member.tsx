@@ -17,6 +17,7 @@ import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.
 import { useSnsDomain } from './data-access/use-sns-domain.tsx'
 import { FIMS_DONATION_RATIO } from './fims-constants.ts'
 import { formatDate, formatPercent } from './fims-format.ts'
+import { annualizedRate } from './fims-performance.ts'
 import { computeFimsPositions } from './fims-positions.ts'
 import { getFimsTransactionType } from './fims-transaction-type.ts'
 import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
@@ -63,12 +64,20 @@ export function FimsFeatureMember({ account }: { account: Account }) {
 
   const latest = historic.data?.at(-1)
   const previous = historic.data?.at(-2)
+  const first = historic.data?.at(0)
   const pnl = latest?.total != null ? latest.total - latest.invested : null
   const pnlRatio = latest && latest.invested > 0 && pnl != null ? pnl / latest.invested : null
   const dayRatio =
     latest?.total != null && previous?.total != null && previous.total > 0
       ? (latest.total - previous.total) / previous.total
       : null
+  // Realized rate: what the position actually earned, annualized over the
+  // real holding period — unlike a projected current rate. The whole invested
+  // amount is treated as held since the first historic entry.
+  const realRate =
+    first && latest
+      ? annualizedRate({ date: first.date, value: latest.invested }, { date: latest.date, value: latest.total ?? 0 })
+      : undefined
   const remainingToDonate = pnl != null && pnl > 0 ? Math.max(0, pnl * FIMS_DONATION_RATIO - donations.total) : null
 
   return (
@@ -103,6 +112,11 @@ export function FimsFeatureMember({ account }: { account: Account }) {
               {pnl != null ? format(pnl) : '—'}
             </div>
             <FimsUiRatioBadges dayRatio={dayRatio} pnlRatio={pnlRatio} />
+            {realRate != null ? (
+              <div className="text-muted-foreground text-xs">
+                {t(($) => $.labelRealRate)}: {formatPercent(realRate)}
+              </div>
+            ) : null}
           </div>
         </div>
       </UiCard>

@@ -3,6 +3,7 @@ import { useTranslation } from '@workspace/i18n'
 import type { MnemonicStrength } from '@workspace/keypair/generate-mnemonic'
 import { generateMnemonic } from '@workspace/keypair/generate-mnemonic'
 import type { MnemonicLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
+import { mnemonicLanguageFromAppLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
 import { validateMnemonic } from '@workspace/keypair/validate-mnemonic'
 import { Button } from '@workspace/ui/components/button'
 import { Form } from '@workspace/ui/components/form'
@@ -29,7 +30,7 @@ import { OnboardingUiMnemonicShow } from './ui/onboarding-ui-mnemonic-show.tsx'
 import { OnboardingUiWalletProtection } from './ui/onboarding-ui-wallet-protection.tsx'
 
 const onboardingGenerateSchema = z.object({
-  language: z.enum(['en', 'fr']),
+  language: z.enum(['en', 'fr', 'es']),
   mnemonic: z.string(),
   strength: z.union([z.literal(128), z.literal(256)]),
 })
@@ -38,7 +39,7 @@ type OnboardingGenerateForm = z.infer<typeof onboardingGenerateSchema>
 
 export function OnboardingFeatureGenerate({ redirectTo }: { redirectTo: string }) {
   const { i18n, t } = useTranslation('onboarding')
-  const defaultLanguage: MnemonicLanguage = i18n.language?.startsWith('fr') ? 'fr' : 'en'
+  const defaultLanguage: MnemonicLanguage = mnemonicLanguageFromAppLanguage(i18n.language)
   const create = useCreateNewWallet()
   const navigate = useNavigate()
   const [pin, setPin] = useState('')

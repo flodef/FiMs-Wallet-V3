@@ -17,6 +17,9 @@ export function SettingsUiWalletMnemonicLanguage({
       <Button onClick={() => setLanguage('fr')} variant={language === 'fr' ? 'secondary' : 'outline'}>
         Français
       </Button>
+      <Button onClick={() => setLanguage('es')} variant={language === 'es' ? 'secondary' : 'outline'}>
+        Español
+      </Button>
     </ButtonGroup>
   )
 }

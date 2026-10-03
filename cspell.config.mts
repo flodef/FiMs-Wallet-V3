@@ -77,6 +77,7 @@ const config: CSpellSettings = {
     'kdfparams',
     'lamport',
     'lamports',
+    'wsol',
     'lironer',
     'localnet',
     'mainnet',
@@ -115,6 +116,7 @@ const config: CSpellSettings = {
     'français',
     // Spanish
     'agregador',
+    'español',
     'anualizada',
     'cripto',
     'mnemónica',

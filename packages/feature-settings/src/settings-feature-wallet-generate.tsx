@@ -3,6 +3,7 @@ import { useWalletGenerateWithAccount } from '@workspace/db-react/use-wallet-gen
 import { useTranslation } from '@workspace/i18n'
 import { generateMnemonic } from '@workspace/keypair/generate-mnemonic'
 import type { MnemonicLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
+import { mnemonicLanguageFromAppLanguage } from '@workspace/keypair/get-mnemonic-wordlist'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
 import { useMemo, useState } from 'react'
@@ -12,10 +13,10 @@ import { SettingsUiWalletMnemonicLanguage } from './ui/settings-ui-wallet-mnemon
 import { SettingsUiWalletMnemonicStrength } from './ui/settings-ui-wallet-mnemonic-strength.tsx'
 
 export function SettingsFeatureWalletGenerate() {
-  const { t } = useTranslation('settings')
+  const { i18n, t } = useTranslation('settings')
   const generateWalletWithAccountMutation = useWalletGenerateWithAccount()
   const navigate = useNavigate()
-  const [language, setLanguage] = useState<MnemonicLanguage>('en')
+  const [language, setLanguage] = useState<MnemonicLanguage>(() => mnemonicLanguageFromAppLanguage(i18n.language))
   const [strength, setStrength] = useState<128 | 256>(128)
   const name = useWalletDetermineName()
   const mnemonic = useMemo(() => generateMnemonic({ language, strength }), [language, strength])

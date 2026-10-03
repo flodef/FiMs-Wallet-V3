@@ -22,6 +22,9 @@ export function OnboardingUiMnemonicSelectLanguage({
       <ToggleGroupItem disabled={language === 'fr'} value="fr">
         Français
       </ToggleGroupItem>
+      <ToggleGroupItem disabled={language === 'es'} value="es">
+        Español
+      </ToggleGroupItem>
     </ToggleGroup>
   )
 }

@@ -73,7 +73,7 @@ export function FimsFeatureLearn() {
         },
         {
           body: t(($) => $.learnCoinbaseBody),
-          href: 'https://www.coinbase.com',
+          href: 'https://coinbase.com/join/TVFNWB5?src=android-link',
           term: t(($) => $.learnCoinbaseTerm),
         },
         {
@@ -88,7 +88,7 @@ export function FimsFeatureLearn() {
         },
         {
           body: t(($) => $.learnJupiterBody),
-          href: 'https://jup.ag',
+          href: 'https://jupiter.go.link/fAUD1',
           term: t(($) => $.learnJupiterTerm),
         },
       ],

@@ -20,6 +20,14 @@ describe('validate-mnemonic', () => {
       // ACT & ASSERT
       expect(() => validateMnemonic({ mnemonic })).not.toThrow()
     })
+
+    it('should not throw an error for a valid Spanish mnemonic', () => {
+      // ARRANGE
+      const mnemonic = generateMnemonic({ language: 'es' })
+
+      // ACT & ASSERT
+      expect(() => validateMnemonic({ mnemonic })).not.toThrow()
+    })
   })
 
   describe('unexpected behavior', () => {

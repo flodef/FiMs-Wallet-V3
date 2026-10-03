@@ -5,7 +5,10 @@ export const envSchema = z.object({
     .enum(['networkDevnet', 'networkLocalnet', 'networkMainnet', 'networkTestnet'])
     .default('networkDevnet'),
   adminAddresses: z.string().default('CCLcWAJX6fubUqGyZWz8dyUGEddRj8h4XZZCNSDzMVx4'),
-  apiEndpoint: z.url().default('https://fims-wallet-api.fims-fi.workers.dev'),
+  // Same-origin by default: Vercel rewrites /api/* to the api function
+  // (api/[...path].ts), so the bundle and the API code always deploy together.
+  // The Cloudflare worker remains reachable for other clients.
+  apiEndpoint: z.url().default('https://wallet-v3.fims.fi/api'),
   networkDevnet: z.url().or(z.literal('')).default('https://api.devnet.solana.com'),
   networkDevnetSubscriptions: z.url().or(z.literal('')).default(''),
   networkLocalnet: z.url().or(z.literal('')).default('http://localhost:8899'),

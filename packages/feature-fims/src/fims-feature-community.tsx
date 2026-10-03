@@ -6,7 +6,7 @@ import { useMemo } from 'react'
 import { useFimsDashboard, useFimsHistoric, useFimsPrices, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatPercent } from './fims-format.ts'
-import { computePeriodReturns } from './fims-performance.ts'
+import { computePeriodReturns, computeRealizedAnnualRates } from './fims-performance.ts'
 import { FimsUiConverter } from './fims-ui-converter.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiTokenChart } from './fims-ui-token-chart.tsx'
@@ -20,6 +20,7 @@ export function FimsFeatureCommunity() {
   const latest = historic.data?.at(-1)
   const prices = useFimsPrices()
   const perf30d = useMemo(() => computePeriodReturns(prices.data ?? [], 30), [prices.data])
+  const realRates = useMemo(() => computeRealizedAnnualRates(prices.data ?? []), [prices.data])
 
   return (
     <div className="space-y-4">
@@ -60,6 +61,7 @@ export function FimsFeatureCommunity() {
                   <TableHead className="text-right">{t(($) => $.columnValue)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnPerf)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnYield)}</TableHead>
+                  <TableHead className="text-right">{t(($) => $.columnRealRate)}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -84,6 +86,18 @@ export function FimsFeatureCommunity() {
                     </TableCell>
                     <TableCell className="text-right">
                       {token.yearlyYield != null ? formatPercent(token.yearlyYield) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(() => {
+                        const rate = realRates.get(token.symbol)
+                        return rate != null ? (
+                          <span className={rate >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>
+                            {formatPercent(rate)}
+                          </span>
+                        ) : (
+                          '—'
+                        )
+                      })()}
                     </TableCell>
                   </TableRow>
                 ))}
