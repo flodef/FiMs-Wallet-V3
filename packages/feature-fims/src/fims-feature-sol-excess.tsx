@@ -19,7 +19,8 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
-import { FIMS_FSOL_MINT, FIMS_PLATFORM_FEE_BPS, FIMS_SOL_GAS_RESERVE } from './fims-constants.ts'
+import { FIMS_FSOL_MINT, FIMS_SOL_GAS_RESERVE } from './fims-constants.ts'
+import { getFimsPlatformFeeBps } from './fims-fee-config.ts'
 import { solExcessAboveReserve } from './fims-gas.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
 import { formatTokenUnits } from './fims-units.ts'
@@ -54,7 +55,7 @@ export function FimsFeatureSolExcess() {
     amount: excess,
     inputMint: open ? NATIVE_MINT : undefined,
     outputMint: FIMS_FSOL_MINT,
-    platformFeeBps: FIMS_PLATFORM_FEE_BPS,
+    platformFeeBps: getFimsPlatformFeeBps(),
   })
   const [signature, setSignature] = useState('')
 
@@ -99,7 +100,7 @@ export function FimsFeatureSolExcess() {
                   {t(($) => $.solExcessReceive)} ≈ {outAmount} FSOL
                 </div>
                 <div>
-                  {t(($) => $.swapPlatformFee)}: {(FIMS_PLATFORM_FEE_BPS / 100).toFixed(1)}%
+                  {t(($) => $.swapPlatformFee)}: {(getFimsPlatformFeeBps() / 100).toFixed(2)}%
                 </div>
               </>
             ) : null}

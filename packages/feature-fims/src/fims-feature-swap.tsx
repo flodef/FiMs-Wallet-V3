@@ -18,7 +18,8 @@ import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
-import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT, FIMS_PLATFORM_FEE_BPS } from './fims-constants.ts'
+import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT } from './fims-constants.ts'
+import { getFimsPlatformFeeBps, getFimsTontineRate } from './fims-fee-config.ts'
 import { fimsSwappableMints, isSolGasMint } from './fims-gas.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
 import { FimsUiLimitOrders } from './fims-ui-limit-orders.tsx'
@@ -65,7 +66,7 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
     }
   }, [amountText, inputToken])
 
-  const quote = useJupiterQuote({ amount, inputMint, outputMint, platformFeeBps: FIMS_PLATFORM_FEE_BPS })
+  const quote = useJupiterQuote({ amount, inputMint, outputMint, platformFeeBps: getFimsPlatformFeeBps() })
   const swap = useFimsSwap({ account, network })
   const [signature, setSignature] = useState<string>('')
 
@@ -97,7 +98,9 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
     <div className="space-y-4">
       {debtBlocked ? (
         <UiCard title={t(($) => $.debtBlockedTitle)}>
-          <p className="text-muted-foreground text-sm">{t(($) => $.debtBlockedBody, { amount: format(debt) })}</p>
+          <p className="text-muted-foreground text-sm">
+            {t(($) => $.debtBlockedBody, { amount: format(debt), rate: getFimsTontineRate() * 100 })}
+          </p>
         </UiCard>
       ) : null}
       <UiCard title={t(($) => $.swapTitle)}>
@@ -201,7 +204,10 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
                 </div>
               ) : null}
               <div>
-                {t(($) => $.swapPlatformFee)}: {(FIMS_PLATFORM_FEE_BPS / 100).toFixed(1)}%
+                {t(($) => $.swapPlatformFee)}: {(getFimsPlatformFeeBps() / 100).toFixed(2)}%
+              </div>
+              <div>
+                {t(($) => $.swapTontineFee)}: {t(($) => $.swapTontineFeeValue, { rate: getFimsTontineRate() * 100 })}
               </div>
               <div>{t(($) => $.swapSlippage)}: 0.5%</div>
               <div>{t(($) => $.swapNetworkFeeEstimate)}: ≈ 0.00005 SOL</div>
@@ -229,7 +235,9 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
             </Button>
           </div>
           {!canSign ? <p className="text-muted-foreground text-xs">{t(($) => $.swapWatchOnly)}</p> : null}
-          <p className="text-muted-foreground text-xs">{t(($) => $.swapDisclaimer)}</p>
+          <p className="text-muted-foreground text-xs">
+            {t(($) => $.swapDisclaimer, { fee: (getFimsPlatformFeeBps() / 100).toFixed(2) })}
+          </p>
         </div>
       </UiCard>
 

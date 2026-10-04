@@ -15,7 +15,7 @@ import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric 
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
 import { useSnsDomain } from './data-access/use-sns-domain.tsx'
-import { FIMS_DONATION_RATIO } from './fims-constants.ts'
+import { getFimsTontineRate } from './fims-fee-config.ts'
 import { formatDate, formatPercent } from './fims-format.ts'
 import { annualizedRate } from './fims-performance.ts'
 import { computeFimsPositions } from './fims-positions.ts'
@@ -78,7 +78,8 @@ export function FimsFeatureMember({ account }: { account: Account }) {
     first && latest
       ? annualizedRate({ date: first.date, value: latest.invested }, { date: latest.date, value: latest.total ?? 0 })
       : undefined
-  const remainingToDonate = pnl != null && pnl > 0 ? Math.max(0, pnl * FIMS_DONATION_RATIO - donations.total) : null
+  const tontineRate = getFimsTontineRate()
+  const remainingToDonate = pnl != null && pnl > 0 ? Math.max(0, pnl * tontineRate - donations.total) : null
 
   return (
     <div className="space-y-4">
@@ -183,16 +184,21 @@ export function FimsFeatureMember({ account }: { account: Account }) {
               <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full rounded-full bg-pink-500 transition-all"
-                  style={{ width: `${Math.min(100, (donations.total / (pnl * FIMS_DONATION_RATIO)) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (donations.total / (pnl * tontineRate)) * 100)}%` }}
                 />
               </div>
               <p className="mt-1 text-center text-muted-foreground text-xs">
-                {t(($) => $.donationsProgress, { ratio: formatPercent(donations.total / (pnl * FIMS_DONATION_RATIO)) })}
+                {t(($) => $.donationsProgress, {
+                  rate: tontineRate * 100,
+                  ratio: formatPercent(donations.total / (pnl * tontineRate)),
+                })}
               </p>
             </div>
           ) : null}
           {remainingToDonate ? (
-            <p className="mt-3 text-muted-foreground text-xs">{t(($) => $.donationsRemainingHint)}</p>
+            <p className="mt-3 text-muted-foreground text-xs">
+              {t(($) => $.donationsRemainingHint, { rate: tontineRate * 100 })}
+            </p>
           ) : null}
         </UiCard>
       ) : null}

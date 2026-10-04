@@ -2,6 +2,7 @@ import { useTranslation } from '@workspace/i18n'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
+import { getFimsFeeRate, getFimsTontineRate } from './fims-fee-config.ts'
 
 type LearnEntry = { body: string; href?: string; term: string }
 type LearnSection = { description: string; entries: LearnEntry[]; icon: UiIconName; title: string }
@@ -19,7 +20,10 @@ export function FimsFeatureLearn() {
         { body: t(($) => $.learnCurrentValueBody), term: t(($) => $.learnCurrentValueTerm) },
         { body: t(($) => $.learnPnlBody), term: t(($) => $.learnPnlTerm) },
         { body: t(($) => $.learnRatiosBody), term: t(($) => $.learnRatiosTerm) },
-        { body: t(($) => $.learnDonationsBody), term: t(($) => $.learnDonationsTerm) },
+        {
+          body: t(($) => $.learnDonationsBody, { rate: getFimsTontineRate() * 100 }),
+          term: t(($) => $.learnDonationsTerm),
+        },
         { body: t(($) => $.learnTontineBody), term: t(($) => $.learnTontineTerm) },
         { body: t(($) => $.learnTreasuryBody), term: t(($) => $.learnTreasuryTerm) },
       ],
@@ -34,7 +38,7 @@ export function FimsFeatureLearn() {
         { body: t(($) => $.learnSwapBody), term: t(($) => $.learnSwapTerm) },
         { body: t(($) => $.learnLimitBody), term: t(($) => $.learnLimitTerm) },
         { body: t(($) => $.learnVolatilityBody), term: t(($) => $.learnVolatilityTerm) },
-        { body: t(($) => $.learnFeesBody), term: t(($) => $.learnFeesTerm) },
+        { body: t(($) => $.learnFeesBody, { fee: getFimsFeeRate() * 100 }), term: t(($) => $.learnFeesTerm) },
       ],
       icon: 'coins',
       title: t(($) => $.learnCryptoTitle),

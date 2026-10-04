@@ -1,6 +1,7 @@
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
 import { describe, expect, it } from 'vitest'
-import { FIMS_FSOL_MINT, FIMS_KNOWN_MINTS, FIMS_PLATFORM_FEE_BPS, FIMS_SOL_GAS_RESERVE } from '../src/fims-constants.ts'
+import { FIMS_FSOL_MINT, FIMS_KNOWN_MINTS, FIMS_SOL_GAS_RESERVE } from '../src/fims-constants.ts'
+import { getFimsPlatformFeeBps } from '../src/fims-fee-config.ts'
 import {
   fimsSwappableMints,
   isInsufficientGasError,
@@ -118,11 +119,11 @@ describe('isInsufficientGasError', () => {
   })
 })
 
-describe('FIMS_PLATFORM_FEE_BPS', () => {
-  it('should be 10 basis points (0.1%)', () => {
+describe('getFimsPlatformFeeBps', () => {
+  it('should default to 10 basis points (0.1%)', () => {
     // ARRANGE & ACT & ASSERT
     expect.assertions(1)
-    expect(FIMS_PLATFORM_FEE_BPS).toBe(10)
+    expect(getFimsPlatformFeeBps()).toBe(10)
   })
 })
 

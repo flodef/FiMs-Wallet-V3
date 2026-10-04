@@ -8,17 +8,9 @@ export const FIMS_AUDIT_URL = `https://jup.ag/portfolio/${FIMS_TREASURY_ADDRESS}
 // next to the audit link when the on-chain record actually points there.
 export const FIMS_TREASURY_DOMAIN = 'fimsfi.sol' as const
 
-// Legacy spreadsheet rule: members owe 10% of their gains to FiMs (donation to
-// the Tontine or a charity of their choice).
-export const FIMS_DONATION_RATIO = 0.1
-
-// Operating fee deducted from the credited side of conversions and from
-// withdrawals: 0.1% stays in the treasury. Mirrors FIMS_FEE_RATE in the API.
-export const FIMS_FEE_RATE = 0.001
-
-// Same 0.1% expressed in basis points for the Jupiter APIs (platformFeeBps
-// on /swap, params.feeBps on /trigger). Deposits and withdrawals are exempt.
-export const FIMS_PLATFORM_FEE_BPS = 10
+// The tontine share of gains and the FiMs operating fee live in
+// fims-fee-config.ts (getFimsTontineRate / getFimsFeeRate /
+// getFimsPlatformFeeBps) — they are changeable rates, not fixed constants.
 
 // Canonical mainnet mints for the major assets a member swaps into, pinned
 // client-side so a compromised API token row cannot point "USDC" at a fake

@@ -17,6 +17,7 @@ import {
   votes,
 } from '../../db/schema.js'
 import { DatabaseError, DatabaseService, withDb, withTransaction } from '../../db/service.js'
+import { getFimsFeeRate } from '../../fee-config.js'
 import {
   AuthForbidden,
   isAdminAddress,
@@ -174,9 +175,8 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
 // V2 rule: |movement - cost| ~= 0 marks a donation (in) or a payment (out),
 // anything else is a deposit/withdrawal. Applied at write time so stored rows
 // always carry a type — SQL filters on `type` would silently drop NULLs.
-// Operating fee: 0.1% of the moved amount, deducted from the credited side.
-// The residual stays in the treasury — it is not credited to anyone.
-const FIMS_FEE_RATE = 0.001
+// The operating fee (getFimsFeeRate, currently 0.1%) is deducted from the
+// credited side — the residual stays in the treasury, credited to no one.
 
 // Prices feed ledger writes: a price older than the feed cadence is a free
 // option against the treasury, so conversions refuse to use it.
@@ -630,9 +630,9 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                     // Credited side is net of the operating fee — the member's
                     // balance drops by the fee, which stays in the treasury.
                     address: signer,
-                    amount: (payload.eurAmount * (1 - FIMS_FEE_RATE)) / toPrice,
+                    amount: (payload.eurAmount * (1 - getFimsFeeRate())) / toPrice,
                     date: now,
-                    movement: payload.eurAmount * (1 - FIMS_FEE_RATE),
+                    movement: payload.eurAmount * (1 - getFimsFeeRate()),
                     // Suffixed id keeps the credit leg tagged for dedup while
                     // staying a distinct key under the (user_id, request_id)
                     // unique index — the pair cannot collide with itself.

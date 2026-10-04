@@ -17,7 +17,7 @@ import { inspectWireTransaction } from '@workspace/solana-client/inspect-wire-tr
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { useCallback } from 'react'
 import { z } from 'zod'
-import { FIMS_PLATFORM_FEE_BPS } from '../fims-constants.ts'
+import { getFimsPlatformFeeBps } from '../fims-fee-config.ts'
 import { ensureTreasuryFeeAccount } from './ensure-treasury-fee-account.ts'
 import { assertJupiterTransactionSafe } from './inspect-jupiter-transaction.ts'
 
@@ -260,7 +260,7 @@ export function useFimsTriggerCreateOrder({ account, network }: { account: Accou
           maker: account.publicKey,
           outputMint,
           params: {
-            feeBps: feeMint ? String(FIMS_PLATFORM_FEE_BPS) : undefined,
+            feeBps: feeMint ? String(getFimsPlatformFeeBps()) : undefined,
             makingAmount: String(makingAmount),
             takingAmount: String(takingAmount),
           },

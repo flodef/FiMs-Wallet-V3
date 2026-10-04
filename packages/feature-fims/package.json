@@ -34,7 +34,8 @@
   "exports": {
     "./*": "./src/*.tsx",
     "./fims-api": "./src/fims-api.ts",
-    "./fims-constants": "./src/fims-constants.ts"
+    "./fims-constants": "./src/fims-constants.ts",
+    "./fims-fee-config": "./src/fims-fee-config.ts"
   },
   "license": "MIT",
   "name": "@workspace/feature-fims",

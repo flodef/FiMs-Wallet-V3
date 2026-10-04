@@ -18,7 +18,7 @@ import {
   useFimsTriggerOrders,
 } from './data-access/use-jupiter.tsx'
 import type { FimsToken } from './fims-api.ts'
-import { FIMS_PLATFORM_FEE_BPS } from './fims-constants.ts'
+import { getFimsPlatformFeeBps } from './fims-fee-config.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
@@ -135,7 +135,7 @@ export function FimsUiLimitOrders({
         </div>
 
         <p className="text-muted-foreground text-xs">
-          {t(($) => $.limitFeeNote, { fee: (FIMS_PLATFORM_FEE_BPS / 100).toFixed(1) })}
+          {t(($) => $.limitFeeNote, { fee: (getFimsPlatformFeeBps() / 100).toFixed(2) })}
         </p>
 
         <div className="flex justify-end">

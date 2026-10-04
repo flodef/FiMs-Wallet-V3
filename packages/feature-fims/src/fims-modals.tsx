@@ -15,6 +15,7 @@ import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useWithdrawalTargets } from './data-access/use-withdrawal-targets.tsx'
 import { FIMS_DEMO_ADDRESS, FIMS_TREASURY_ADDRESS } from './fims-constants.ts'
 import { FimsFeatureSendConvert } from './fims-feature-send-convert.tsx'
+import { getFimsTontineRate } from './fims-fee-config.ts'
 
 // Wraps the portfolio send/receive modals and injects the member's FiMs address
 // book as an extra destination group.
@@ -88,7 +89,7 @@ export default function FimsModals() {
         return t(($) => $.debtCheckPending)
       }
       if (hasDebt) {
-        return t(($) => $.debtSendBlocked, { amount: format(debt) })
+        return t(($) => $.debtSendBlocked, { amount: format(debt), rate: getFimsTontineRate() * 100 })
       }
       if (hasCap) {
         const price = tokens.data?.find((token) => token.address === send.mint)?.value
