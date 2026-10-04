@@ -62,6 +62,9 @@ export const FIMS_JUPITER_SPEND_SYMBOLS = ['USDC', 'USDT'] as const
 export const FIMS_JUPITER_SPEND_REFERRAL_URL = 'https://jupiter.go.link/fAUD1'
 export const FIMS_JUPITER_SPEND_REFERRAL_CODE = '2MJD7MJF'
 
+// FiMs referral for Coinbase signup — the code is embedded in the URL.
+export const FIMS_COINBASE_REFERRAL_URL = 'https://coinbase.com/join/TVFNWB5'
+
 // Decimals for the pinned mints above, used to display swap output amounts.
 export const FIMS_MINT_DECIMALS: Readonly<Record<string, number>> = {
   cbBTC: 8,

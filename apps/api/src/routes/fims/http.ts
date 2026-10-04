@@ -28,10 +28,15 @@ import {
   verifyAddressSignature,
   verifyWalletRequest,
 } from '../../services/auth/service.js'
+import { fetchDonationTransaction } from '../../solana-rpc.js'
 import { BadRequest, RateLimited } from './api.js'
 
 const notFound = (what: string) => `not found: ${what}`
 const insertFailed = () => new DatabaseError({ cause: 'insert returned no row' })
+
+// The shared pot's wallet — donations land here on-chain. Mirrored client-side
+// as FIMS_TONTINE_ADDRESS (packages/feature-fims/src/fims-constants.ts).
+const FIMS_TONTINE_ADDRESS = 'Fe1RpesrtYMJdjwbNXtpVCDNpnFvk6jSic3sJd2aCBng'
 
 // All list reads are bounded: a single unbounded query would scan a whole
 // table (Neon cost) and produce oversized responses.
@@ -859,6 +864,72 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const found = list.find((v) => v.id === path.id)
             if (!found) return yield* Effect.fail(notFound(`vote ${path.id}`))
             return found
+          }),
+        )
+        .handle('recordDonation', ({ payload }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* verifyWalletRequest(request)
+            yield* requireNotDemo(signer)
+            const memberRows = yield* withDb((db) => db.select().from(users).where(addressLinkedToUser(signer)))
+            const member = memberRows[0]
+            if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+            // Idempotent: a retry of the same signature returns what was
+            // already recorded instead of double-counting the donation.
+            const existing = yield* withDb((db) =>
+              db.select().from(transactions).where(eq(transactions.signature, payload.signature)),
+            )
+            if (existing.length) return existing
+
+            const tx = yield* Effect.tryPromise({
+              catch: () => new BadRequest({ reason: 'cannot fetch transaction from the RPC' }),
+              try: () => fetchDonationTransaction(payload.signature, FIMS_TONTINE_ADDRESS),
+            })
+            if (!tx)
+              return yield* Effect.fail(new BadRequest({ reason: 'transaction not found, failed, or not confirmed' }))
+            if (!tx.deltas.length)
+              return yield* Effect.fail(new BadRequest({ reason: 'transaction did not credit the tontine wallet' }))
+            // The fee payer must belong to the signer: recording someone
+            // else's gift under your own name would inflate your vote weight
+            // and erase your debt for free.
+            const payerRows = yield* withDb((db) =>
+              db.select({ id: users.id }).from(users).where(addressLinkedToUser(tx.payer)),
+            )
+            if (payerRows[0]?.id !== member.id)
+              return yield* Effect.fail(
+                new BadRequest({ reason: 'donation sender is not linked to your member account' }),
+              )
+
+            const tokenRows = yield* withDb((db) => db.select().from(tokens))
+            const priceOf = (symbol: string) => tokenRows.find((t) => t.symbol === symbol)?.value ?? null
+            const symbolOf = (mint: string) =>
+              mint === 'SOL' ? 'SOL' : (tokenRows.find((t) => t.address === mint)?.symbol ?? null)
+
+            const rows = yield* withDb((db) =>
+              db
+                .insert(transactions)
+                .values(
+                  tx.deltas.map((delta) => {
+                    const symbol = symbolOf(delta.mint)
+                    const movement = symbol ? (priceOf(symbol) ?? 0) * delta.amount : 0
+                    return {
+                      address: tx.payer,
+                      amount: delta.amount,
+                      cost: movement,
+                      date: tx.blockTime ?? new Date(),
+                      donationTarget: 'tontine',
+                      movement,
+                      signature: payload.signature,
+                      token: symbol,
+                      type: 'donation' as const,
+                      userId: member.id,
+                    }
+                  }),
+                )
+                .returning(),
+            )
+            if (!rows.length) return yield* Effect.fail(insertFailed())
+            return rows
           }),
         )
     )

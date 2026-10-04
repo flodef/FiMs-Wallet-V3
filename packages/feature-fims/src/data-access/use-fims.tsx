@@ -206,6 +206,21 @@ export function useFimsVotes(account?: Account) {
   })
 }
 
+// Free tontine donation: after the on-chain send to the tontine wallet the
+// API verifies the transaction (tontine actually credited, sender linked to
+// the member) and writes the donation rows the weight/debt accounting reads.
+export function useFimsRecordDonation(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (signature: string) => signedFetch<FimsTransaction[]>('POST', '/donations', { signature }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fims', 'transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['fims', 'user-historic'] })
+    },
+  })
+}
+
 export function useFimsCastBallot(account: Account, voteId: number) {
   const signedFetch = useFimsSignedFetch(account)
   const queryClient = useQueryClient()

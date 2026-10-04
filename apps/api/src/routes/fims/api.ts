@@ -219,6 +219,10 @@ export class Vote extends Schema.Class<Vote>('Vote')({
   totalWeight: Schema.Number,
 }) {}
 
+const RecordDonationBody = Schema.Struct({
+  signature: Schema.String.pipe(Schema.minLength(32), Schema.maxLength(128)),
+})
+
 const CreateVoteBody = Schema.Struct({
   closesAt: Schema.optional(Schema.Date),
   description: Schema.optional(Schema.String),
@@ -264,6 +268,18 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addSuccess(Vote)
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('recordDonation', '/fims/donations')
+      .annotate(OpenApi.Summary, 'Record an on-chain tontine donation')
+      .setPayload(RecordDonationBody)
+      .addSuccess(Schema.Array(Transaction))
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(BadRequest, { status: 400 })
       .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),

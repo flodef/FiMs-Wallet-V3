@@ -385,6 +385,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@hookform/resolvers": "catalog:",
+        "@solana-program/system": "catalog:",
         "@solana/kit": "catalog:",
         "@tanstack/react-query": "catalog:",
         "@workspace/core": "workspace:*",

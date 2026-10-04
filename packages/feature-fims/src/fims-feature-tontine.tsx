@@ -1,3 +1,4 @@
+import type { Account } from '@workspace/db/account/account'
 import { useTranslation } from '@workspace/i18n'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UiCard } from '@workspace/ui/components/ui-card'
@@ -7,11 +8,12 @@ import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatDate } from './fims-format.ts'
 import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 import { FimsUiHistoricChart } from './fims-ui-historic-chart.tsx'
+import { FimsUiTontineDonate } from './fims-ui-tontine-donate.tsx'
 
 // The tontine is stored as a regular member named "tontine": its user history
 // gives the chart. Contributions are donations flagged donationTarget
 // 'tontine' on the donor's own transaction list.
-export function FimsFeatureTontine() {
+export function FimsFeatureTontine({ account }: { account: Account }) {
   const { t } = useTranslation('fims')
   const { format } = useFimsCurrency()
   const users = useFimsUsers()
@@ -43,6 +45,8 @@ export function FimsFeatureTontine() {
           <FimsUiHistoricChart format={format} points={historic.data} />
         ) : null}
       </UiCard>
+
+      <FimsUiTontineDonate account={account} />
 
       <UiCard title={t(($) => $.transactionsTitle)}>
         {transactions.isLoading ? (

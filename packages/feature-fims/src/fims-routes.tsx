@@ -37,7 +37,7 @@ export default function FimsRoutes() {
             path: 'community',
           },
           {
-            element: <FimsFeatureTontine />,
+            element: <FimsFeatureTontine account={account} />,
             label: t(($) => $.tabTontine),
             path: 'tontine',
           },
