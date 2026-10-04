@@ -62,9 +62,11 @@ export function SettingsUiWalletMenu({
           >
             {t(($) => $.actionMoveWalletDown)}
           </DropdownMenuItem>
-          <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenExport(true)}>
-            {t(($) => $.exportMnemonic)}
-          </DropdownMenuItem>
+          {wallet.derivationPath.length ? (
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenExport(true)}>
+              {t(($) => $.exportMnemonic)}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenDelete(true)}>
             {t(($) => $.actionDeleteWallet)}
           </DropdownMenuItem>

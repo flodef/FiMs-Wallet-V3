@@ -75,6 +75,15 @@ describe('wallet-read-mnemonic', () => {
       await expect(walletReadMnemonic(ctx, id)).rejects.toThrow(`Wallet with id ${id} not found`)
     })
 
+    it('should throw when the wallet has no recovery phrase (private-key import)', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const id = await walletCreate(ctx, testWalletCreateInput({ mnemonic: '' }))
+
+      // ACT & ASSERT
+      await expect(walletReadMnemonic(ctx, id)).rejects.toThrow('has no recovery phrase')
+    })
+
     it('should throw when reading a password wallet while the vault is locked', async () => {
       // ARRANGE
       expect.assertions(1)

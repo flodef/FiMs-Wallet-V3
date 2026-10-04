@@ -6,12 +6,15 @@ import type { MnemonicStrength } from '@workspace/keypair/generate-mnemonic'
 import { getMnemonicWordStatus } from '@workspace/keypair/get-mnemonic-word-status'
 import { validateMnemonic } from '@workspace/keypair/validate-mnemonic'
 import { Form } from '@workspace/ui/components/form'
+import { Input } from '@workspace/ui/components/input'
+import { Label } from '@workspace/ui/components/label'
+import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/components/toggle-group'
 import { UiBackButton } from '@workspace/ui/components/ui-back-button'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiTextPasteButton } from '@workspace/ui/components/ui-text-paste-button'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { VAULT_UNSECURED_CONFIRM_PHRASE } from '@workspace/vault/encrypted-value-schema'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
@@ -20,6 +23,7 @@ import {
   getCreateNewWalletProtection,
   parseCreateNewWalletProtectionMode,
   useCreateNewWallet,
+  useCreateNewWalletFromPrivateKey,
 } from './data-access/use-create-new-wallet.tsx'
 import { DEMO_MNEMONIC, demoSetState, useDemoState } from './demo/demo-store.tsx'
 import { OnboardingUiMnemonicWordInput } from './onboarding-ui-mnemonic-word-input.tsx'
@@ -44,6 +48,10 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
   const [pinConfirm, setPinConfirm] = useState('')
   const [protectionMode, setProtectionMode] = useState<CreateNewWalletProtectionMode>('password')
   const [unsecuredConfirmText, setUnsecuredConfirmText] = useState('')
+  const [importMode, setImportMode] = useState<'mnemonic' | 'privateKey'>('mnemonic')
+  const [privateKey, setPrivateKey] = useState('')
+  const createPrivateKey = useCreateNewWalletFromPrivateKey()
+  const privateKeyId = useId()
 
   const form = useForm<OnboardingImportForm>({
     defaultValues: {
@@ -110,22 +118,22 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
   }, [words, wordCount])
 
   async function submit() {
-    if (!isFormComplete) {
+    if (importMode === 'mnemonic' && !isFormComplete) {
       setError('words', { message: `Please enter all ${wordCount} words.` })
       return
     }
 
     try {
-      const mnemonic = validateMnemonic({ mnemonic: words.slice(0, wordCount).join(' ') })
-      const created = await create(
-        mnemonic,
-        getCreateNewWalletProtection({
-          pin,
-          pinConfirm,
-          protectionMode,
-          unsecuredConfirmText,
-        }),
-      )
+      const protection = getCreateNewWalletProtection({
+        pin,
+        pinConfirm,
+        protectionMode,
+        unsecuredConfirmText,
+      })
+      const created =
+        importMode === 'privateKey'
+          ? await createPrivateKey(privateKey, protection)
+          : await create(validateMnemonic({ mnemonic: words.slice(0, wordCount).join(' ') }), protection)
       if (created) {
         await navigate(redirectTo)
       }
@@ -189,8 +197,14 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
           description={t(($) => $.importCardDescription)}
           footer={
             <div className="flex w-full justify-between">
-              <UiTextPasteButton label={t(($) => $.importToastPaste)} onPaste={handlePaste} />
-              <OnboardingUiMnemonicSave disabled={!isFormComplete} label={t(($) => $.importButtonSubmit)} />
+              <UiTextPasteButton
+                label={t(($) => $.importToastPaste)}
+                onPaste={importMode === 'privateKey' ? (data) => setPrivateKey(data.trim()) : handlePaste}
+              />
+              <OnboardingUiMnemonicSave
+                disabled={importMode === 'privateKey' ? !privateKey.trim().length : !isFormComplete}
+                label={t(($) => $.importButtonSubmit)}
+              />
             </div>
           }
           title={
@@ -201,40 +215,77 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
           }
         >
           <div className="space-y-6">
-            <div className="flex justify-between">
-              <div>
-                <OnboardingUiMnemonicSelectStrength
-                  setStrength={(newStrength: MnemonicStrength) => {
-                    reset({
-                      strength: newStrength,
-                      words: Array(24).fill(''),
-                    })
-                  }}
-                  strength={strength}
+            <ToggleGroup
+              className="grid w-full grid-cols-2"
+              onValueChange={(value) => value && setImportMode(value as 'mnemonic' | 'privateKey')}
+              type="single"
+              value={importMode}
+              variant="outline"
+            >
+              <ToggleGroupItem
+                className="h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug"
+                value="mnemonic"
+              >
+                {t(($) => $.importModeMnemonic)}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                className="h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug"
+                value="privateKey"
+              >
+                {t(($) => $.importModePrivateKey)}
+              </ToggleGroupItem>
+            </ToggleGroup>
+
+            {importMode === 'privateKey' ? (
+              <div className="space-y-2">
+                <Label htmlFor={privateKeyId}>{t(($) => $.importPrivateKeyLabel)}</Label>
+                <Input
+                  autoComplete="off"
+                  id={privateKeyId}
+                  onChange={(event) => setPrivateKey(event.target.value)}
+                  placeholder={t(($) => $.importPrivateKeyPlaceholder)}
+                  type="password"
+                  value={privateKey}
                 />
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <div>
+                    <OnboardingUiMnemonicSelectStrength
+                      setStrength={(newStrength: MnemonicStrength) => {
+                        reset({
+                          strength: newStrength,
+                          words: Array(24).fill(''),
+                        })
+                      }}
+                      strength={strength}
+                    />
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
-              {Array.from({ length: wordCount }, (_, i) => i).map((index) => (
-                <OnboardingUiMnemonicWordInput
-                  index={index + 1}
-                  key={index}
-                  onChange={handleWordChange}
-                  onPaste={(dataTransfer) => {
-                    const text = dataTransfer.getData('text').trim().toLowerCase()
-                    if (text.length) {
-                      handlePaste(text)
-                    }
-                  }}
-                  value={words[index] || ''}
-                />
-              ))}
-            </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
+                  {Array.from({ length: wordCount }, (_, i) => i).map((index) => (
+                    <OnboardingUiMnemonicWordInput
+                      index={index + 1}
+                      key={index}
+                      onChange={handleWordChange}
+                      onPaste={(dataTransfer) => {
+                        const text = dataTransfer.getData('text').trim().toLowerCase()
+                        if (text.length) {
+                          handlePaste(text)
+                        }
+                      }}
+                      value={words[index] || ''}
+                    />
+                  ))}
+                </div>
 
-            {form.formState.errors.words ? (
-              <p className="mt-4 text-center text-red-500 text-sm">{form.formState.errors.words.message}</p>
-            ) : null}
+                {form.formState.errors.words ? (
+                  <p className="mt-4 text-center text-red-500 text-sm">{form.formState.errors.words.message}</p>
+                ) : null}
+              </>
+            )}
 
             <OnboardingUiWalletProtection
               onPinChange={setPin}

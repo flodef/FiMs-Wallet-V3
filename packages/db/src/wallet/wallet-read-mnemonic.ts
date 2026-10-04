@@ -14,8 +14,12 @@ export async function walletReadMnemonic(ctx: DbContext, id: string): Promise<st
     return wallet
   })
 
-  return await decryptWithVaultKey({
+  const mnemonic = await decryptWithVaultKey({
     encrypted: wallet.mnemonic,
     key: await ctx.vault.requireWalletKey({ walletId: id }),
   })
+  if (!mnemonic.length) {
+    throw new Error('This wallet was imported from a private key and has no recovery phrase')
+  }
+  return mnemonic
 }

@@ -105,20 +105,22 @@ export function SettingsFeatureWalletAddAccount() {
       title={<SettingsUiWalletItem item={wallet} />}
     >
       <div className="space-y-2 md:space-y-6">
-        <Item variant="outline">
-          <ItemMedia variant="icon">
-            <AccountUiIcon type="Derived" />
-          </ItemMedia>
-          <ItemContent>
-            <ItemTitle>{t(($) => $.walletAddAccountDeriveTitle)}</ItemTitle>
-            <ItemDescription>{t(($) => $.walletAddAccountDeriveDescription)}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <Button onClick={() => createAccountDerived(wallet)} size="sm" variant="outline">
-              {t(($) => $.actionDerive)}
-            </Button>
-          </ItemActions>
-        </Item>
+        {wallet.derivationPath.length ? (
+          <Item variant="outline">
+            <ItemMedia variant="icon">
+              <AccountUiIcon type="Derived" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{t(($) => $.walletAddAccountDeriveTitle)}</ItemTitle>
+              <ItemDescription>{t(($) => $.walletAddAccountDeriveDescription)}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button onClick={() => createAccountDerived(wallet)} size="sm" variant="outline">
+                {t(($) => $.actionDerive)}
+              </Button>
+            </ItemActions>
+          </Item>
+        ) : null}
 
         <Item variant="outline">
           <ItemMedia variant="icon">

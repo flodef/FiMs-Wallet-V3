@@ -1,6 +1,12 @@
+import { assertIsAddress } from '@solana/kit'
+import { useAppContext } from '@workspace/context-react/use-app-context'
+import { useAccountCreate } from '@workspace/db-react/use-account-create'
+import { useWalletCreate } from '@workspace/db-react/use-wallet-create'
 import { useWalletDetermineName } from '@workspace/db-react/use-wallet-determine-name'
 import { useWalletGenerateWithAccount } from '@workspace/db-react/use-wallet-generate-with-account'
 import { derivationPaths } from '@workspace/keypair/derivation-paths'
+import { importKeyPairToPublicKeySecretKey } from '@workspace/keypair/import-key-pair-to-public-key-secret-key'
+import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import {
@@ -43,6 +49,44 @@ export function useCreateNewWallet() {
         toastError(`${error}`)
         return false
       })
+  }
+}
+
+export function useCreateNewWalletFromPrivateKey() {
+  const context = useAppContext()
+  const createAccountMutation = useAccountCreate()
+  const createWalletMutation = useWalletCreate()
+  const name = useWalletDetermineName()
+  const { requestUnlock } = useVaultUnlockDialog()
+
+  return async (privateKey: string, input?: CreateNewWalletProtection): Promise<boolean> => {
+    const protection = input ?? { mode: 'password' }
+    try {
+      const { publicKey, secretKey } = await importKeyPairToPublicKeySecretKey(privateKey, true)
+      assertIsAddress(publicKey)
+
+      if (protection.mode === 'password') {
+        const unlocked = await requestUnlock({ mode: 'password', reason: 'createWallet' })
+        if (!unlocked) {
+          return false
+        }
+      }
+
+      const walletId = await createWalletMutation.mutateAsync({
+        input: { derivationPath: '', mnemonic: '', name, protection },
+      })
+      if (protection.mode === 'pin') {
+        await context.vault.unlockWallet({ credential: protection.pin, walletId })
+      }
+      await createAccountMutation.mutateAsync({
+        input: { name: ellipsify(publicKey), publicKey, secretKey, type: 'Imported', walletId },
+      })
+      toastSuccess('Wallet created!')
+      return true
+    } catch (error) {
+      toastError(`${error}`)
+      return false
+    }
   }
 }
 
