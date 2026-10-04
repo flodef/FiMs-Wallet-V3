@@ -21,7 +21,7 @@ export function SettingsUiWithdrawalCompare() {
   const rows: { coinbase: ReactNode; jupiter: ReactNode; label: string }[] = [
     {
       coinbase: t(($) => $.pageGeneralWithdrawalCompareFree),
-      jupiter: '20 €',
+      jupiter: '20 €**',
       label: t(($) => $.pageGeneralWithdrawalComparePhysicalCard),
     },
     { coinbase: YES, jupiter: YES, label: t(($) => $.pageGeneralWithdrawalCompareVirtualCard) },
@@ -60,6 +60,7 @@ export function SettingsUiWithdrawalCompare() {
         </TableBody>
       </Table>
       <p className="text-muted-foreground text-xs">{t(($) => $.pageGeneralWithdrawalCompareCashbackNote)}</p>
+      <p className="text-muted-foreground text-xs">{t(($) => $.pageGeneralWithdrawalCompareCardNote)}</p>
       <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralWithdrawalCompareSummary)}</p>
       <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
         <a className="text-primary underline" href={FIMS_COINBASE_REFERRAL_URL} rel="noreferrer" target="_blank">
