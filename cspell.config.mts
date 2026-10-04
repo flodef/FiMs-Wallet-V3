@@ -42,6 +42,9 @@ const config: CSpellSettings = {
   ],
   useGitignore: true,
   words: [
+    'cdylib',
+    'Jdjwb',
+    'Rpesrt',
     ...getPackageNames(),
     // English
     'arweave',

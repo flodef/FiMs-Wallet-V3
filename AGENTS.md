@@ -121,3 +121,10 @@ it('should throw an error with an invalid key', async () => {
 - A funded throwaway devnet wallet exists for live devnet verification: `GyU9ZpTL3ce8kfS6XSpoiXaiiGb9svJfFEWer33SMmPS`.
 - Its keypair lives locally at `~/.config/fims/devnet-test-wallet.json` (never committed). Top it up via the user or a faucet when drained — do not regenerate a new one.
 - Jupiter APIs are mainnet-only: swaps/quotes cannot be E2E-tested on devnet, only account-level flows (mint/ATA creation, transfers).
+
+## FiMs Ledger Conventions
+
+- The `transactions` table is the single source of truth (spreadsheet is legacy input only).
+- Every `type='donation'` row MUST carry `donation_target`: `'tontine'` means the gifted token physically sits in the tontine wallet; `'association'` (or another organism name) means an external donation.
+- Reconciliation invariant: for each token, `SUM(amount) WHERE donation_target='tontine'` must equal the on-chain balance of the tontine wallet `Fe1RpesrtYMJdjwbNXtpVCDNpnFvk6jSic3sJd2aCBng`. Verified: FSOL 37.395675, FiMs 1218.722, FLiP 1240.42.
+- The API rejects donation creation without `donationTarget` (400).
