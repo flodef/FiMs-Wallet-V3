@@ -17,7 +17,7 @@
     "@workspace/solana-client": "workspace:*",
     "@workspace/solana-client-react": "workspace:*",
     "@workspace/ui": "workspace:*",
-    "bn.js": "5.2.2",
+    "bn.js": "5.2.5",
     "react-router": "catalog:",
     "recharts": "catalog:",
     "zod": "catalog:"
