@@ -33,7 +33,10 @@ export function PortfolioFeatureModalSelectAmount({ address, network }: { addres
         mint={mint}
         send={async (input) =>
           await navigate(`/modals/confirm/${token}/${input.destination}/${input.amount}`, {
-            state: { from: location.pathname },
+            state: {
+              from: location.pathname,
+              payRequest: (location.state as { payRequest?: unknown } | null)?.payRequest,
+            },
           })
         }
       />

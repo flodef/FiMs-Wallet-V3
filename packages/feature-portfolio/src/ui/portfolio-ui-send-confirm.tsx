@@ -9,8 +9,10 @@ import { Button } from '@workspace/ui/components/button'
 import { Field, FieldGroup, FieldSet } from '@workspace/ui/components/field'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { UiPre } from '@workspace/ui/components/ui-pre'
+import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import type { TokenBalance } from '../data-access/use-get-token-balances.ts'
 import type { PortfolioPreparedTransaction } from '../data-access/use-portfolio-tx-prepare.tsx'
+import type { SolanaPayRequestState } from '../data-access/use-solana-pay-request.tsx'
 import { PortfolioUiSendConfirmChanges } from './portfolio-ui-send-confirm-changes.tsx'
 import { PortfolioUiSendConfirmDestination } from './portfolio-ui-send-confirm-destination.tsx'
 import { PortfolioUiSendConfirmTransaction } from './portfolio-ui-send-confirm-transaction.tsx'
@@ -22,6 +24,7 @@ export function PortfolioUiSendConfirm({
   isPreparing,
   isSimulating,
   mint,
+  payRequest,
   preparedTransaction,
   recipients,
   simulation,
@@ -33,6 +36,8 @@ export function PortfolioUiSendConfirm({
   isPreparing: boolean
   isSimulating: boolean
   mint: TokenBalance
+  // Solana Pay request metadata (label/message/memo) shown to the payer.
+  payRequest?: SolanaPayRequestState['payRequest'] | undefined
   preparedTransaction: PortfolioPreparedTransaction | undefined
   recipients: TransferRecipient[]
   simulation: SimulatePreparedTransactionResult | undefined
@@ -62,6 +67,36 @@ export function PortfolioUiSendConfirm({
                 recipient={recipient}
               />
             ))}
+            {payRequest?.label || payRequest?.message || payRequest?.memo || payRequest?.references?.length ? (
+              <div className="space-y-1 rounded-md border p-3 text-sm">
+                {payRequest.label ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{t(($) => $.payLabel)}</span>
+                    <span>{payRequest.label}</span>
+                  </div>
+                ) : null}
+                {payRequest.message ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{t(($) => $.payMessage)}</span>
+                    <span className="text-right">{payRequest.message}</span>
+                  </div>
+                ) : null}
+                {payRequest.memo ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{t(($) => $.payMemo)}</span>
+                    <span className="text-right font-mono">{payRequest.memo}</span>
+                  </div>
+                ) : null}
+                {payRequest.references?.length ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{t(($) => $.payReferences)}</span>
+                    <span className="text-right font-mono text-xs">
+                      {payRequest.references.map((reference) => ellipsify(reference)).join(', ')}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {isSimulating ? (
               <div className="flex items-center gap-2 rounded-md border p-3 text-muted-foreground text-sm">
                 <UiLoader className="size-4" />

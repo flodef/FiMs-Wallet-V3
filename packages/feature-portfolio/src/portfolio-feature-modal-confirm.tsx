@@ -5,11 +5,12 @@ import type { GetTransactionSigner } from '@workspace/solana-client/transaction-
 import { useSimulatePreparedTransaction } from '@workspace/solana-client-react/use-simulate-prepared-transaction'
 import { UiError } from '@workspace/ui/components/ui-error'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
-import { useNavigate, useParams } from 'react-router'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { getAmountForMint } from './data-access/get-amount-for-mint.ts'
 import { usePortfolioTokenMint } from './data-access/use-portfolio-token-mint.tsx'
 import { type PortfolioPreparedTransaction, usePortfolioTxPrepare } from './data-access/use-portfolio-tx-prepare.tsx'
 import { usePortfolioTxSend } from './data-access/use-portfolio-tx-send.tsx'
+import type { SolanaPayRequestState } from './data-access/use-solana-pay-request.tsx'
 import type { SendBlockContext, SendFeeContext, SendOverrideContext, SendSolFee } from './portfolio-modals.tsx'
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
 import { PortfolioUiSendConfirm } from './ui/portfolio-ui-send-confirm.tsx'
@@ -38,6 +39,8 @@ export function PortfolioFeatureModalConfirm({
   const { amount, destination, token } = useParams<{ amount: string; destination: string; token: string }>()
   const mint = usePortfolioTokenMint({ address, network, token })
   const navigate = useNavigate()
+  // Solana Pay request fields carried from the pay/scan entry points.
+  const payRequest = (useLocation().state as SolanaPayRequestState | null)?.payRequest
   const recipients =
     amount && destination && mint
       ? [{ amount: getAmountForMint({ amount, mint }), destination: destination as Address }]
@@ -50,7 +53,16 @@ export function PortfolioFeatureModalConfirm({
   const confirmMutation = usePortfolioTxSend({ network })
   const prepareQuery = usePortfolioTxPrepare({
     getTransactionSigner,
-    input: mint && recipients ? { mint, recipients, solFee } : undefined,
+    input:
+      mint && recipients
+        ? {
+            memo: payRequest?.memo,
+            mint,
+            recipients,
+            references: payRequest?.references,
+            solFee,
+          }
+        : undefined,
     network,
     transactionSignerAddress: address,
   })

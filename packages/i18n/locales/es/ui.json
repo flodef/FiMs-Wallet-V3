@@ -5,6 +5,7 @@
   "errorTitle": "Uy, ocurrió un error",
   "notFoundDescription": "La página que está buscando no existe.",
   "notFoundTitle": "404 - No encontrado",
+  "qrScanReshare": "Elegir otra pantalla",
   "relativeDateToday": "Hoy",
   "relativeDateYesterday": "Ayer",
   "textCopyFailed": "Error al copiar texto"

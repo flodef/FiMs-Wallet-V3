@@ -5,6 +5,7 @@
   "errorTitle": "Oups, une erreur est survenue",
   "notFoundDescription": "La page que vous cherchez n'existe pas.",
   "notFoundTitle": "404 - Page introuvable",
+  "qrScanReshare": "Choisir un autre écran",
   "relativeDateToday": "Aujourd'hui",
   "relativeDateYesterday": "Hier",
   "textCopyFailed": "Échec de la copie du texte"

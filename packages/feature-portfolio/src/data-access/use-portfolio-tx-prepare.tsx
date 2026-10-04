@@ -3,6 +3,7 @@ import { getTransferSolInstruction } from '@solana-program/system'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { Network } from '@workspace/db/network/network'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
+import { createMemoInstruction } from '@workspace/solana-client/create-memo-instruction'
 import { getBalance } from '@workspace/solana-client/get-balance'
 import { prepareTransactionSol } from '@workspace/solana-client/prepare-transaction-sol'
 import { prepareTransactionSpl } from '@workspace/solana-client/prepare-transaction-spl'
@@ -19,8 +20,12 @@ export interface PortfolioPreparedTransaction extends PreparedTransaction {
 }
 
 export interface PortfolioTxPrepareInput {
+  // Solana Pay request fields: appended as a Memo instruction carrying the
+  // memo text with the request's reference keys as read-only accounts.
+  memo?: string | undefined
   mint: TokenBalance
   recipients: TransferRecipient[]
+  references?: Address[] | undefined
   // Optional SOL-denominated fee collected by a third party (e.g. the FiMs
   // operating fee): appended as an extra lamports transfer instruction. Kept
   // out of `recipients` so the confirmation screen only lists user targets.
@@ -48,6 +53,11 @@ function portfolioTxPrepareQueryOptions({
     ? { amount: input.solFee.amount.toString(), destination: input.solFee.destination }
     : undefined
 
+  const payFields =
+    input && (input.memo != null || input.references?.length)
+      ? { memo: input.memo ?? '', references: input.references ?? [] }
+      : undefined
+
   return queryOptions({
     enabled: !!input,
     queryFn: async (): Promise<PortfolioPreparedTransaction> => {
@@ -56,6 +66,10 @@ function portfolioTxPrepareQueryOptions({
       }
 
       const transactionSigner = await getTransactionSigner()
+      const payMemo =
+        input.memo != null || input.references?.length
+          ? createMemoInstruction({ memo: input.memo ?? '', references: input.references ?? [] })
+          : undefined
       const preparedTransaction =
         input.mint.mint === NATIVE_MINT
           ? prepareTransactionSol({
@@ -88,11 +102,20 @@ function portfolioTxPrepareQueryOptions({
 
       return {
         ...preparedTransaction,
+        instructions: payMemo ? [...preparedTransaction.instructions, payMemo] : preparedTransaction.instructions,
         mint: input.mint,
         recipients: input.recipients,
       }
     },
-    queryKey: ['portfolioTxPrepare', network.endpoint, transactionSignerAddress, input?.mint.mint, recipients, solFee],
+    queryKey: [
+      'portfolioTxPrepare',
+      network.endpoint,
+      transactionSignerAddress,
+      input?.mint.mint,
+      recipients,
+      solFee,
+      payFields,
+    ],
   })
 }
 
