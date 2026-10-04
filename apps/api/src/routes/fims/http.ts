@@ -1,7 +1,16 @@
 import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
+import { address as solAddress } from '@solana/kit'
 import { and, asc, desc, eq, getTableColumns, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.js'
+import {
+  custodialAddress,
+  custodialMint,
+  custodialRedeem,
+  productForBackingMint,
+  productForWrappedMint,
+  wrappedProductConfig,
+} from '../../custodial.js'
 import {
   addressBook,
   adminAuditLog,
@@ -11,6 +20,7 @@ import {
   prices,
   tokens,
   transactions,
+  usedSignatures,
   userAddresses,
   userHistoric,
   users,
@@ -30,7 +40,7 @@ import {
   verifyWalletRequest,
 } from '../../services/auth/service.js'
 import { fetchDonationTransaction } from '../../solana-rpc.js'
-import { BadRequest, RateLimited } from './api.js'
+import { BadRequest, CustodialUnavailable, RateLimited } from './api.js'
 
 const notFound = (what: string) => `not found: ${what}`
 const insertFailed = () => new DatabaseError({ cause: 'insert returned no row' })
@@ -997,6 +1007,139 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             return rows
           }),
         )
+        .handle('wrappedConfig', () =>
+          Effect.gen(function* () {
+            const custody = yield* Effect.tryPromise({
+              catch: () => null,
+              try: () => custodialAddress(),
+            }).pipe(Effect.orElseSucceed(() => null))
+            const products = (['fims-eur', 'fims-usd'] as const).flatMap((id) => {
+              const config = wrappedProductConfig(id)
+              return config
+                ? [
+                    {
+                      backingMint: `${config.backingMint}`,
+                      backingSymbol: config.backingSymbol,
+                      id,
+                      mint: `${config.mint}`,
+                    },
+                  ]
+                : []
+            })
+            return { custody, products }
+          }),
+        )
+        .handle('wrappedDeposit', ({ payload }) =>
+          Effect.gen(function* () {
+            return yield* wrappedTransfer(payload.signature, 'deposit')
+          }),
+        )
+        .handle('wrappedRedeem', ({ payload }) =>
+          Effect.gen(function* () {
+            return yield* wrappedTransfer(payload.signature, 'redeem')
+          }),
+        )
     )
   }),
 ).pipe(Layer.provide([DatabaseService.Default]))
+
+// Shared deposit/redeem pipeline: verify the member's on-chain transfer into
+// custody, then let the custodial mint (deposit) or burn+refund (redeem).
+// The ledger row is written in the BACKING symbol — members only see EURC/USDC.
+function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
+  return Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest
+    const signer = yield* verifyWalletRequest(request)
+    yield* requireNotDemo(signer)
+    const memberRows = yield* withDb((db) => db.select().from(users).where(addressLinkedToUser(signer)))
+    const member = memberRows[0]
+    if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+    const existing = yield* withDb((db) => db.select().from(transactions).where(eq(transactions.signature, signature)))
+    if (existing.length) {
+      return { custodialSignature: '', transactions: existing }
+    }
+
+    const custody = yield* Effect.tryPromise({
+      catch: (error) => new CustodialUnavailable({ reason: `custodial wallet unavailable: ${error}` }),
+      try: () => custodialAddress(),
+    })
+    const tx = yield* Effect.tryPromise({
+      catch: () => new BadRequest({ reason: 'cannot fetch transaction from the RPC' }),
+      try: () => fetchDonationTransaction(signature, `${custody}`),
+    })
+    if (!tx) return yield* Effect.fail(new BadRequest({ reason: 'transaction not found, failed, or not confirmed' }))
+    const match = tx.deltas
+      .map((delta) => ({
+        delta,
+        product: direction === 'deposit' ? productForBackingMint(delta.mint) : productForWrappedMint(delta.mint),
+      }))
+      .find((entry) => entry.product != null)
+    const product = match?.product
+    const delta = match?.delta
+    if (!product || !delta)
+      return yield* Effect.fail(
+        new BadRequest({
+          reason:
+            direction === 'deposit'
+              ? 'transaction did not credit custody with EURC or USDG'
+              : 'transaction did not return a wrapped FiMs token to custody',
+        }),
+      )
+    const payerRows = yield* withDb((db) =>
+      db.select({ id: users.id }).from(users).where(addressLinkedToUser(tx.payer)),
+    )
+    if (payerRows[0]?.id !== member.id)
+      return yield* Effect.fail(new BadRequest({ reason: 'transaction sender is not linked to your member account' }))
+
+    const config = wrappedProductConfig(product)
+    if (!config) return yield* Effect.fail(new CustodialUnavailable({ reason: `${product} mint is not configured` }))
+    const units = BigInt(Math.round(delta.amount * 1e6))
+    if (units <= 0n) return yield* Effect.fail(new BadRequest({ reason: 'amount too small' }))
+
+    // Atomic replay claim placed AFTER validation but BEFORE the custodial
+    // mint/burn — two concurrent requests for the same tx signature cannot
+    // mint twice. Failed validation leaves no claim, so a member can retry
+    // while their tx is still confirming.
+    const claimed = yield* withDb((db) =>
+      db
+        .insert(usedSignatures)
+        .values({ signature: `wrapped:${signature}` })
+        .onConflictDoNothing()
+        .returning(),
+    )
+    if (!claimed.length) {
+      const rows = yield* withDb((db) => db.select().from(transactions).where(eq(transactions.signature, signature)))
+      return { custodialSignature: '', transactions: rows }
+    }
+
+    const custodialSignature = yield* Effect.tryPromise({
+      catch: (error) => new CustodialUnavailable({ reason: `custodial ${direction} failed: ${error}` }),
+      try: () =>
+        direction === 'deposit'
+          ? custodialMint(product, solAddress(tx.payer), units)
+          : custodialRedeem(product, solAddress(tx.payer), units),
+    })
+
+    const tokenRows = yield* withDb((db) => db.select().from(tokens))
+    const price = tokenRows.find((t) => t.symbol === config.backingSymbol)?.value ?? 0
+    const movement = price * delta.amount
+    const rows = yield* withDb((db) =>
+      db
+        .insert(transactions)
+        .values({
+          address: tx.payer,
+          amount: direction === 'deposit' ? delta.amount : -delta.amount,
+          cost: movement,
+          date: tx.blockTime ?? new Date(),
+          movement: direction === 'deposit' ? movement : -movement,
+          signature,
+          token: config.backingSymbol,
+          type: direction === 'deposit' ? ('deposit' as const) : ('withdrawal' as const),
+          userId: member.id,
+        })
+        .returning(),
+    )
+    if (!rows.length) return yield* Effect.fail(insertFailed())
+    return { custodialSignature, transactions: rows }
+  })
+}

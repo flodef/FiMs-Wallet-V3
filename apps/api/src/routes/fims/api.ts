@@ -127,6 +127,9 @@ export class BadRequest extends Schema.TaggedError<BadRequest>()('BadRequest', {
 export class RateLimited extends Schema.TaggedError<RateLimited>()('RateLimited', {
   reason: Schema.String,
 }) {}
+export class CustodialUnavailable extends Schema.TaggedError<CustodialUnavailable>()('CustodialUnavailable', {
+  reason: Schema.String,
+}) {}
 
 const CreateUserBody = Schema.Struct({
   address: SolanaAddress,
@@ -253,6 +256,29 @@ const CastBallotBody = Schema.Struct({
   optionId: Schema.Number,
 })
 
+const WrappedTxBody = Schema.Struct({
+  signature: Schema.String.pipe(Schema.minLength(32), Schema.maxLength(128)),
+})
+
+export class WrappedProduct extends Schema.Class<WrappedProduct>('WrappedProduct')({
+  backingMint: Schema.String,
+  backingSymbol: Schema.String,
+  id: Schema.String,
+  mint: Schema.String,
+}) {}
+
+export class WrappedConfig extends Schema.Class<WrappedConfig>('WrappedConfig')({
+  // Where deposits/redeems must be sent on-chain.
+  custody: Schema.NullOr(Schema.String),
+  products: Schema.Array(WrappedProduct),
+}) {}
+
+export class WrappedResult extends Schema.Class<WrappedResult>('WrappedResult')({
+  // Signature of the custodial mint/burn transaction.
+  custodialSignature: Schema.String,
+  transactions: Schema.Array(Transaction),
+}) {}
+
 export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.get('votes', '/fims/votes')
@@ -314,6 +340,37 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addError(AuthForbidden, { status: 403 })
       .addError(BadRequest, { status: 400 })
       .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.get('wrappedConfig', '/fims/wrapped')
+      .annotate(OpenApi.Summary, 'Custodial wrapped products (FiMs Euro / FiMs USD)')
+      .addSuccess(WrappedConfig)
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('wrappedDeposit', '/fims/wrapped/deposit')
+      .annotate(OpenApi.Summary, 'Verify a backing deposit and mint the wrapped FiMs token')
+      .setPayload(WrappedTxBody)
+      .addSuccess(WrappedResult)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(BadRequest, { status: 400 })
+      .addError(CustodialUnavailable, { status: 503 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('wrappedRedeem', '/fims/wrapped/redeem')
+      .annotate(OpenApi.Summary, 'Verify a wrapped-token return, burn it and send back the backing')
+      .setPayload(WrappedTxBody)
+      .addSuccess(WrappedResult)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(BadRequest, { status: 400 })
+      .addError(CustodialUnavailable, { status: 503 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )
