@@ -47,9 +47,16 @@ export function ShellUiLayout() {
         </>
       ) : null}
       <ShellUiCommandMenu />
-      <FimsFeatureRentReclaim />
-      <FimsFeatureGasTopup />
-      <FimsFeatureSolExcess />
+      {/* Proactive FiMs prompts only make sense on mainnet: the quotes and
+          conversions go through Jupiter, and an auto-open dialog on
+          devnet/localnet breaks scripted flows (e2e) and nags testers. */}
+      {activeNetwork.type === 'solana:mainnet' ? (
+        <>
+          <FimsFeatureRentReclaim />
+          <FimsFeatureGasTopup />
+          <FimsFeatureSolExcess />
+        </>
+      ) : null}
       <header
         className={cn('flex items-center justify-between bg-secondary/30', {
           [`border-b-2 ${border}`]: !!activeNetwork.color,

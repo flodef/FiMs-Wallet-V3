@@ -5,6 +5,9 @@ const isCi = Boolean(process.env['CI'])
 export default defineConfig({
   forbidOnly: isCi,
   fullyParallel: true,
+  // Bound the whole run in CI: a wedged worker/browser otherwise burns the
+  // full job timeout with no output. A healthy run finishes in ~4 minutes.
+  globalTimeout: isCi ? 20 * 60_000 : 0,
   projects: [
     {
       name: 'chromium',
@@ -27,7 +30,9 @@ export default defineConfig({
       use: { ...devices['iPhone 12'] },
     },
   ],
-  reporter: 'html',
+  // 'html' stays for the uploaded report; 'list' keeps the CI log readable so
+  // a hang shows which test was running instead of staying silent.
+  reporter: isCi ? [['list'], ['html']] : 'html',
   retries: isCi ? 2 : 0,
   testDir: './e2e',
   use: {
