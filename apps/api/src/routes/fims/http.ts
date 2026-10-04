@@ -6,6 +6,7 @@ import {
   addressBook,
   adminAuditLog,
   dashboardMetrics,
+  fimsSettings,
   historic,
   prices,
   tokens,
@@ -160,9 +161,27 @@ const loadVoteWeights = Effect.gen(function* () {
   return { invested, tontine }
 })
 
+// Admin-tunable config. The proposal threshold is the share of total invested
+// assets a member must strictly exceed to submit a tontine proposal.
+const PROPOSAL_THRESHOLD_KEY = 'proposal_threshold'
+const DEFAULT_PROPOSAL_THRESHOLD = 0.01
+
+const loadFimsConfig = Effect.gen(function* () {
+  const [settingsRows, weights] = yield* Effect.all([
+    withDb((db) => db.select().from(fimsSettings).where(eq(fimsSettings.key, PROPOSAL_THRESHOLD_KEY))),
+    loadVoteWeights,
+  ])
+  const parsed = Number.parseFloat(settingsRows[0]?.value ?? '')
+  const proposalThreshold = Number.isFinite(parsed) && parsed > 0 && parsed <= 1 ? parsed : DEFAULT_PROPOSAL_THRESHOLD
+  return {
+    proposalThreshold,
+    totalInvested: [...weights.invested.values()].reduce((sum, value) => sum + value, 0),
+  }
+})
+
 const loadVotesWithResults = (signer: Option.Option<string>) =>
   Effect.gen(function* () {
-    const [voteRows, optionRows, ballotRows, weights, signerUser] = yield* Effect.all([
+    const [voteRows, optionRows, ballotRows, weights, signerUser, userRows] = yield* Effect.all([
       withDb((db) => db.select().from(votes).orderBy(desc(votes.createdAt))),
       withDb((db) => db.select().from(voteOptions).orderBy(asc(voteOptions.sortOrder), asc(voteOptions.id))),
       withDb((db) => db.select().from(voteBallots)),
@@ -174,7 +193,9 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
             Effect.map((rows) => rows[0] ?? null),
           ),
       }),
+      withDb((db) => db.select({ id: users.id, name: users.name }).from(users)),
     ])
+    const userNames = new Map(userRows.map((u) => [u.id, u.name]))
     const signerUserId = signerUser?.id ?? null
     return voteRows.map((vote) => {
       const weightMap = vote.kind === 'tontine' ? weights.tontine : weights.invested
@@ -198,6 +219,7 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
         myOptionId: ballots.find((b) => b.userId === signerUserId)?.optionId ?? null,
         myWeight: signerUserId === null ? null : weightOf(signerUserId),
         options,
+        proposerName: vote.proposerId === null ? null : (userNames.get(vote.proposerId) ?? null),
         totalWeight: options.reduce((sum, o) => sum + o.weight, 0),
       }
     })
@@ -787,20 +809,40 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            yield* requireAdmin(signer)
+            // Members submit tontine proposals; they land as drafts an admin
+            // must open. Eligibility: the proposer's latest invested amount
+            // must strictly exceed proposal_threshold × total invested.
+            let proposerId: number | null = null
+            if (!isAdminAddress(signer)) {
+              yield* requireNotDemo(signer)
+              if (payload.kind !== 'tontine')
+                return yield* Effect.fail(new BadRequest({ reason: 'member proposals must target the tontine' }))
+              const memberRows = yield* withDb((db) =>
+                db.select({ id: users.id }).from(users).where(addressLinkedToUser(signer)),
+              )
+              const member = memberRows[0]
+              if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+              const [config, weights] = yield* Effect.all([loadFimsConfig, loadVoteWeights])
+              const invested = weights.invested.get(member.id) ?? 0
+              if (!(invested > config.proposalThreshold * config.totalInvested))
+                return yield* Effect.fail(new AuthForbidden({ address: signer }))
+              proposerId = member.id
+            }
             const created = yield* withDb((db) =>
               db
                 .insert(votes)
                 .values({
                   closesAt: payload.closesAt ?? null,
                   description: payload.description ?? null,
-                  kind: payload.kind,
+                  kind: isAdminAddress(signer) ? payload.kind : 'tontine',
+                  proposerId,
                   title: payload.title,
                 })
                 .returning(),
             )
             const vote = created[0]
             if (!vote) return yield* Effect.fail(insertFailed())
+            if (proposerId === null) yield* auditAdmin(signer, 'create_vote', String(vote.id), payload)
             yield* auditAdmin(signer, 'create_vote', String(vote.id), payload)
             yield* withDb((db) =>
               db
@@ -864,6 +906,29 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const found = list.find((v) => v.id === path.id)
             if (!found) return yield* Effect.fail(notFound(`vote ${path.id}`))
             return found
+          }),
+        )
+        .handle('config', () =>
+          Effect.gen(function* () {
+            return yield* loadFimsConfig
+          }),
+        )
+        .handle('updateConfig', ({ payload }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* verifyWalletRequest(request)
+            yield* requireAdmin(signer)
+            yield* withDb((db) =>
+              db
+                .insert(fimsSettings)
+                .values({ key: PROPOSAL_THRESHOLD_KEY, value: String(payload.proposalThreshold) })
+                .onConflictDoUpdate({
+                  set: { updatedAt: new Date(), value: String(payload.proposalThreshold) },
+                  target: fimsSettings.key,
+                }),
+            )
+            yield* auditAdmin(signer, 'update_config', PROPOSAL_THRESHOLD_KEY, payload)
+            return yield* loadFimsConfig
           }),
         )
         .handle('recordDonation', ({ payload }) =>

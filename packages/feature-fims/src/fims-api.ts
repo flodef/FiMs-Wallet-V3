@@ -123,9 +123,21 @@ export interface FimsVote {
   // Caller's voting weight for this vote kind (null when unsigned).
   myWeight: null | number
   options: FimsVoteOption[]
+  // Member who submitted the proposal (null for admin-created votes).
+  proposerId: null | number
+  proposerName: null | string
   status: FimsVoteStatus
   title: string
   totalWeight: number
+}
+
+export interface FimsConfig {
+  // Share of total invested assets a member must exceed to submit a tontine
+  // proposal (0.01 = more than 1%). Admin-tunable via PATCH /fims/config.
+  proposalThreshold: number
+  // Sum of every member's latest invested amount — eligibility is
+  // memberInvested > proposalThreshold × totalInvested.
+  totalInvested: number
 }
 
 export class FimsApiError extends Error {

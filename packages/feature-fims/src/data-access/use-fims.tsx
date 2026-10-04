@@ -8,6 +8,7 @@ import { useRef } from 'react'
 import type {
   FimsAddressBookEntry,
   FimsAddressBookType,
+  FimsConfig,
   FimsDashboardMetric,
   FimsHistoricPoint,
   FimsPricePoint,
@@ -251,6 +252,25 @@ export function useFimsVoteUpdate(account: Account, voteId: number) {
   return useMutation({
     mutationFn: (input: { status: FimsVoteStatus }) => signedFetch<FimsVote>('PATCH', `/votes/${voteId}`, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'votes'] }),
+  })
+}
+
+// Public runtime config — the proposal threshold (admin-tunable) and the
+// total invested amount the eligibility check divides by.
+export function useFimsConfig() {
+  const apiEndpoint = useFimsEndpoint()
+  return useQuery({
+    queryFn: () => fimsGet<FimsConfig>(apiEndpoint, '/config'),
+    queryKey: ['fims', 'config'],
+  })
+}
+
+export function useFimsUpdateConfig(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { proposalThreshold: number }) => signedFetch<FimsConfig>('PATCH', '/config', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'config'] }),
   })
 }
 

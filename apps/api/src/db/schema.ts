@@ -168,12 +168,24 @@ export const addressBook = pgTable('address_book', {
     .references(() => users.id, { onDelete: 'cascade' }),
 })
 
+// Key-value config the admin can tune without a deploy. Only key today:
+// 'proposal_threshold' — share of total invested assets a member must exceed
+// to submit a tontine proposal (default '0.01' = 1%).
+export const fimsSettings = pgTable('fims_settings', {
+  key: text('key').primaryKey(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  value: text('value').notNull(),
+})
+
 export const votes = pgTable('votes', {
   closesAt: timestamp('closes_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
   description: text('description'),
   id: serial('id').primaryKey(),
   kind: voteKind('kind').notNull().default('investment'),
+  // Member who proposed the vote — null for admin-created votes. Proposals
+  // land as drafts until an admin opens them.
+  proposerId: integer('proposer_id').references(() => users.id, { onDelete: 'set null' }),
   status: voteStatus('status').notNull().default('draft'),
   title: text('title').notNull(),
 })

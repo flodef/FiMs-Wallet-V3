@@ -214,10 +214,24 @@ export class Vote extends Schema.Class<Vote>('Vote')({
   // The signer's own voting weight for this vote kind. Null when unsigned.
   myWeight: Schema.NullOr(Schema.Number),
   options: Schema.Array(VoteOption),
+  // Member who submitted the proposal (null for admin-created votes).
+  proposerId: Schema.NullOr(Schema.Number),
+  proposerName: Schema.NullOr(Schema.String),
   status: VoteStatus,
   title: Schema.String,
   totalWeight: Schema.Number,
 }) {}
+
+// Admin-tunable config surfaced to clients. `totalInvested` lets the client
+// compute proposal eligibility locally (invested > threshold × total).
+export class FimsConfig extends Schema.Class<FimsConfig>('FimsConfig')({
+  proposalThreshold: Schema.Number,
+  totalInvested: Schema.Number,
+}) {}
+
+const UpdateConfigBody = Schema.Struct({
+  proposalThreshold: Schema.Number.pipe(Schema.greaterThan(0), Schema.lessThanOrEqualTo(1)),
+})
 
 const RecordDonationBody = Schema.Struct({
   signature: Schema.String.pipe(Schema.minLength(32), Schema.maxLength(128)),
@@ -251,11 +265,12 @@ export class FimsApi extends HttpApiGroup.make('Fims')
   )
   .add(
     HttpApiEndpoint.post('createVote', '/fims/votes')
-      .annotate(OpenApi.Summary, 'Create vote (admin)')
+      .annotate(OpenApi.Summary, 'Create vote (admin) or submit tontine proposal (member)')
       .setPayload(CreateVoteBody)
       .addSuccess(Vote)
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })
+      .addError(BadRequest, { status: 400 })
       .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -269,6 +284,24 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.get('config', '/fims/config')
+      .annotate(OpenApi.Summary, 'FiMs runtime config (proposal threshold, total invested)')
+      .addSuccess(FimsConfig)
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.patch('updateConfig', '/fims/config')
+      .annotate(OpenApi.Summary, 'Update FiMs config (admin)')
+      .setPayload(UpdateConfigBody)
+      .addSuccess(FimsConfig)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(BadRequest, { status: 400 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )

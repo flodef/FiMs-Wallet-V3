@@ -70,6 +70,13 @@
       "tag": "0009_user_addresses",
       "version": "7",
       "when": 1791122945130
+    },
+    {
+      "breakpoints": true,
+      "idx": 10,
+      "tag": "0010_member_proposals",
+      "version": "7",
+      "when": 1791138103640
     }
   ],
   "version": "7"

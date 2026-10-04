@@ -12,7 +12,16 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { useState } from 'react'
-import { useFimsCastBallot, useFimsVoteCreate, useFimsVotes, useFimsVoteUpdate } from './data-access/use-fims.tsx'
+import {
+  useFimsCastBallot,
+  useFimsConfig,
+  useFimsMember,
+  useFimsUpdateConfig,
+  useFimsUserHistoric,
+  useFimsVoteCreate,
+  useFimsVotes,
+  useFimsVoteUpdate,
+} from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import type { FimsVote, FimsVoteKind } from './fims-api.ts'
 import { formatDateTime } from './fims-format.ts'
@@ -20,10 +29,22 @@ import { formatDateTime } from './fims-format.ts'
 export function FimsFeatureVotes({ account }: { account: Account }) {
   const { t } = useTranslation('fims')
   const votes = useFimsVotes(account)
+  const config = useFimsConfig()
+  const { member } = useFimsMember(account.publicKey, account)
+  const historic = useFimsUserHistoric(member?.id, account)
   const isAdmin = envAdminAddresses().includes(account.publicKey)
   const canSign = account.type !== 'Watched'
 
-  const visible = (votes.data ?? []).filter((vote) => vote.status !== 'draft' || isAdmin)
+  const latest = (historic.data ?? []).at(-1)
+  const myInvested = latest?.invested ?? 0
+  // Eligibility mirrors the API: invested must strictly exceed
+  // threshold × total invested assets.
+  const canPropose =
+    !!member && canSign && !!config.data && myInvested > config.data.proposalThreshold * config.data.totalInvested
+
+  const visible = (votes.data ?? []).filter(
+    (vote) => vote.status !== 'draft' || isAdmin || vote.proposerId === member?.id,
+  )
   const open = visible.filter((vote) => vote.status === 'open')
   const rest = visible.filter((vote) => vote.status !== 'open')
 
@@ -41,6 +62,8 @@ export function FimsFeatureVotes({ account }: { account: Account }) {
         ))
       )}
       {isAdmin ? <FimsVoteCreateCard account={account} /> : null}
+      {isAdmin ? <FimsConfigCard account={account} /> : null}
+      {!isAdmin && canPropose ? <FimsVoteCreateCard account={account} proposal /> : null}
     </div>
   )
 }
@@ -90,6 +113,9 @@ function FimsVoteCard({
       title={vote.title}
     >
       <div className="space-y-3">
+        {vote.proposerName ? (
+          <p className="text-muted-foreground text-xs">{t(($) => $.votesProposedBy, { name: vote.proposerName })}</p>
+        ) : null}
         {vote.description ? <p className="text-muted-foreground text-sm">{vote.description}</p> : null}
         {vote.closesAt ? (
           <p className="text-muted-foreground text-xs">
@@ -166,12 +192,14 @@ function FimsVoteCard({
   )
 }
 
-function FimsVoteCreateCard({ account }: { account: Account }) {
+// proposal=true: member path — kind locked to tontine, no close date, and
+// the server drops the vote as a draft for an admin to review.
+function FimsVoteCreateCard({ account, proposal = false }: { account: Account; proposal?: boolean }) {
   const { t } = useTranslation('fims')
   const create = useFimsVoteCreate(account)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [kind, setKind] = useState<FimsVoteKind>('investment')
+  const [kind, setKind] = useState<FimsVoteKind>(proposal ? 'tontine' : 'investment')
   const [optionsText, setOptionsText] = useState('')
   const [closesAt, setClosesAt] = useState('')
 
@@ -187,7 +215,7 @@ function FimsVoteCreateCard({ account }: { account: Account }) {
       await create.mutateAsync({
         closesAt: closesAt || undefined,
         description: description.trim() || undefined,
-        kind,
+        kind: proposal ? 'tontine' : kind,
         options,
         title: title.trim(),
       })
@@ -195,15 +223,16 @@ function FimsVoteCreateCard({ account }: { account: Account }) {
       setDescription('')
       setOptionsText('')
       setClosesAt('')
-      toastSuccess(t(($) => $.votesCreated))
+      toastSuccess(t(($) => (proposal ? $.votesProposeCreated : $.votesCreated)))
     } catch (error) {
       toastError(error instanceof Error ? error.message : String(error))
     }
   }
 
   return (
-    <UiCard title={t(($) => $.votesCreateTitle)}>
+    <UiCard title={t(($) => (proposal ? $.votesProposeTitle : $.votesCreateTitle))}>
       <div className="space-y-4">
+        {proposal ? <p className="text-muted-foreground text-xs">{t(($) => $.votesProposeHint)}</p> : null}
         <div className="space-y-2">
           <Label>{t(($) => $.votesFieldTitle)}</Label>
           <Input onChange={(e) => setTitle(e.target.value)} value={title} />
@@ -212,24 +241,26 @@ function FimsVoteCreateCard({ account }: { account: Account }) {
           <Label>{t(($) => $.votesFieldDescription)}</Label>
           <Textarea onChange={(e) => setDescription(e.target.value)} value={description} />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>{t(($) => $.votesFieldKind)}</Label>
-            <Select onValueChange={(v) => setKind(v as FimsVoteKind)} value={kind}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="investment">{t(($) => $.votesKindInvestment)}</SelectItem>
-                <SelectItem value="tontine">{t(($) => $.votesKindTontine)}</SelectItem>
-              </SelectContent>
-            </Select>
+        {proposal ? null : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>{t(($) => $.votesFieldKind)}</Label>
+              <Select onValueChange={(v) => setKind(v as FimsVoteKind)} value={kind}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="investment">{t(($) => $.votesKindInvestment)}</SelectItem>
+                  <SelectItem value="tontine">{t(($) => $.votesKindTontine)}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t(($) => $.votesClosesAt)}</Label>
+              <Input onChange={(e) => setClosesAt(e.target.value)} type="date" value={closesAt} />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>{t(($) => $.votesClosesAt)}</Label>
-            <Input onChange={(e) => setClosesAt(e.target.value)} type="date" value={closesAt} />
-          </div>
-        </div>
+        )}
         <div className="space-y-2">
           <Label>{t(($) => $.votesFieldOptions)}</Label>
           <Textarea
@@ -242,9 +273,49 @@ function FimsVoteCreateCard({ account }: { account: Account }) {
         <div className="flex justify-end">
           <Button disabled={!canSubmit} onClick={handleCreate}>
             {create.isPending ? <UiLoader className="size-4" /> : null}
-            {t(($) => $.votesCreate)}
+            {t(($) => (proposal ? $.votesPropose : $.votesCreate))}
           </Button>
         </div>
+      </div>
+    </UiCard>
+  )
+}
+
+// Admin tuning of the member-proposal eligibility threshold — the share of
+// total invested assets a member must exceed to submit a tontine idea.
+function FimsConfigCard({ account }: { account: Account }) {
+  const { t } = useTranslation('fims')
+  const config = useFimsConfig()
+  const update = useFimsUpdateConfig(account)
+  const [threshold, setThreshold] = useState('')
+
+  const current = config.data?.proposalThreshold
+  const parsed = Number.parseFloat(threshold)
+  const canSubmit = Number.isFinite(parsed) && parsed > 0 && parsed <= 100 && !update.isPending
+
+  const handleSave = async () => {
+    try {
+      await update.mutateAsync({ proposalThreshold: parsed / 100 })
+      setThreshold('')
+      toastSuccess(t(($) => $.votesThresholdSaved))
+    } catch (error) {
+      toastError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  return (
+    <UiCard title={t(($) => $.votesConfigTitle)}>
+      <div className="flex items-end gap-3">
+        <div className="flex-1 space-y-2">
+          <Label>
+            {t(($) => $.votesThresholdLabel, { value: current != null ? (current * 100).toFixed(2) : '—' })}
+          </Label>
+          <Input inputMode="decimal" onChange={(e) => setThreshold(e.target.value)} placeholder="1" value={threshold} />
+        </div>
+        <Button disabled={!canSubmit} onClick={handleSave} variant="outline">
+          {update.isPending ? <UiLoader className="size-4" /> : null}
+          {t(($) => $.votesThresholdSave)}
+        </Button>
       </div>
     </UiCard>
   )
