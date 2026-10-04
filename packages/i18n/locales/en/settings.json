@@ -103,6 +103,7 @@
   "pageGeneralWithdrawalCompareFree": "Free",
   "pageGeneralWithdrawalCompareHard": "Hard to trace",
   "pageGeneralWithdrawalComparePhysicalCard": "Physical card",
+  "pageGeneralWithdrawalCompareSummary": "Each has its use: Coinbase is the practical one for bank transfers (cashing out euros), Jupiter Spend suits everyday payments outside the euro zone.",
   "pageGeneralWithdrawalCompareVirtualCard": "Virtual card",
   "pageGeneralWithdrawalExchangeAddress": "Exchange deposit address",
   "pageGeneralWithdrawalExchangeHint": "Accepts: {{accepted}}. Other tokens are auto-converted when sending.",

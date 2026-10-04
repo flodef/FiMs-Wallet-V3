@@ -103,6 +103,7 @@
   "pageGeneralWithdrawalCompareFree": "Gratuite",
   "pageGeneralWithdrawalCompareHard": "Difficile à tracer",
   "pageGeneralWithdrawalComparePhysicalCard": "Carte physique",
+  "pageGeneralWithdrawalCompareSummary": "Chacun a son utilité : Coinbase est le plus pratique pour les virements bancaires (sortir des euros), Jupiter Spend convient aux paiements du quotidien hors zone euro.",
   "pageGeneralWithdrawalCompareVirtualCard": "Carte virtuelle",
   "pageGeneralWithdrawalExchangeAddress": "Adresse de dépôt de l'exchange",
   "pageGeneralWithdrawalExchangeHint": "Accepte : {{accepted}}. Les autres tokens sont convertis automatiquement à l’envoi.",
