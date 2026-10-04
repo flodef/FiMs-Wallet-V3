@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@solana/web3.js": "1.99.0"
+  },
+  "name": "@workspace/solana-programs",
+  "private": true,
+  "version": "0.0.0"
+}
