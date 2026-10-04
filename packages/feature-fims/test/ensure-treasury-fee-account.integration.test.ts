@@ -4,7 +4,7 @@ import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from '@solana-program/t
 import { createSolanaClient } from '@workspace/solana-client/create-solana-client'
 import { getAccountInfo } from '@workspace/solana-client/get-account-info'
 import { getLatestBlockhash } from '@workspace/solana-client/get-latest-blockhash'
-import { getTokenAccountInfo } from '@workspace/solana-client/get-token-account-info'
+import { getTokenAccountInfo, isParsedTokenAccountData } from '@workspace/solana-client/get-token-account-info'
 import { requestAirdrop } from '@workspace/solana-client/request-airdrop'
 import { solToLamports } from '@workspace/solana-client/sol-to-lamports'
 import { splTokenCreateTokenMint } from '@workspace/solana-client/spl-token-create-token-mint'
@@ -46,11 +46,11 @@ describe('ensure-treasury-fee-account', () => {
       expect(first).toBe(expectedAta)
       expect(second).toBe(first)
       expect(accountInfo.value).not.toBeNull()
-      expect((tokenAccount.data as { parsed: { info: { mint: string; owner: string } } }).parsed.info.mint).toBe(
-        mint.address,
-      )
-      expect((tokenAccount.data as { parsed: { info: { mint: string; owner: string } } }).parsed.info.owner).toBe(
-        FIMS_TREASURY_ADDRESS,
+      // fetchJsonParsedAccount already unwraps the RPC `parsed.info` envelope:
+      // mint/owner sit directly on `data`.
+      expect(isParsedTokenAccountData(tokenAccount.data) && tokenAccount.data.mint === mint.address).toBe(true)
+      expect(isParsedTokenAccountData(tokenAccount.data) && tokenAccount.data.owner === FIMS_TREASURY_ADDRESS).toBe(
+        true,
       )
     })
   })
