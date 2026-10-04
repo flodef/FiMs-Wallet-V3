@@ -30,13 +30,28 @@ export interface SendOverrideContext {
   mint: TokenBalance
 }
 
+export interface SendFeeContext {
+  amount: string
+  destination: Address
+  mint: TokenBalance
+}
+
+// Optional SOL-denominated fee appended to the send transaction (e.g. the FiMs
+// operating fee): an extra lamports transfer injected at prepare time.
+export interface SendSolFee {
+  destination: Address
+  lamports: bigint
+}
+
 export default function PortfolioModals({
   extraDestinationGroups,
   getSendBlock,
+  getSendFee,
   renderSendOverride,
 }: {
   extraDestinationGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
   getSendBlock?: ((send: SendBlockContext) => null | string) | undefined
+  getSendFee?: ((send: SendFeeContext) => SendSolFee | null | undefined) | undefined
   // When a send needs special handling (e.g. auto-conversion for a restricted
   // destination), return the replacement confirmation view; null = normal send.
   renderSendOverride?: ((send: SendOverrideContext) => React.ReactNode) | undefined
@@ -58,6 +73,7 @@ export default function PortfolioModals({
         <PortfolioFeatureModalConfirm
           address={account.publicKey}
           getSendBlock={getSendBlock}
+          getSendFee={getSendFee}
           getTransactionSigner={getTransactionSigner}
           network={network}
           renderSendOverride={renderSendOverride}

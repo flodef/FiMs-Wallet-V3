@@ -10,13 +10,14 @@ import { getAmountForMint } from './data-access/get-amount-for-mint.ts'
 import { usePortfolioTokenMint } from './data-access/use-portfolio-token-mint.tsx'
 import { type PortfolioPreparedTransaction, usePortfolioTxPrepare } from './data-access/use-portfolio-tx-prepare.tsx'
 import { usePortfolioTxSend } from './data-access/use-portfolio-tx-send.tsx'
-import type { SendBlockContext, SendOverrideContext } from './portfolio-modals.tsx'
+import type { SendBlockContext, SendFeeContext, SendOverrideContext, SendSolFee } from './portfolio-modals.tsx'
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
 import { PortfolioUiSendConfirm } from './ui/portfolio-ui-send-confirm.tsx'
 
 export function PortfolioFeatureModalConfirm({
   address,
   getSendBlock,
+  getSendFee,
   getTransactionSigner,
   network,
   renderSendOverride,
@@ -25,6 +26,8 @@ export function PortfolioFeatureModalConfirm({
   // Returns a user-facing message when this send must be blocked
   // (e.g. FiMs debt guard, configured send cap), or null/undefined to allow it.
   getSendBlock?: ((send: SendBlockContext) => null | string) | undefined
+  // Optional SOL-denominated service fee appended to the send transaction.
+  getSendFee?: ((send: SendFeeContext) => SendSolFee | null | undefined) | undefined
   getTransactionSigner: GetTransactionSigner
   network: Network
   // Replacement confirmation view for sends needing special handling
@@ -39,10 +42,15 @@ export function PortfolioFeatureModalConfirm({
     amount && destination && mint
       ? [{ amount: getAmountForMint({ amount, mint }), destination: destination as Address }]
       : undefined
+  const sendFee =
+    amount && destination && mint && getSendFee
+      ? getSendFee({ amount, destination: destination as Address, mint })
+      : undefined
+  const solFee = sendFee ? { amount: sendFee.lamports, destination: sendFee.destination } : undefined
   const confirmMutation = usePortfolioTxSend({ network })
   const prepareQuery = usePortfolioTxPrepare({
     getTransactionSigner,
-    input: mint && recipients ? { mint, recipients } : undefined,
+    input: mint && recipients ? { mint, recipients, solFee } : undefined,
     network,
     transactionSignerAddress: address,
   })
@@ -110,6 +118,7 @@ export function PortfolioFeatureModalConfirm({
         recipients={recipients ?? []}
         simulation={simulation}
         simulationError={simulationQuery.error}
+        solFeeLamports={sendFee?.lamports}
       />
     </PortfolioUiModal>
   )

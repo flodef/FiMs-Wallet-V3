@@ -26,6 +26,7 @@ export function PortfolioUiSendConfirm({
   recipients,
   simulation,
   simulationError,
+  solFeeLamports,
 }: {
   confirm: (input: PortfolioPreparedTransaction) => Promise<SendSimulatedPreparedTransactionResult | undefined>
   isLoading: boolean
@@ -36,6 +37,8 @@ export function PortfolioUiSendConfirm({
   recipients: TransferRecipient[]
   simulation: SimulatePreparedTransactionResult | undefined
   simulationError: Error | null
+  // Optional third-party operating fee collected in SOL alongside the send.
+  solFeeLamports?: bigint | undefined
 }) {
   const { t } = useTranslation('portfolio')
   const canConfirm =
@@ -82,6 +85,12 @@ export function PortfolioUiSendConfirm({
             {!isSimulating && !simulationError && simulation?.status === 'success' ? (
               <>
                 <PortfolioUiSendConfirmChanges mint={mint} simulation={simulation} />
+                {solFeeLamports != null && solFeeLamports > 0n ? (
+                  <div className="flex items-center justify-between rounded-md border p-3 text-sm">
+                    <span className="text-muted-foreground">{t(($) => $.sendConfirmOperatingFee)}</span>
+                    <span className="font-mono">{lamportsToSol(solFeeLamports)} SOL</span>
+                  </div>
+                ) : null}
                 {simulation.fee != null ? (
                   <div className="flex items-center justify-between rounded-md border p-3 text-sm">
                     <span className="text-muted-foreground">{t(($) => $.sendConfirmNetworkFee)}</span>

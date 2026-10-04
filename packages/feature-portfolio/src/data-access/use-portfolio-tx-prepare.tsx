@@ -1,4 +1,5 @@
 import type { Address } from '@solana/kit'
+import { getTransferSolInstruction } from '@solana-program/system'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { Network } from '@workspace/db/network/network'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
@@ -20,6 +21,10 @@ export interface PortfolioPreparedTransaction extends PreparedTransaction {
 export interface PortfolioTxPrepareInput {
   mint: TokenBalance
   recipients: TransferRecipient[]
+  // Optional SOL-denominated fee collected by a third party (e.g. the FiMs
+  // operating fee): appended as an extra lamports transfer instruction. Kept
+  // out of `recipients` so the confirmation screen only lists user targets.
+  solFee?: TransferRecipient | undefined
 }
 
 function portfolioTxPrepareQueryOptions({
@@ -39,6 +44,9 @@ function portfolioTxPrepareQueryOptions({
     amount: amount.toString(),
     destination,
   }))
+  const solFee = input?.solFee
+    ? { amount: input.solFee.amount.toString(), destination: input.solFee.destination }
+    : undefined
 
   return queryOptions({
     enabled: !!input,
@@ -51,7 +59,10 @@ function portfolioTxPrepareQueryOptions({
       const preparedTransaction =
         input.mint.mint === NATIVE_MINT
           ? prepareTransactionSol({
-              recipients: input.recipients,
+              // The fee rides the SOL recipients list so the sendable-amount
+              // validation accounts for it; the UI still shows only the real
+              // recipients via the `recipients` field below.
+              recipients: input.solFee ? [...input.recipients, input.solFee] : input.recipients,
               senderBalance: await getBalance(client, { address: transactionSigner.address }).then((res) => res.value),
               transactionSigner,
             })
@@ -59,7 +70,21 @@ function portfolioTxPrepareQueryOptions({
               mint: input.mint.mint,
               recipients: input.recipients,
               transactionSigner,
-            })
+            }).then((prepared) =>
+              input.solFee
+                ? {
+                    ...prepared,
+                    instructions: [
+                      ...prepared.instructions,
+                      getTransferSolInstruction({
+                        amount: input.solFee.amount,
+                        destination: input.solFee.destination,
+                        source: transactionSigner,
+                      }),
+                    ],
+                  }
+                : prepared,
+            )
 
       return {
         ...preparedTransaction,
@@ -67,7 +92,7 @@ function portfolioTxPrepareQueryOptions({
         recipients: input.recipients,
       }
     },
-    queryKey: ['portfolioTxPrepare', network.endpoint, transactionSignerAddress, input?.mint.mint, recipients],
+    queryKey: ['portfolioTxPrepare', network.endpoint, transactionSignerAddress, input?.mint.mint, recipients, solFee],
   })
 }
 

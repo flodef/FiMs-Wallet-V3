@@ -3,19 +3,25 @@ import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useSetting } from '@workspace/db-react/use-setting'
 import PortfolioModals, {
   type SendBlockContext,
+  type SendFeeContext,
   type SendOverrideContext,
+  type SendSolFee,
 } from '@workspace/feature-portfolio/portfolio-modals'
 import type { DestinationAccount } from '@workspace/feature-portfolio/ui/portfolio-ui-send-destination'
 import { useTranslation } from '@workspace/i18n'
+import { NATIVE_MINT } from '@workspace/solana-client/constants'
+import { useGetTokenMetadataJupiter } from '@workspace/solana-client-react/use-get-token-metadata-jupiter'
 import type { UiGroupedComboboxInputGroup } from '@workspace/ui/components/ui-grouped-combobox-input'
 import { useMemo } from 'react'
 import { useFimsAddressBook, useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useWithdrawalTargets } from './data-access/use-withdrawal-targets.tsx'
-import { FIMS_DEMO_ADDRESS, FIMS_TREASURY_ADDRESS } from './fims-constants.ts'
+import { FIMS_DEMO_ADDRESS, FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS } from './fims-constants.ts'
 import { FimsFeatureSendConvert } from './fims-feature-send-convert.tsx'
-import { getFimsTontineRate } from './fims-fee-config.ts'
+import { getFimsFeeRate, getFimsTontineRate } from './fims-fee-config.ts'
+
+const SOL_LAMPORTS = 1_000_000_000
 
 // Wraps the portfolio send/receive modals and injects the member's FiMs address
 // book as an extra destination group.
@@ -30,6 +36,7 @@ export default function FimsModals() {
   const [sendCapSetting] = useSetting('sendCapEur')
   const tokens = useFimsTokens()
   const withdrawalTargets = useWithdrawalTargets()
+  const solUsdPrice = useGetTokenMetadataJupiter([NATIVE_MINT]).data?.find((m) => m.id === NATIVE_MINT)?.usdPrice
 
   const groups = useMemo<UiGroupedComboboxInputGroup<DestinationAccount>[]>(() => {
     const result: UiGroupedComboboxInputGroup<DestinationAccount>[] = entries.data?.length
@@ -102,6 +109,28 @@ export default function FimsModals() {
     }
   }, [debt, debtLoading, isDemo, member, sendCapSetting, tokens.data, t, format])
 
+  // Operating fee on plain sends: getFimsFeeRate() of the sent value, charged
+  // in SOL to the treasury. Mainnet only — devnet/localnet sends stay free.
+  // Sends to the treasury or the tontine are exempt: a debt settlement or a
+  // donation is not a paid operation. Unpriced tokens carry no fee.
+  const getSendFee = useMemo(() => {
+    if (network.type !== 'solana:mainnet' || !solUsdPrice || solUsdPrice <= 0) {
+      return undefined
+    }
+    return (send: SendFeeContext): SendSolFee | null => {
+      if (send.destination === FIMS_TREASURY_ADDRESS || send.destination === FIMS_TONTINE_ADDRESS) {
+        return null
+      }
+      const usdPrice = send.mint.mint === NATIVE_MINT ? solUsdPrice : send.mint.metadata?.usdPrice
+      const amount = Number.parseFloat(send.amount)
+      if (!usdPrice || usdPrice <= 0 || !Number.isFinite(amount) || amount <= 0) {
+        return null
+      }
+      const lamports = BigInt(Math.ceil((amount * usdPrice * getFimsFeeRate() * SOL_LAMPORTS) / solUsdPrice))
+      return lamports > 0n ? { destination: FIMS_TREASURY_ADDRESS as SendSolFee['destination'], lamports } : null
+    }
+  }, [network.type, solUsdPrice])
+
   // Sends to a configured off-ramp (exchange / Jupiter Spend) whose outgoing
   // token is not accepted get routed to the auto-conversion confirm screen:
   // a single Jupiter swap delivers an accepted asset straight to the
@@ -127,6 +156,7 @@ export default function FimsModals() {
     <PortfolioModals
       extraDestinationGroups={groups}
       getSendBlock={getSendBlock}
+      getSendFee={getSendFee}
       renderSendOverride={renderSendOverride}
     />
   )

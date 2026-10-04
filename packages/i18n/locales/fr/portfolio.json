@@ -48,6 +48,7 @@
   "sendConfirmInstructionProgram": "Programme",
   "sendConfirmInstructionUnknownAccount": "Inconnu",
   "sendConfirmNetworkFee": "Frais réseau",
+  "sendConfirmOperatingFee": "Frais de fonctionnement FiMs",
   "sendConfirmPreparingTransaction": "Préparation de la transaction...",
   "sendConfirmSimulatingTransaction": "Simulation de la transaction...",
   "sendConfirmSimulationFailed": "Échec de la simulation",

@@ -12,10 +12,10 @@ export const FIMS_TONTINE_MIN_RATE = 0.1
 // Sanity ceiling for the operating fee — a rate above 20% would be a mistake.
 export const FIMS_FEE_MAX_RATE = 0.2
 
-// Current values. The operating fee (0.1%) is the standing choice but NOT a
+// Current values. The operating fee (0.2%) is the standing choice but NOT a
 // final decision — it must stay easy to revise.
 const config = {
-  fimsFeeRate: 0.001,
+  fimsFeeRate: 0.002,
   tontineRate: FIMS_TONTINE_MIN_RATE,
 }
 

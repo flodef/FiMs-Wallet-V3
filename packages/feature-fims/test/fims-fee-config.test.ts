@@ -11,17 +11,17 @@ import {
 // The config is module-level mutable state — every test restores the
 // production defaults so ordering never leaks between cases.
 beforeEach(() => {
-  setFimsFeeRate(0.001)
+  setFimsFeeRate(0.002)
   setFimsTontineRate(FIMS_TONTINE_MIN_RATE)
 })
 
 describe('fims fee config defaults', () => {
   describe('expected behavior', () => {
-    it('should default the operating fee to 0.1% (10 bps)', () => {
+    it('should default the operating fee to 0.2% (20 bps)', () => {
       // ARRANGE & ACT & ASSERT
       expect.assertions(2)
-      expect(getFimsFeeRate()).toBe(0.001)
-      expect(getFimsPlatformFeeBps()).toBe(10)
+      expect(getFimsFeeRate()).toBe(0.002)
+      expect(getFimsPlatformFeeBps()).toBe(20)
     })
 
     it('should default the tontine rate to the 10% minimum', () => {
@@ -125,7 +125,7 @@ describe('setFimsFeeRate', () => {
       expect(() => setFimsFeeRate(-0.001)).toThrow(RangeError)
       expect(() => setFimsFeeRate(Number.POSITIVE_INFINITY)).toThrow(RangeError)
       expect(() => setFimsFeeRate(0.5)).toThrow(RangeError)
-      expect(getFimsFeeRate()).toBe(0.001)
+      expect(getFimsFeeRate()).toBe(0.002)
     })
   })
 })

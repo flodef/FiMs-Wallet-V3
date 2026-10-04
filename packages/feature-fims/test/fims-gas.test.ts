@@ -120,10 +120,10 @@ describe('isInsufficientGasError', () => {
 })
 
 describe('getFimsPlatformFeeBps', () => {
-  it('should default to 10 basis points (0.1%)', () => {
+  it('should default to 20 basis points (0.2%)', () => {
     // ARRANGE & ACT & ASSERT
     expect.assertions(1)
-    expect(getFimsPlatformFeeBps()).toBe(10)
+    expect(getFimsPlatformFeeBps()).toBe(20)
   })
 })
 

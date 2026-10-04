@@ -201,7 +201,7 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
 // V2 rule: |movement - cost| ~= 0 marks a donation (in) or a payment (out),
 // anything else is a deposit/withdrawal. Applied at write time so stored rows
 // always carry a type — SQL filters on `type` would silently drop NULLs.
-// The operating fee (getFimsFeeRate, currently 0.1%) is deducted from the
+// The operating fee (getFimsFeeRate, currently 0.2%) is deducted from the
 // credited side — the residual stays in the treasury, credited to no one.
 
 // Prices feed ledger writes: a price older than the feed cadence is a free
