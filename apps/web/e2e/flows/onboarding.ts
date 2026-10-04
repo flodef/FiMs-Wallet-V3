@@ -28,7 +28,7 @@ export async function importExistingWalletUnsecured(page: Page) {
 
   await page.getByText('Advanced protection').click()
   await page.getByRole('radio', { name: 'Unsecured' }).click()
-  await page.getByLabel('I understand this wallet is not protected by a password or PIN.').click()
+  await page.getByLabel(/confirm this wallet will not be protected/).fill('UNSECURED')
   await page.getByRole('button', { name: 'Import wallet' }).click()
   await expect(page.getByRole('heading', { name: 'Create app password' })).toBeHidden()
   await expect(page.getByTestId('wallet-menu-trigger')).toContainText(testWalletMenuLabel)
