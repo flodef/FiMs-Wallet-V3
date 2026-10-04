@@ -97,6 +97,7 @@ export default interface Resources {
     columnAvgPrice: 'Avg. price'
     columnCost: 'Cost'
     columnDate: 'Date'
+    columnMember: 'Member'
     columnPerf: '30-day perf.'
     columnPnl: 'P&L'
     columnRealRate: 'Real rate'

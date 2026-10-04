@@ -49,6 +49,13 @@
       "tag": "0006_is_public_default_private",
       "version": "7",
       "when": 1791057033501
+    },
+    {
+      "breakpoints": true,
+      "idx": 7,
+      "tag": "0007_donation_target_backfill",
+      "version": "7",
+      "when": 1791072278216
     }
   ],
   "version": "7"

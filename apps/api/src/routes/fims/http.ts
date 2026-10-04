@@ -108,8 +108,10 @@ const ownerAddressOfTransaction = (id: number) =>
   )
 
 // Vote weight: a tontine ballot weighs the member's total tontine
-// contributions; an investment ballot weighs the member's latest invested
-// amount (same weighting rule as the legacy spreadsheet).
+// contributions (donations flagged donation_target='tontine' — a ~1% tip
+// attached to a member's own operation targets the fund, not the pot);
+// an investment ballot weighs the member's latest invested amount (same
+// weighting rule as the legacy spreadsheet).
 const loadVoteWeights = Effect.gen(function* () {
   const investedRows = (yield* withDb((db) =>
     db.execute(
@@ -118,7 +120,7 @@ const loadVoteWeights = Effect.gen(function* () {
   )).rows as { invested: number; user_id: number }[]
   const tontineRows = (yield* withDb((db) =>
     db.execute(
-      sql`SELECT user_id, SUM(movement)::float AS weight FROM transactions WHERE type = 'tontine' AND movement > 0 GROUP BY user_id`,
+      sql`SELECT user_id, SUM(movement)::float AS weight FROM transactions WHERE donation_target = 'tontine' AND movement > 0 GROUP BY user_id`,
     ),
   )).rows as { user_id: number; weight: number }[]
   const invested = new Map(investedRows.map((r) => [r.user_id, Number(r.invested)]))
@@ -379,13 +381,16 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                   ),
                 ),
             )
+            const type = payload.type ?? deriveTransactionType(payload.movement, payload.cost ?? 0, cexRows.length > 0)
+            // A donation without a target is ambiguous bookkeeping: 'tontine'
+            // feeds the shared pot, anything else is a tip to another
+            // organism (fund, …). Reject rather than guess.
+            if (type === 'donation' && !payload.donationTarget)
+              return yield* Effect.fail(new BadRequest({ reason: 'donationTarget is required for a donation' }))
             const rows = yield* withDb((db) =>
               db
                 .insert(transactions)
-                .values({
-                  ...payload,
-                  type: payload.type ?? deriveTransactionType(payload.movement, payload.cost ?? 0, cexRows.length > 0),
-                })
+                .values({ ...payload, type })
                 .returning(),
             )
             const created = rows[0]

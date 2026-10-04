@@ -9,15 +9,18 @@ import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 import { FimsUiHistoricChart } from './fims-ui-historic-chart.tsx'
 
 // The tontine is stored as a regular member named "tontine": its user history
-// gives the chart and its transactions give the movement list.
+// gives the chart. Contributions are donations flagged donationTarget
+// 'tontine' on the donor's own transaction list.
 export function FimsFeatureTontine() {
   const { t } = useTranslation('fims')
   const { format } = useFimsCurrency()
   const users = useFimsUsers()
   const tontineId = (users.data ?? []).find((u) => u.name.toLowerCase() === 'tontine')?.id
   const historic = useFimsUserHistoric(tontineId)
-  const transactions = useFimsTransactions(tontineId != null ? { userId: tontineId } : undefined)
+  const transactions = useFimsTransactions()
   const latest = historic.data?.at(-1)
+  const nameById = new Map((users.data ?? []).map((u) => [u.id, u.name]))
+  const contributions = (transactions.data ?? []).filter((tx) => tx.donationTarget === 'tontine')
 
   return (
     <div className="space-y-4">
@@ -50,6 +53,7 @@ export function FimsFeatureTontine() {
               <TableHeader className="sticky top-0 bg-background">
                 <TableRow>
                   <TableHead>{t(($) => $.columnDate)}</TableHead>
+                  <TableHead>{t(($) => $.columnMember)}</TableHead>
                   <TableHead>{t(($) => $.columnToken)}</TableHead>
                   <TableHead>{t(($) => $.columnType)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnAmount)}</TableHead>
@@ -57,13 +61,13 @@ export function FimsFeatureTontine() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(transactions.data ?? []).map((tx) => (
+                {contributions.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell>{formatDate(tx.date)}</TableCell>
+                    <TableCell>{tx.userId != null ? (nameById.get(tx.userId) ?? '—') : '—'}</TableCell>
                     <TableCell>{tx.token ?? '—'}</TableCell>
                     <TableCell>
                       <FimsTxTypeLabel transaction={tx} />
-                      {tx.donationTarget ? ` → ${tx.donationTarget}` : ''}
                     </TableCell>
                     <TableCell className="text-right">{tx.amount ?? '—'}</TableCell>
                     <TableCell className="text-right">{format(tx.cost)}</TableCell>
