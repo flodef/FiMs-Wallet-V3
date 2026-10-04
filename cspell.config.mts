@@ -141,6 +141,7 @@ const config: CSpellSettings = {
     'flodef',
     'flojito',
     'stillnets',
+    'reshare',
     'viewpager',
     'vitaly',
     'wordlist',

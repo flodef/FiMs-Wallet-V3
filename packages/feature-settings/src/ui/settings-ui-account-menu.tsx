@@ -13,6 +13,7 @@ import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { Fragment, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { SettingsUiBottomSheetExportAccountSecretKey } from './settings-ui-bottom-sheet-export-account-secret-key.tsx'
+import { SettingsUiBottomSheetMigrateAccount } from './settings-ui-bottom-sheet-migrate-account.tsx'
 
 export interface SettingsUiAccountMenuProps {
   account: Account
@@ -39,6 +40,7 @@ export function SettingsUiAccountMenu({
   const { pathname: from } = useLocation()
   const [openDelete, setOpenDelete] = useState(false)
   const [openExport, setOpenExport] = useState(false)
+  const [openMigrate, setOpenMigrate] = useState(false)
   return (
     <Fragment>
       <DropdownMenu>
@@ -74,6 +76,9 @@ export function SettingsUiAccountMenu({
           >
             {t(($) => $.actionRequestAirdrop)}
           </DropdownMenuItem>
+          <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenMigrate(true)}>
+            {t(($) => $.migrateTitle)}
+          </DropdownMenuItem>
           <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenExport(true)}>
             {t(($) => $.exportSecretKey)}
           </DropdownMenuItem>
@@ -83,6 +88,7 @@ export function SettingsUiAccountMenu({
         </DropdownMenuContent>
       </DropdownMenu>
       <SettingsUiBottomSheetExportAccountSecretKey account={account} open={openExport} setOpen={setOpenExport} />
+      <SettingsUiBottomSheetMigrateAccount account={account} open={openMigrate} setOpen={setOpenMigrate} />
       <UiConfirm
         action={() => deleteItem(account)}
         actionLabel={t(($) => $.actionDelete)}
