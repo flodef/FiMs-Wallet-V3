@@ -1,6 +1,10 @@
 // FiMs treasury wallet — public, safe to embed in the bundle.
 export const FIMS_TREASURY_ADDRESS = '58kZBjjtHShTtXFmygr3ZT8VSU4dH28PanRAdouHbToh'
 
+// Tontine wallet — where free donations land. Sends to it are exempt from the
+// operating fee: a donation is not a paid operation.
+export const FIMS_TONTINE_ADDRESS = 'Fe1RpesrtYMJdjwbNXtpVCDNpnFvk6jSic3sJd2aCBng'
+
 // Public portfolio/audit view of the treasury on Jupiter.
 export const FIMS_AUDIT_URL = `https://jup.ag/portfolio/${FIMS_TREASURY_ADDRESS}`
 
@@ -51,6 +55,12 @@ export const FIMS_WITHDRAWAL_PROVIDERS = {
 export type FimsExchangeProvider = keyof typeof FIMS_WITHDRAWAL_PROVIDERS
 
 export const FIMS_JUPITER_SPEND_SYMBOLS = ['USDC', 'USDT'] as const
+
+// FiMs referral for Jupiter Spend signup: the go.link sometimes fails to
+// prefill the "Got a referral code?" box, so the code is always shown next
+// to the link for manual entry.
+export const FIMS_JUPITER_SPEND_REFERRAL_URL = 'https://jupiter.go.link/fAUD1'
+export const FIMS_JUPITER_SPEND_REFERRAL_CODE = '2MJD7MJF'
 
 // Decimals for the pinned mints above, used to display swap output amounts.
 export const FIMS_MINT_DECIMALS: Readonly<Record<string, number>> = {

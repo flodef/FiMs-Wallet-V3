@@ -1,6 +1,8 @@
 import { solanaAddressSchema } from '@workspace/db/solana/solana-address-schema'
 import { useSetting } from '@workspace/db-react/use-setting'
 import {
+  FIMS_JUPITER_SPEND_REFERRAL_CODE,
+  FIMS_JUPITER_SPEND_REFERRAL_URL,
   FIMS_JUPITER_SPEND_SYMBOLS,
   FIMS_WITHDRAWAL_PROVIDERS,
   type FimsExchangeProvider,
@@ -9,6 +11,7 @@ import { useTranslation } from '@workspace/i18n'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
+import { UiTextCopyButton } from '@workspace/ui/components/ui-text-copy-button'
 import { useEffect, useId, useRef, useState } from 'react'
 
 // Off-ramp addresses the user withdraws to regularly. Saved destinations are
@@ -73,6 +76,18 @@ export function SettingsFeatureGeneralWithdrawal() {
             {t(($) => $.pageGeneralWithdrawalSpendHint, { accepted: FIMS_JUPITER_SPEND_SYMBOLS.join(', ') })}
           </p>
         )}
+        <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
+          <a className="text-primary underline" href={FIMS_JUPITER_SPEND_REFERRAL_URL} rel="noreferrer" target="_blank">
+            {t(($) => $.pageGeneralWithdrawalSpendSignup)}
+          </a>
+          <span>{t(($) => $.pageGeneralWithdrawalSpendReferralHint)}</span>
+          <UiTextCopyButton
+            label={FIMS_JUPITER_SPEND_REFERRAL_CODE}
+            size="sm"
+            text={FIMS_JUPITER_SPEND_REFERRAL_CODE}
+            toast={t(($) => $.pageGeneralWithdrawalSpendReferralCopied)}
+          />
+        </div>
       </div>
     </div>
   )
