@@ -15,7 +15,7 @@ export async function getTransactionBase64(
   const tx = await client.rpc
     .getTransaction(signature, {
       encoding: 'base64',
-      maxSupportedTransactionVersion: 0,
+      maxSupportedTransactionVersion: 1,
     })
     .send()
 

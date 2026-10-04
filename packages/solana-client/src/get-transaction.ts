@@ -10,7 +10,7 @@ export async function getTransaction(client: SolanaClient, { signature }: GetTra
   return client.rpc
     .getTransaction(signature, {
       encoding: 'jsonParsed',
-      maxSupportedTransactionVersion: 0,
+      maxSupportedTransactionVersion: 1,
     })
     .send()
 }

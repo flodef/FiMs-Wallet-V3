@@ -51,7 +51,7 @@ export async function fetchDonationTransaction(signature: string, tontine: strin
       id: 1,
       jsonrpc: '2.0',
       method: 'getTransaction',
-      params: [signature, { commitment: 'confirmed', encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }],
+      params: [signature, { commitment: 'confirmed', encoding: 'jsonParsed', maxSupportedTransactionVersion: 1 }],
     }),
     headers: { 'content-type': 'application/json' },
     method: 'POST',
