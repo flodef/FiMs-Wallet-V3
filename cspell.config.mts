@@ -42,9 +42,16 @@ const config: CSpellSettings = {
   ],
   useGitignore: true,
   words: [
+    'borsh',
     'cdylib',
+    'codegen',
     'Jdjwb',
+    'Kamino',
+    'pubkeys',
     'Rpesrt',
+    'vecs',
+    'HSTS',
+    'zeroization',
     ...getPackageNames(),
     // English
     'arweave',

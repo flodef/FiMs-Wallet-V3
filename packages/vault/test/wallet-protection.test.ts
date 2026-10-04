@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { decryptWithVaultKey, encryptWithVaultKey } from '../src/encrypted-value.ts'
-import { VAULT_PIN_MAX_LENGTH } from '../src/encrypted-value-schema.ts'
+import {
+  decryptWithVaultKey,
+  encryptWithCredential,
+  encryptWithVaultKey,
+  generateVaultKeyMaterial,
+} from '../src/encrypted-value.ts'
+import { VAULT_PIN_MAX_LENGTH, VAULT_PIN_MIN_LENGTH } from '../src/encrypted-value-schema.ts'
 import { createVault, type VaultStorage } from '../src/vault.ts'
 import {
   createPasswordWalletProtection,
@@ -60,11 +65,11 @@ describe('wallet-protection', () => {
       // ARRANGE
       expect.assertions(4)
       const vault = createVault(storage)
-      const protection = await createPinWalletProtection({ pin: '1234' })
+      const protection = await createPinWalletProtection({ pin: '123456' })
       const walletId = createWallet(protection)
 
       // ACT
-      await vault.unlockWallet({ credential: '1234', walletId })
+      await vault.unlockWallet({ credential: '123456', walletId })
       const key = await vault.requireWalletKey({ walletId })
       const encrypted = await encryptWithVaultKey({ key, value: 'secret value' })
       const result = await decryptWithVaultKey({ encrypted, key })
@@ -72,7 +77,7 @@ describe('wallet-protection', () => {
       // ASSERT
       expect(isWalletProtection(protection)).toBe(true)
       expect(JSON.parse(protection).mode).toBe('pin')
-      expect(protection).not.toContain('1234')
+      expect(protection).not.toContain('123456')
       expect(result).toBe('secret value')
     })
 
@@ -114,9 +119,9 @@ describe('wallet-protection', () => {
       // ARRANGE
       expect.assertions(2)
       const vault = createVault(storage)
-      const protection = await createPinWalletProtection({ pin: '1234' })
+      const protection = await createPinWalletProtection({ pin: '123456' })
       const walletId = createWallet(protection)
-      await vault.unlockWallet({ credential: '1234', walletId })
+      await vault.unlockWallet({ credential: '123456', walletId })
 
       // ACT
       const result = await vault.requireWalletKey({ walletId })
@@ -131,12 +136,12 @@ describe('wallet-protection', () => {
       // ARRANGE
       expect.assertions(5)
       const vault = createVault(storage)
-      const protection1 = await createPinWalletProtection({ pin: '1234' })
-      const protection2 = await createPinWalletProtection({ pin: '5678' })
+      const protection1 = await createPinWalletProtection({ pin: '123456' })
+      const protection2 = await createPinWalletProtection({ pin: '567890' })
       const walletId1 = createWallet(protection1)
       const walletId2 = createWallet(protection2)
-      await vault.unlockWallet({ credential: '1234', walletId: walletId1 })
-      await vault.unlockWallet({ credential: '5678', walletId: walletId2 })
+      await vault.unlockWallet({ credential: '123456', walletId: walletId1 })
+      await vault.unlockWallet({ credential: '567890', walletId: walletId2 })
 
       // ACT
       const result1 = await vault.requireWalletKey({ walletId: walletId1 })
@@ -148,8 +153,34 @@ describe('wallet-protection', () => {
       expect(result2).toBeDefined()
       await expect(vault.requireWalletKey({ walletId: walletId1 })).rejects.toThrow('Wallet is locked')
       await expect(vault.requireWalletKey({ walletId: walletId2 })).resolves.toBe(result2)
-      await expect(vault.unlockWallet({ credential: '1234', walletId: walletId1 })).resolves.toBeUndefined()
+      await expect(vault.unlockWallet({ credential: '123456', walletId: walletId1 })).resolves.toBeUndefined()
     })
+  })
+
+  it('should unlock PIN protection created under the legacy 4-digit policy', async () => {
+    // ARRANGE
+    expect.assertions(1)
+    const vault = createVault(storage)
+    const protection = JSON.stringify({
+      keyEnvelope: JSON.parse(
+        await encryptWithCredential({
+          credential: '1234',
+          label: 'PIN',
+          maxLength: VAULT_PIN_MAX_LENGTH,
+          minLength: VAULT_PIN_MIN_LENGTH,
+          value: generateVaultKeyMaterial(),
+        }),
+      ),
+      mode: 'pin',
+      version: 1,
+    })
+    const walletId = createWallet(protection)
+
+    // ACT
+    await vault.unlockWallet({ credential: '1234', walletId })
+
+    // ASSERT
+    await expect(vault.requireWalletKey({ walletId })).resolves.toBeDefined()
   })
 
   describe('unexpected behavior', () => {
@@ -166,7 +197,7 @@ describe('wallet-protection', () => {
       expect.assertions(1)
 
       // ACT & ASSERT
-      await expect(createPinWalletProtection({ pin: '123' })).rejects.toThrow('PIN must be at least 4 digits')
+      await expect(createPinWalletProtection({ pin: '123' })).rejects.toThrow('PIN must be at least 6 digits')
     })
 
     it('should reject a long PIN', async () => {
@@ -184,11 +215,11 @@ describe('wallet-protection', () => {
       // ARRANGE
       expect.assertions(1)
       const vault = createVault(storage)
-      const protection = await createPinWalletProtection({ pin: '1234' })
+      const protection = await createPinWalletProtection({ pin: '123456' })
       const walletId = createWallet(protection)
 
       // ACT & ASSERT
-      await expect(vault.unlockWallet({ credential: '9999', walletId })).rejects.toMatchObject({
+      await expect(vault.unlockWallet({ credential: '999999', walletId })).rejects.toMatchObject({
         cause: expect.objectContaining({ message: 'Unable to unlock wallet protection' }),
         message: 'Unable to unlock wallet',
       })
@@ -199,9 +230,9 @@ describe('wallet-protection', () => {
       expect.assertions(3)
       const vault = createVault(storage)
       await vault.create({ password: 'password-one' })
-      const protection = await createPinWalletProtection({ pin: '1234' })
+      const protection = await createPinWalletProtection({ pin: '123456' })
       const walletId = createWallet(protection)
-      await vault.unlockWallet({ credential: '1234', walletId })
+      await vault.unlockWallet({ credential: '123456', walletId })
 
       // ACT
       const result = await vault.requireWalletKey({ walletId })
@@ -228,7 +259,7 @@ describe('wallet-protection', () => {
       expect.assertions(1)
 
       // ACT & ASSERT
-      await expect(unlockPinWalletProtection({ pin: '1234', protection: 'not-json' })).rejects.toMatchObject({
+      await expect(unlockPinWalletProtection({ pin: '123456', protection: 'not-json' })).rejects.toMatchObject({
         cause: expect.any(SyntaxError),
         message: 'Unable to unlock wallet protection',
       })

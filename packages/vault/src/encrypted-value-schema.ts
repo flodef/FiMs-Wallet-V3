@@ -2,9 +2,18 @@ import { z } from 'zod'
 
 export const PASSWORD_KDF_MIN_ITERATIONS = 600_000
 export const VAULT_PASSWORD_MAX_LENGTH = 128
+// Minimum accepted when unlocking an existing vault or decrypting old data.
+// Credentials created earlier under the 8-char policy must keep working.
 export const VAULT_PASSWORD_MIN_LENGTH = 8
+// Minimum enforced on NEW credentials (vault create / password change / PIN
+// reprotect). Stronger than the legacy floor on purpose.
+export const VAULT_PASSWORD_CREATE_MIN_LENGTH = 12
 export const VAULT_PIN_MAX_LENGTH = 8
 export const VAULT_PIN_MIN_LENGTH = 4
+export const VAULT_PIN_CREATE_MIN_LENGTH = 6
+// Phrase the user must type to pick the unsecured protection mode: a typed
+// confirmation is far harder to enable by accident than a checkbox.
+export const VAULT_UNSECURED_CONFIRM_PHRASE = 'UNSECURED'
 
 export const walletProtectionModeSchema = z.enum(['password', 'pin', 'unsecured'])
 

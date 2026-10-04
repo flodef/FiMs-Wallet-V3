@@ -13,7 +13,6 @@ import { solToLamports } from '@workspace/solana-client/sol-to-lamports'
 import { useRequestAirdrop } from '@workspace/solana-client-react/use-request-airdrop'
 import { Alert, AlertDescription } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
-import { Checkbox } from '@workspace/ui/components/checkbox'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/components/toggle-group'
@@ -22,7 +21,11 @@ import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { UiNotFound } from '@workspace/ui/components/ui-not-found'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
-import { VAULT_PIN_MAX_LENGTH, VAULT_PIN_MIN_LENGTH } from '@workspace/vault/encrypted-value-schema'
+import {
+  VAULT_PIN_CREATE_MIN_LENGTH,
+  VAULT_PIN_MAX_LENGTH,
+  VAULT_UNSECURED_CONFIRM_PHRASE,
+} from '@workspace/vault/encrypted-value-schema'
 import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
 import type { SyntheticEvent } from 'react'
 import { useId, useState } from 'react'
@@ -37,7 +40,7 @@ type ProtectionDraft = {
   pinConfirm: string
   selectedMode: Wallet['protectionMode']
   sourceMode: Wallet['protectionMode']
-  unsecuredConfirmed: boolean
+  unsecuredConfirmText: string
   walletId: string
 }
 
@@ -86,7 +89,7 @@ export function SettingsFeatureWalletDetails() {
   const validationMessages: WalletProtectionValidationMessages = {
     pinLength: t(($) => $.walletProtectionPinLengthError, {
       max: VAULT_PIN_MAX_LENGTH,
-      min: VAULT_PIN_MIN_LENGTH,
+      min: VAULT_PIN_CREATE_MIN_LENGTH,
     }),
     pinMismatch: t(($) => $.walletProtectionPinMismatchError),
     unsecuredConfirm: t(($) => $.walletProtectionUnsecuredConfirmError),
@@ -98,7 +101,7 @@ export function SettingsFeatureWalletDetails() {
     protectionDraft.sourceMode === currentProtectionMode && protectionDraft.walletId === resolvedWalletId
       ? protectionDraft
       : createProtectionDraft(resolvedWalletId, currentProtectionMode)
-  const { pin, pinConfirm, selectedMode: selectedProtectionMode, unsecuredConfirmed } = draft
+  const { pin, pinConfirm, selectedMode: selectedProtectionMode, unsecuredConfirmText } = draft
   const reprotectMutation = useWalletReprotect({
     onError: (caught) => toastError(caught.message),
     onSuccess: () => toastSuccess(t(($) => $.actionSave)),
@@ -121,7 +124,7 @@ export function SettingsFeatureWalletDetails() {
       pin: '',
       pinConfirm: '',
       selectedMode: parseWalletProtectionModeValue(value),
-      unsecuredConfirmed: false,
+      unsecuredConfirmText: '',
     })
   }
 
@@ -137,7 +140,7 @@ export function SettingsFeatureWalletDetails() {
         pin,
         pinConfirm,
         protectionMode: selectedProtectionMode,
-        unsecuredConfirmed,
+        unsecuredConfirmText,
         validationMessages,
       })
     } catch (caught) {
@@ -250,7 +253,7 @@ export function SettingsFeatureWalletDetails() {
                     id={pinId}
                     inputMode="numeric"
                     maxLength={VAULT_PIN_MAX_LENGTH}
-                    minLength={VAULT_PIN_MIN_LENGTH}
+                    minLength={VAULT_PIN_CREATE_MIN_LENGTH}
                     onChange={(event) => setProtectionDraft({ ...draft, pin: event.target.value })}
                     pattern="[0-9]*"
                     type="password"
@@ -264,7 +267,7 @@ export function SettingsFeatureWalletDetails() {
                     id={pinConfirmId}
                     inputMode="numeric"
                     maxLength={VAULT_PIN_MAX_LENGTH}
-                    minLength={VAULT_PIN_MIN_LENGTH}
+                    minLength={VAULT_PIN_CREATE_MIN_LENGTH}
                     onChange={(event) => setProtectionDraft({ ...draft, pinConfirm: event.target.value })}
                     pattern="[0-9]*"
                     type="password"
@@ -279,13 +282,16 @@ export function SettingsFeatureWalletDetails() {
               <Alert variant="warning">
                 <AlertDescription>{t(($) => $.walletProtectionUnsecuredWarning)}</AlertDescription>
               </Alert>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={unsecuredConfirmed}
+              <div className="space-y-2">
+                <Label htmlFor={unsecuredConfirmId}>
+                  {t(($) => $.walletProtectionUnsecuredConfirm, { phrase: VAULT_UNSECURED_CONFIRM_PHRASE })}
+                </Label>
+                <Input
+                  autoComplete="off"
                   id={unsecuredConfirmId}
-                  onCheckedChange={(checked) => setProtectionDraft({ ...draft, unsecuredConfirmed: checked === true })}
+                  onChange={(event) => setProtectionDraft({ ...draft, unsecuredConfirmText: event.target.value })}
+                  value={unsecuredConfirmText}
                 />
-                <Label htmlFor={unsecuredConfirmId}>{t(($) => $.walletProtectionUnsecuredConfirm)}</Label>
               </div>
             </div>
           ) : null}
@@ -316,7 +322,7 @@ function createProtectionDraft(walletId: string, mode: Wallet['protectionMode'])
     pinConfirm: '',
     selectedMode: mode,
     sourceMode: mode,
-    unsecuredConfirmed: false,
+    unsecuredConfirmText: '',
     walletId,
   }
 }
@@ -329,14 +335,14 @@ function getWalletProtectionInput(input: {
   pin: string
   pinConfirm: string
   protectionMode: Wallet['protectionMode']
-  unsecuredConfirmed: boolean
+  unsecuredConfirmText: string
   validationMessages: WalletProtectionValidationMessages
 }): WalletProtectionInput {
   switch (input.protectionMode) {
     case 'password':
       return { mode: 'password' }
     case 'pin':
-      if (!new RegExp(`^\\d{${VAULT_PIN_MIN_LENGTH},${VAULT_PIN_MAX_LENGTH}}$`).test(input.pin)) {
+      if (!new RegExp(`^\\d{${VAULT_PIN_CREATE_MIN_LENGTH},${VAULT_PIN_MAX_LENGTH}}$`).test(input.pin)) {
         throw new Error(input.validationMessages.pinLength)
       }
       if (input.pin !== input.pinConfirm) {
@@ -344,7 +350,7 @@ function getWalletProtectionInput(input: {
       }
       return { mode: 'pin', pin: input.pin }
     case 'unsecured':
-      if (!input.unsecuredConfirmed) {
+      if (input.unsecuredConfirmText !== VAULT_UNSECURED_CONFIRM_PHRASE) {
         throw new Error(input.validationMessages.unsecuredConfirm)
       }
       return { mode: 'unsecured' }

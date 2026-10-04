@@ -105,7 +105,7 @@ describe('submit-vault-password', () => {
           confirmPassword: 'short',
           password: 'short',
         }),
-      ).rejects.toThrow('Password must be at least 8 characters')
+      ).rejects.toThrow('Password must be at least 12 characters')
     })
 
     it('should reject long setup passwords', async () => {

@@ -44,10 +44,10 @@ describe('wallet-read-mnemonic', () => {
     it('should read a PIN wallet after unlocking the wallet', async () => {
       // ARRANGE
       expect.assertions(1)
-      const input = testWalletCreateInput({ mnemonic: 'test mnemonic', protection: { mode: 'pin', pin: '1234' } })
+      const input = testWalletCreateInput({ mnemonic: 'test mnemonic', protection: { mode: 'pin', pin: '123456' } })
       const id = await walletCreate(ctx, input)
       ctx.vault.lock()
-      await ctx.vault.unlockWallet({ credential: '1234', walletId: id })
+      await ctx.vault.unlockWallet({ credential: '123456', walletId: id })
 
       // ACT
       const result = await walletReadMnemonic(ctx, id)
@@ -89,7 +89,7 @@ describe('wallet-read-mnemonic', () => {
     it('should throw an error if a PIN wallet is locked', async () => {
       // ARRANGE
       expect.assertions(1)
-      const id = await walletCreate(ctx, testWalletCreateInput({ protection: { mode: 'pin', pin: '1234' } }))
+      const id = await walletCreate(ctx, testWalletCreateInput({ protection: { mode: 'pin', pin: '123456' } }))
       ctx.vault.lock()
 
       // ACT & ASSERT

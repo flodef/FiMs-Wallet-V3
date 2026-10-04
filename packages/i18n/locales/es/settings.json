@@ -151,7 +151,7 @@
   "walletProtectionPinWarning": "Un PIN corto puede ser descifrado offline si este dispositivo se ve comprometido. Usa al menos 6 dígitos, o prefiere una contraseña completa.",
   "walletProtectionTitle": "Protección de billetera",
   "walletProtectionUnsecured": "Sin protección",
-  "walletProtectionUnsecuredConfirm": "Entiendo que esta billetera no está protegida por contraseña ni PIN.",
-  "walletProtectionUnsecuredConfirmError": "Confirma que esta billetera no está protegida",
+  "walletProtectionUnsecuredConfirm": "Escribe {{phrase}} para confirmar que esta billetera no estará protegida por contraseña ni PIN.",
+  "walletProtectionUnsecuredConfirmError": "Escribe la frase de confirmación exacta mostrada arriba",
   "walletProtectionUnsecuredWarning": "Cualquier persona con acceso a este perfil del navegador podría usar esta billetera."
 }

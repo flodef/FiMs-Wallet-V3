@@ -151,7 +151,7 @@
   "walletProtectionPinWarning": "Un PIN court peut être cassé hors ligne si cet appareil est compromis. Utilisez au moins 6 chiffres, ou préférez un mot de passe complet.",
   "walletProtectionTitle": "Protection du wallet",
   "walletProtectionUnsecured": "Non protégé",
-  "walletProtectionUnsecuredConfirm": "Je comprends que ce wallet n'est pas protégé par un mot de passe ou un PIN.",
-  "walletProtectionUnsecuredConfirmError": "Confirmez que ce wallet n'est pas protégé",
+  "walletProtectionUnsecuredConfirm": "Tapez {{phrase}} pour confirmer que ce wallet ne sera pas protégé par un mot de passe ou un PIN.",
+  "walletProtectionUnsecuredConfirmError": "Tapez la phrase de confirmation exacte affichée ci-dessus",
   "walletProtectionUnsecuredWarning": "Toute personne ayant accès à ce profil de navigateur pourra utiliser ce wallet."
 }

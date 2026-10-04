@@ -1,10 +1,13 @@
 import { useTranslation } from '@workspace/i18n'
 import { Alert, AlertDescription } from '@workspace/ui/components/alert'
-import { Checkbox } from '@workspace/ui/components/checkbox'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/components/toggle-group'
-import { VAULT_PIN_MAX_LENGTH, VAULT_PIN_MIN_LENGTH } from '@workspace/vault/encrypted-value-schema'
+import {
+  VAULT_PIN_CREATE_MIN_LENGTH,
+  VAULT_PIN_MAX_LENGTH,
+  VAULT_UNSECURED_CONFIRM_PHRASE,
+} from '@workspace/vault/encrypted-value-schema'
 import { useId } from 'react'
 import type { CreateNewWalletProtectionMode } from '../data-access/use-create-new-wallet.tsx'
 
@@ -12,20 +15,20 @@ export function OnboardingUiWalletProtection({
   onPinChange,
   onPinConfirmChange,
   onProtectionModeChange,
-  onUnsecuredConfirmedChange,
+  onUnsecuredConfirmTextChange,
   pin,
   pinConfirm,
   protectionMode,
-  unsecuredConfirmed,
+  unsecuredConfirmText,
 }: {
   onPinChange: (value: string) => void
   onPinConfirmChange: (value: string) => void
   onProtectionModeChange: (value: string) => void
-  onUnsecuredConfirmedChange: (checked: boolean) => void
+  onUnsecuredConfirmTextChange: (value: string) => void
   pin: string
   pinConfirm: string
   protectionMode: CreateNewWalletProtectionMode
-  unsecuredConfirmed: boolean
+  unsecuredConfirmText: string
 }) {
   const { t } = useTranslation('onboarding')
   const pinConfirmId = useId()
@@ -75,7 +78,7 @@ export function OnboardingUiWalletProtection({
                   id={pinId}
                   inputMode="numeric"
                   maxLength={VAULT_PIN_MAX_LENGTH}
-                  minLength={VAULT_PIN_MIN_LENGTH}
+                  minLength={VAULT_PIN_CREATE_MIN_LENGTH}
                   onChange={(event) => onPinChange(event.target.value)}
                   pattern="[0-9]*"
                   type="password"
@@ -89,7 +92,7 @@ export function OnboardingUiWalletProtection({
                   id={pinConfirmId}
                   inputMode="numeric"
                   maxLength={VAULT_PIN_MAX_LENGTH}
-                  minLength={VAULT_PIN_MIN_LENGTH}
+                  minLength={VAULT_PIN_CREATE_MIN_LENGTH}
                   onChange={(event) => onPinConfirmChange(event.target.value)}
                   pattern="[0-9]*"
                   type="password"
@@ -104,13 +107,16 @@ export function OnboardingUiWalletProtection({
             <Alert variant="warning">
               <AlertDescription>{t(($) => $.walletProtectionUnsecuredWarning)}</AlertDescription>
             </Alert>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={unsecuredConfirmed}
+            <div className="space-y-2">
+              <Label htmlFor={unsecuredConfirmId}>
+                {t(($) => $.walletProtectionUnsecuredConfirm, { phrase: VAULT_UNSECURED_CONFIRM_PHRASE })}
+              </Label>
+              <Input
+                autoComplete="off"
                 id={unsecuredConfirmId}
-                onCheckedChange={(checked) => onUnsecuredConfirmedChange(checked === true)}
+                onChange={(event) => onUnsecuredConfirmTextChange(event.target.value)}
+                value={unsecuredConfirmText}
               />
-              <Label htmlFor={unsecuredConfirmId}>{t(($) => $.walletProtectionUnsecuredConfirm)}</Label>
             </div>
           </div>
         ) : null}

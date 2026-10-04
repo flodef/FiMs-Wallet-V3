@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   decryptWithPassword,
   decryptWithVaultKey,
+  encryptWithCredential,
   encryptWithPassword,
   encryptWithVaultKey,
   generateVaultKeyMaterial,
@@ -32,6 +33,24 @@ describe('encrypted-value', () => {
       // ASSERT
       expect(encrypted).not.toContain(value)
       expect(result).toBe(value)
+    })
+
+    it('should decrypt a value encrypted under the legacy 8-character password policy', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const encrypted = await encryptWithCredential({
+        credential: 'legacy-8',
+        label: 'Password',
+        maxLength: VAULT_PASSWORD_MAX_LENGTH,
+        minLength: VAULT_PASSWORD_MIN_LENGTH,
+        value: 'secret value',
+      })
+
+      // ACT
+      const result = await decryptWithPassword({ encrypted, password: 'legacy-8' })
+
+      // ASSERT
+      expect(result).toBe('secret value')
     })
 
     it('should decrypt a value encrypted with the same raw vault key', async () => {
@@ -86,7 +105,7 @@ describe('encrypted-value', () => {
 
       // ACT & ASSERT
       await expect(encryptWithPassword({ password: 'short', value: 'secret value' })).rejects.toThrow(
-        'Password must be at least 8 characters',
+        'Password must be at least 12 characters',
       )
     })
 

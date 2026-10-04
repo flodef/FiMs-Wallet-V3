@@ -49,7 +49,7 @@ export function OnboardingFeatureGenerate({ redirectTo }: { redirectTo: string }
   const [protectionMode, setProtectionMode] = useState<CreateNewWalletProtectionMode>('password')
   const [revealed, setRevealed] = useState<boolean>(false)
   useConcealOnBlur(revealed, () => setRevealed(false))
-  const [unsecuredConfirmed, setUnsecuredConfirmed] = useState(false)
+  const [unsecuredConfirmText, setUnsecuredConfirmText] = useState('')
 
   const form = useForm<OnboardingGenerateForm>({
     defaultValues: {
@@ -73,7 +73,7 @@ export function OnboardingFeatureGenerate({ redirectTo }: { redirectTo: string }
           pin,
           pinConfirm,
           protectionMode,
-          unsecuredConfirmed,
+          unsecuredConfirmText,
         }),
       )
       if (created) {
@@ -91,7 +91,7 @@ export function OnboardingFeatureGenerate({ redirectTo }: { redirectTo: string }
     setPin('')
     setPinConfirm('')
     setProtectionMode(parseCreateNewWalletProtectionMode(value))
-    setUnsecuredConfirmed(false)
+    setUnsecuredConfirmText('')
   }
 
   return (
@@ -152,11 +152,11 @@ export function OnboardingFeatureGenerate({ redirectTo }: { redirectTo: string }
               onPinChange={setPin}
               onPinConfirmChange={setPinConfirm}
               onProtectionModeChange={handleProtectionModeChange}
-              onUnsecuredConfirmedChange={setUnsecuredConfirmed}
+              onUnsecuredConfirmTextChange={setUnsecuredConfirmText}
               pin={pin}
               pinConfirm={pinConfirm}
               protectionMode={protectionMode}
-              unsecuredConfirmed={unsecuredConfirmed}
+              unsecuredConfirmText={unsecuredConfirmText}
             />
           </div>
         </UiCard>

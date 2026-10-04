@@ -1,4 +1,4 @@
-import { VAULT_PIN_MAX_LENGTH, VAULT_PIN_MIN_LENGTH } from '@workspace/vault/encrypted-value-schema'
+import { VAULT_PIN_CREATE_MIN_LENGTH, VAULT_PIN_MAX_LENGTH } from '@workspace/vault/encrypted-value-schema'
 import { z } from 'zod'
 import { walletInternalSchema } from './wallet-internal-schema.ts'
 
@@ -22,7 +22,7 @@ export const walletCreateSchema = walletInternalSchema
           pin: z
             .string()
             .regex(pinDigitsRegex, 'PIN must contain only digits')
-            .min(VAULT_PIN_MIN_LENGTH, `PIN must be at least ${VAULT_PIN_MIN_LENGTH} digits`)
+            .min(VAULT_PIN_CREATE_MIN_LENGTH, `PIN must be at least ${VAULT_PIN_CREATE_MIN_LENGTH} digits`)
             .max(VAULT_PIN_MAX_LENGTH, `PIN must be at most ${VAULT_PIN_MAX_LENGTH} digits`),
         }),
         z.object({ mode: z.literal('unsecured') }),

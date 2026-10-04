@@ -4,7 +4,12 @@ import {
   generateVaultKeyMaterial,
   importVaultKey,
 } from './encrypted-value.ts'
-import { encryptedValueSchema, VAULT_PIN_MAX_LENGTH, VAULT_PIN_MIN_LENGTH } from './encrypted-value-schema.ts'
+import {
+  encryptedValueSchema,
+  VAULT_PIN_CREATE_MIN_LENGTH,
+  VAULT_PIN_MAX_LENGTH,
+  VAULT_PIN_MIN_LENGTH,
+} from './encrypted-value-schema.ts'
 import { walletProtectionSchema } from './wallet-protection-schema.ts'
 
 const PIN_DIGITS_REGEX = /^\d+$/
@@ -17,7 +22,7 @@ export function createPasswordWalletProtection(): string {
 }
 
 export async function createPinWalletProtection(input: { pin: string }): Promise<string> {
-  assertPin(input.pin)
+  assertPin(input.pin, VAULT_PIN_CREATE_MIN_LENGTH)
 
   return JSON.stringify({
     keyEnvelope: encryptedValueSchema.parse(
@@ -25,7 +30,7 @@ export async function createPinWalletProtection(input: { pin: string }): Promise
         await encryptWithCredential({
           credential: input.pin,
           maxLength: VAULT_PIN_MAX_LENGTH,
-          minLength: VAULT_PIN_MIN_LENGTH,
+          minLength: VAULT_PIN_CREATE_MIN_LENGTH,
           value: generateVaultKeyMaterial(),
         }),
       ),
@@ -81,12 +86,12 @@ export async function unlockUnsecuredWalletProtection(input: { protection: strin
   }
 }
 
-function assertPin(pin: string): void {
+function assertPin(pin: string, minLength = VAULT_PIN_MIN_LENGTH): void {
   if (!PIN_DIGITS_REGEX.test(pin)) {
     throw new Error('PIN must contain only digits')
   }
-  if (pin.length < VAULT_PIN_MIN_LENGTH) {
-    throw new Error(`PIN must be at least ${VAULT_PIN_MIN_LENGTH} digits`)
+  if (pin.length < minLength) {
+    throw new Error(`PIN must be at least ${minLength} digits`)
   }
   if (pin.length > VAULT_PIN_MAX_LENGTH) {
     throw new Error(`PIN must be at most ${VAULT_PIN_MAX_LENGTH} digits`)

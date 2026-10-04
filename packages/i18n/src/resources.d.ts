@@ -459,7 +459,7 @@ export default interface Resources {
     walletProtectionPinWarning: 'A short PIN can be brute-forced offline if this device is compromised. Use at least 6 digits, or prefer a full password.'
     walletProtectionTitle: 'Advanced protection'
     walletProtectionUnsecured: 'Unsecured'
-    walletProtectionUnsecuredConfirm: 'I understand this wallet is not protected by a password or PIN.'
+    walletProtectionUnsecuredConfirm: 'Type {{phrase}} to confirm this wallet will not be protected by a password or PIN.'
     walletProtectionUnsecuredWarning: 'Anyone with access to this browser profile may be able to use this wallet.'
   }
   portfolio: {
@@ -682,8 +682,8 @@ export default interface Resources {
     walletProtectionPinWarning: 'A short PIN can be brute-forced offline if this device is compromised. Use at least 6 digits, or prefer a full password.'
     walletProtectionTitle: 'Wallet protection'
     walletProtectionUnsecured: 'Unsecured'
-    walletProtectionUnsecuredConfirm: 'I understand this wallet is not protected by a password or PIN.'
-    walletProtectionUnsecuredConfirmError: 'Confirm this wallet is not protected'
+    walletProtectionUnsecuredConfirm: 'Type {{phrase}} to confirm this wallet will not be protected by a password or PIN.'
+    walletProtectionUnsecuredConfirmError: 'Type the exact confirmation phrase shown above'
     walletProtectionUnsecuredWarning: 'Anyone with access to this browser profile may be able to use this wallet.'
   }
   shell: {

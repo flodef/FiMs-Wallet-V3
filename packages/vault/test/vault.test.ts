@@ -114,7 +114,7 @@ describe('vault', () => {
       const vault = createVault(storage)
 
       // ACT & ASSERT
-      await expect(vault.create({ password: 'short' })).rejects.toThrow('Password must be at least 8 characters')
+      await expect(vault.create({ password: 'short' })).rejects.toThrow('Password must be at least 12 characters')
       expect(vault.isUnlocked()).toBe(false)
       await expect(vault.isConfigured()).resolves.toBe(false)
     })

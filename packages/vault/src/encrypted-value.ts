@@ -2,6 +2,7 @@ import {
   type EncryptedValue,
   encryptedValueSchema,
   PASSWORD_KDF_MIN_ITERATIONS,
+  VAULT_PASSWORD_CREATE_MIN_LENGTH,
   VAULT_PASSWORD_MAX_LENGTH,
   VAULT_PASSWORD_MIN_LENGTH,
 } from './encrypted-value-schema.ts'
@@ -96,7 +97,7 @@ export async function encryptWithPassword(input: { password: string; value: stri
     credential: input.password,
     label: 'Password',
     maxLength: VAULT_PASSWORD_MAX_LENGTH,
-    minLength: VAULT_PASSWORD_MIN_LENGTH,
+    minLength: VAULT_PASSWORD_CREATE_MIN_LENGTH,
     value: input.value,
   })
 }

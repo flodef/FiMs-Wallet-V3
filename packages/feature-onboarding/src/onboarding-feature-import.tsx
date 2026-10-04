@@ -10,6 +10,7 @@ import { UiBackButton } from '@workspace/ui/components/ui-back-button'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiTextPasteButton } from '@workspace/ui/components/ui-text-paste-button'
 import { toastError } from '@workspace/ui/lib/toast-error'
+import { VAULT_UNSECURED_CONFIRM_PHRASE } from '@workspace/vault/encrypted-value-schema'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
@@ -42,7 +43,7 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
   const [pin, setPin] = useState('')
   const [pinConfirm, setPinConfirm] = useState('')
   const [protectionMode, setProtectionMode] = useState<CreateNewWalletProtectionMode>('password')
-  const [unsecuredConfirmed, setUnsecuredConfirmed] = useState(false)
+  const [unsecuredConfirmText, setUnsecuredConfirmText] = useState('')
 
   const form = useForm<OnboardingImportForm>({
     defaultValues: {
@@ -101,7 +102,7 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
     setPin('')
     setPinConfirm('')
     setProtectionMode(parseCreateNewWalletProtectionMode(value))
-    setUnsecuredConfirmed(false)
+    setUnsecuredConfirmText('')
   }
 
   const isFormComplete = useMemo(() => {
@@ -122,7 +123,7 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
           pin,
           pinConfirm,
           protectionMode,
-          unsecuredConfirmed,
+          unsecuredConfirmText,
         }),
       )
       if (created) {
@@ -143,7 +144,7 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
       return
     }
     setProtectionMode('unsecured')
-    setUnsecuredConfirmed(true)
+    setUnsecuredConfirmText(VAULT_UNSECURED_CONFIRM_PHRASE)
     const demoWords = DEMO_MNEMONIC.split(' ')
     let index = 0
     let timeout: ReturnType<typeof setTimeout> | undefined
@@ -239,11 +240,11 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
               onPinChange={setPin}
               onPinConfirmChange={setPinConfirm}
               onProtectionModeChange={handleProtectionModeChange}
-              onUnsecuredConfirmedChange={setUnsecuredConfirmed}
+              onUnsecuredConfirmTextChange={setUnsecuredConfirmText}
               pin={pin}
               pinConfirm={pinConfirm}
               protectionMode={protectionMode}
-              unsecuredConfirmed={unsecuredConfirmed}
+              unsecuredConfirmText={unsecuredConfirmText}
             />
           </div>
         </UiCard>

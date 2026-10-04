@@ -54,12 +54,12 @@ describe('account-read-secret-key', () => {
     it('should read a PIN wallet account after unlocking the wallet', async () => {
       // ARRANGE
       expect.assertions(1)
-      const walletId = await walletCreate(ctx, testWalletCreateInput({ protection: { mode: 'pin', pin: '1234' } }))
-      await ctx.vault.unlockWallet({ credential: '1234', walletId })
+      const walletId = await walletCreate(ctx, testWalletCreateInput({ protection: { mode: 'pin', pin: '123456' } }))
+      await ctx.vault.unlockWallet({ credential: '123456', walletId })
       const accountInput = testAccountCreateInput({ secretKey: 'test-secret-key', walletId })
       const id = await accountCreate(ctx, accountInput)
       ctx.vault.lock()
-      await ctx.vault.unlockWallet({ credential: '1234', walletId })
+      await ctx.vault.unlockWallet({ credential: '123456', walletId })
 
       // ACT
       const result = await accountReadSecretKey(ctx, id)
@@ -102,8 +102,8 @@ describe('account-read-secret-key', () => {
     it('should throw an error if a PIN wallet account is locked', async () => {
       // ARRANGE
       expect.assertions(1)
-      const walletId = await walletCreate(ctx, testWalletCreateInput({ protection: { mode: 'pin', pin: '1234' } }))
-      await ctx.vault.unlockWallet({ credential: '1234', walletId })
+      const walletId = await walletCreate(ctx, testWalletCreateInput({ protection: { mode: 'pin', pin: '123456' } }))
+      await ctx.vault.unlockWallet({ credential: '123456', walletId })
       const id = await accountCreate(ctx, testAccountCreateInput({ walletId }))
       ctx.vault.lock()
 
