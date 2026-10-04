@@ -56,6 +56,13 @@
       "tag": "0007_donation_target_backfill",
       "version": "7",
       "when": 1791072278216
+    },
+    {
+      "breakpoints": true,
+      "idx": 8,
+      "tag": "0008_donation_target_association",
+      "version": "7",
+      "when": 1791073177392
     }
   ],
   "version": "7"

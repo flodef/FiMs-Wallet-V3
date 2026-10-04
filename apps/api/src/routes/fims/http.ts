@@ -108,10 +108,10 @@ const ownerAddressOfTransaction = (id: number) =>
   )
 
 // Vote weight: a tontine ballot weighs the member's total tontine
-// contributions (donations flagged donation_target='tontine' — a ~1% tip
-// attached to a member's own operation targets the fund, not the pot);
-// an investment ballot weighs the member's latest invested amount (same
-// weighting rule as the legacy spreadsheet).
+// contributions (donations flagged donation_target='tontine' — gifts to
+// external associations and ~1% tips attached to a member's own operation
+// never reach the pot); an investment ballot weighs the member's latest
+// invested amount (same weighting rule as the legacy spreadsheet).
 const loadVoteWeights = Effect.gen(function* () {
   const investedRows = (yield* withDb((db) =>
     db.execute(
@@ -383,8 +383,10 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             const type = payload.type ?? deriveTransactionType(payload.movement, payload.cost ?? 0, cexRows.length > 0)
             // A donation without a target is ambiguous bookkeeping: 'tontine'
-            // feeds the shared pot, anything else is a tip to another
-            // organism (fund, …). Reject rather than guess.
+            // means the gifted token lands in the shared pot's wallet (the
+            // account contents must equal the matching transactions exactly),
+            // anything else ('association', …) is a gift to an external
+            // organism. Reject rather than guess.
             if (type === 'donation' && !payload.donationTarget)
               return yield* Effect.fail(new BadRequest({ reason: 'donationTarget is required for a donation' }))
             const rows = yield* withDb((db) =>
