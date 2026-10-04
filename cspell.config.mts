@@ -59,6 +59,7 @@ const config: CSpellSettings = {
     'vecs',
     'HSTS',
     'zeroization',
+    'Solflare',
     ...getPackageNames(),
     // English
     'arweave',

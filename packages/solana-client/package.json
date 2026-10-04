@@ -5,6 +5,8 @@
     "@solana-program/token": "catalog:",
     "@solana-program/token-2022": "catalog:",
     "@solana/kit": "catalog:",
+    "@solana/wallet-standard-features": "catalog:",
+    "@wallet-standard/core": "catalog:",
     "@workspace/core": "workspace:*",
     "ws": "catalog:",
     "zod": "catalog:"

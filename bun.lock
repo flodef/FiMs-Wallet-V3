@@ -203,6 +203,9 @@
       "dependencies": {
         "@solana/kit": "catalog:",
         "@tanstack/react-query": "catalog:",
+        "@wallet-standard/app": "1.1.0",
+        "@wallet-standard/core": "catalog:",
+        "@wallet-standard/features": "1.1.0",
         "@workspace/context-react": "workspace:*",
         "@workspace/db": "workspace:*",
         "@workspace/i18n": "workspace:*",
@@ -360,6 +363,7 @@
         "@workspace/vault": "workspace:*",
         "@workspace/vault-react": "workspace:*",
         "@wxt-dev/browser": "catalog:",
+        "qr-scanner": "1.4.2",
         "react-hook-form": "catalog:",
         "react-router": "catalog:",
         "zod": "catalog:",
@@ -437,6 +441,8 @@
       "dependencies": {
         "@hookform/resolvers": "catalog:",
         "@solana/kit": "catalog:",
+        "@wallet-standard/core": "catalog:",
+        "@wallet-standard/features": "1.1.0",
         "@workspace/context-react": "workspace:*",
         "@workspace/db": "workspace:*",
         "@workspace/db-react": "workspace:*",
@@ -608,6 +614,8 @@
         "@solana-program/token": "catalog:",
         "@solana-program/token-2022": "catalog:",
         "@solana/kit": "catalog:",
+        "@solana/wallet-standard-features": "catalog:",
+        "@wallet-standard/core": "catalog:",
         "@workspace/core": "workspace:*",
         "ws": "catalog:",
         "zod": "catalog:",
@@ -1889,6 +1897,8 @@
 
     "@types/node": ["@types/node@24.10.1", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
 
+    "@types/offscreencanvas": ["@types/offscreencanvas@2019.7.3", "", {}, "sha512-ieXiYmgSRXUDeOntE1InxjWyvEelZGP63M+cGuquuRLuIKKT1osnkXjxev9B7d1nXSug5vpunx+gNlbVxMlC9A=="],
+
     "@types/pg": ["@types/pg@8.23.1", "", { "dependencies": { "@types/node": "*", "pg-protocol": "*", "pg-types": "^2.2.0" } }, "sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A=="],
 
     "@types/react": ["@types/react@19.2.14", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w=="],
@@ -2760,6 +2770,8 @@
     "punycode": ["punycode@2.3.1", "", {}, "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg=="],
 
     "pure-rand": ["pure-rand@6.1.0", "", {}, "sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA=="],
+
+    "qr-scanner": ["qr-scanner@1.4.2", "", { "dependencies": { "@types/offscreencanvas": "^2019.6.4" } }, "sha512-kV1yQUe2FENvn59tMZW6mOVfpq9mGxGf8l6+EGaXUOd4RBOLg7tRC83OrirM5AtDvZRpdjdlXURsHreAOSPOUw=="],
 
     "qrcode-generator": ["qrcode-generator@2.0.4", "", {}, "sha512-mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g=="],
 

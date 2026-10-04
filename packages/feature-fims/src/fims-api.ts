@@ -1,4 +1,4 @@
-import { getBase64Decoder, type KeyPairSigner } from '@solana/kit'
+import { getBase64Decoder, type MessagePartialSigner } from '@solana/kit'
 import { canonicalResource } from './fims-canonical-query.ts'
 
 // Types mirror the Effect schemas in apps/api/src/routes/fims/api.ts
@@ -188,7 +188,7 @@ async function sha256Hex(text: string): Promise<string> {
 // with a swapped payload.
 async function fimsAuthHeaders(
   apiEndpoint: string,
-  signer: KeyPairSigner,
+  signer: MessagePartialSigner,
   method: 'DELETE' | 'GET' | 'PATCH' | 'POST',
   resource: string,
   bodyText: string,
@@ -213,7 +213,7 @@ async function fimsAuthHeaders(
 // non-public users' rows to the owner or an admin).
 export async function fimsSignedGet<T>(
   apiEndpoint: string,
-  signer: KeyPairSigner,
+  signer: MessagePartialSigner,
   path: string,
   params?: Record<string, string>,
 ): Promise<T> {
@@ -246,7 +246,7 @@ export async function fimsSignedGet<T>(
 
 export async function fimsSignedGetAll<T>(
   apiEndpoint: string,
-  signer: KeyPairSigner,
+  signer: MessagePartialSigner,
   path: string,
   params?: Record<string, string>,
 ): Promise<T[]> {
@@ -262,7 +262,7 @@ export const fimsLinkAddressMessage = (userId: number, address: string) =>
 
 // Raw ed25519 signature over arbitrary content (base64), separate from the
 // request signature: proves the NEW wallet consents to being linked.
-export async function fimsSignMessage(signer: KeyPairSigner, content: Uint8Array): Promise<string> {
+export async function fimsSignMessage(signer: MessagePartialSigner, content: Uint8Array): Promise<string> {
   const [signatures] = await signer.signMessages([{ content, signatures: {} }])
   const signature = signatures?.[signer.address]
   if (!signature) {
@@ -273,7 +273,7 @@ export async function fimsSignMessage(signer: KeyPairSigner, content: Uint8Array
 
 export async function fimsSignedFetch<T>(
   apiEndpoint: string,
-  signer: KeyPairSigner,
+  signer: MessagePartialSigner,
   method: 'DELETE' | 'PATCH' | 'POST',
   path: string,
   body?: unknown,

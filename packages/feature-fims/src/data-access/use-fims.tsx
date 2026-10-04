@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Account } from '@workspace/db/account/account'
-import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
+import { useAccountMessageSigner } from '@workspace/db-react/use-account-message-signer'
 import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useSetting } from '@workspace/db-react/use-setting'
 import { env, envAdminAddresses } from '@workspace/env/env'
-import { createKeyPairSignerFromJson } from '@workspace/keypair/create-key-pair-signer-from-json'
 import { useRef } from 'react'
 import type {
   FimsAddressBookEntry,
@@ -56,12 +55,11 @@ export function useFimsUsers(params?: { address?: string }) {
 // failures (e.g. locked vault, watched account) fall back to anonymous reads.
 export function useFimsSignedGet(account: Account | undefined) {
   const apiEndpoint = useFimsEndpoint()
-  const accountSecretKey = useAccountSecretKey()
+  const messageSigner = useAccountMessageSigner()
   return async <T,>(path: string, params?: Record<string, string>): Promise<T> => {
     if (!account || account.type === 'Watched') return fimsGet<T>(apiEndpoint, path, params)
     try {
-      const json = await accountSecretKey({ account })
-      const signer = await createKeyPairSignerFromJson({ json })
+      const signer = await messageSigner(account)
       return await fimsSignedGet<T>(apiEndpoint, signer, path, params)
     } catch (error) {
       if (error instanceof FimsApiError) throw error
@@ -74,12 +72,11 @@ export function useFimsSignedGet(account: Account | undefined) {
 // keep receiving full datasets now that list endpoints are paginated.
 export function useFimsSignedGetAll(account: Account | undefined) {
   const apiEndpoint = useFimsEndpoint()
-  const accountSecretKey = useAccountSecretKey()
+  const messageSigner = useAccountMessageSigner()
   return async <T,>(path: string, params?: Record<string, string>): Promise<T[]> => {
     if (!account || account.type === 'Watched') return fimsGetAll<T>(apiEndpoint, path, params)
     try {
-      const json = await accountSecretKey({ account })
-      const signer = await createKeyPairSignerFromJson({ json })
+      const signer = await messageSigner(account)
       return await fimsSignedGetAll<T>(apiEndpoint, signer, path, params)
     } catch (error) {
       if (error instanceof FimsApiError) throw error
@@ -161,10 +158,9 @@ export function useFimsAddressBook(userId: number | undefined, account?: Account
 // Signed mutations — the active account's keypair authenticates the request.
 export function useFimsSignedFetch(account: Account) {
   const apiEndpoint = useFimsEndpoint()
-  const accountSecretKey = useAccountSecretKey()
+  const messageSigner = useAccountMessageSigner()
   return async <T,>(method: 'DELETE' | 'PATCH' | 'POST', path: string, body?: unknown): Promise<T> => {
-    const json = await accountSecretKey({ account })
-    const signer = await createKeyPairSignerFromJson({ json })
+    const signer = await messageSigner(account)
     return fimsSignedFetch<T>(apiEndpoint, signer, method, path, body)
   }
 }
@@ -286,10 +282,10 @@ export function useFimsAddressBookDelete(account: Account, userId: number) {
 //   name taken, not ours      → server-side uniqueness rejects it
 export function useFimsUserClaim(account: Account, accounts: Account[]) {
   const apiEndpoint = useFimsEndpoint()
-  const accountSecretKey = useAccountSecretKey()
+  const messageSigner = useAccountMessageSigner()
   const signedGet = useFimsSignedGet(account)
   const queryClient = useQueryClient()
-  const signerOf = async (a: Account) => createKeyPairSignerFromJson({ json: await accountSecretKey({ account: a }) })
+  const signerOf = async (a: Account) => messageSigner(a)
   return useMutation({
     mutationFn: async (name: string) => {
       const matches = await signedGet<FimsUser[]>('/users', { name })

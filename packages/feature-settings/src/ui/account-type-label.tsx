@@ -4,6 +4,8 @@ import { useTranslation } from '@workspace/i18n'
 export function AccountTypeLabel({ type }: { type: AccountType }) {
   const { t } = useTranslation('settings')
   switch (type) {
+    case 'Connected':
+      return t(($) => $.accountTypeConnected)
     case 'Derived':
       return t(($) => $.accountTypeDerived)
     case 'Imported':

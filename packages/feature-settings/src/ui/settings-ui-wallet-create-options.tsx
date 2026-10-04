@@ -1,4 +1,5 @@
 import { useTranslation } from '@workspace/i18n'
+import { SettingsUiWalletConnect } from './settings-ui-wallet-connect.tsx'
 import { SettingsUiWalletCreateComingSoon } from './settings-ui-wallet-create-coming-soon.tsx'
 import { SettingsUiWalletCreateHeader } from './settings-ui-wallet-create-header.tsx'
 import { SettingsUiWalletCreateLink } from './settings-ui-wallet-create-link.tsx'
@@ -18,7 +19,8 @@ export function SettingsUiWalletCreateOptions() {
         title={t(($) => $.walletCreateImportTitle)}
         to="/settings/wallets/import"
       />
-      <SettingsUiWalletCreateHeader icon="hardware" label={t(($) => $.walletCreateHeaderHardware)} />
+      <SettingsUiWalletCreateHeader icon="hardware" label={t(($) => $.walletCreateHeaderExternal)} />
+      <SettingsUiWalletConnect />
       <SettingsUiWalletCreateComingSoon
         description={t(($) => $.walletCreateHardwareUnruggableDescription)}
         title={t(($) => $.walletCreateHardwareUnruggableTitle)}

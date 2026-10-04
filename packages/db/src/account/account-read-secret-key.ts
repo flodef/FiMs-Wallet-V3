@@ -11,7 +11,7 @@ export async function accountReadSecretKey(ctx: DbContext, id: string): Promise<
     if (!account) {
       throw new Error(`Account with id ${id} not found`)
     }
-    if (account.type === 'Watched') {
+    if (account.type === 'Watched' || account.type === 'Connected') {
       throw new Error(`Account with id ${id} does not have a secret key`)
     }
     if (!account.secretKey) {

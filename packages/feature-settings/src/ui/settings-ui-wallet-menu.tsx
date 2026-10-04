@@ -12,6 +12,7 @@ import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { Fragment, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { SettingsUiBottomSheetExportWalletMnemonic } from './settings-ui-bottom-sheet-export-wallet-mnemonic.tsx'
+import { SettingsUiBottomSheetTransferWallet } from './settings-ui-bottom-sheet-transfer-wallet.tsx'
 
 export interface SettingsUiWalletMenuProps {
   deleteItem: (item: Wallet) => Promise<void>
@@ -34,6 +35,7 @@ export function SettingsUiWalletMenu({
   const { pathname: from } = useLocation()
   const [openDelete, setOpenDelete] = useState(false)
   const [openExport, setOpenExport] = useState(false)
+  const [openTransfer, setOpenTransfer] = useState(false)
   return (
     <Fragment>
       <DropdownMenu>
@@ -67,12 +69,18 @@ export function SettingsUiWalletMenu({
               {t(($) => $.exportMnemonic)}
             </DropdownMenuItem>
           ) : null}
+          {wallet.externalWallet ? null : (
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenTransfer(true)}>
+              {t(($) => $.transferWalletMenu)}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenDelete(true)}>
             {t(($) => $.actionDeleteWallet)}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <SettingsUiBottomSheetExportWalletMnemonic open={openExport} setOpen={setOpenExport} wallet={wallet} />
+      <SettingsUiBottomSheetTransferWallet open={openTransfer} setOpen={setOpenTransfer} wallet={wallet} />
       <UiConfirm
         action={() => deleteItem(wallet)}
         actionLabel={t(($) => $.actionDelete)}

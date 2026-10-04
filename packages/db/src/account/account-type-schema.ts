@@ -1,3 +1,3 @@
 import { z } from 'zod'
 
-export const accountTypeSchema = z.enum(['Derived', 'Imported', 'Watched'])
+export const accountTypeSchema = z.enum(['Connected', 'Derived', 'Imported', 'Watched'])

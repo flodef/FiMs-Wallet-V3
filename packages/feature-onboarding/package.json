@@ -16,6 +16,7 @@
     "@workspace/vault": "workspace:*",
     "@workspace/vault-react": "workspace:*",
     "@wxt-dev/browser": "catalog:",
+    "qr-scanner": "1.4.2",
     "react-hook-form": "catalog:",
     "react-router": "catalog:",
     "zod": "catalog:"

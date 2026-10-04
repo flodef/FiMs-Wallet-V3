@@ -1,5 +1,6 @@
 import { assertIsAddress } from '@solana/kit'
 import { useAppContext } from '@workspace/context-react/use-app-context'
+import { walletTransferDecode } from '@workspace/db/wallet/wallet-transfer'
 import { useAccountCreate } from '@workspace/db-react/use-account-create'
 import { useWalletCreate } from '@workspace/db-react/use-wallet-create'
 import { useWalletDetermineName } from '@workspace/db-react/use-wallet-determine-name'
@@ -122,5 +123,52 @@ export function parseCreateNewWalletProtectionMode(value: string): CreateNewWall
       return value
     default:
       return 'password'
+  }
+}
+
+// Device-to-device transfer (Jupiter Sync style): the source device shows a
+// QR code carrying the wallet secrets, the target decodes it and recreates
+// the wallet with a protection chosen locally. Nothing goes through a server.
+export function useImportWalletTransfer() {
+  const context = useAppContext()
+  const createAccountMutation = useAccountCreate()
+  const createWalletMutation = useWalletCreate()
+  const { requestUnlock } = useVaultUnlockDialog()
+
+  return async (code: string, input?: CreateNewWalletProtection): Promise<boolean> => {
+    const protection = input ?? { mode: 'password' }
+    try {
+      const payload = walletTransferDecode(code)
+      if (protection.mode === 'password') {
+        const unlocked = await requestUnlock({ mode: 'password', reason: 'createWallet' })
+        if (!unlocked) {
+          return false
+        }
+      }
+
+      const walletId = await createWalletMutation.mutateAsync({
+        input: { derivationPath: payload.derivationPath, mnemonic: payload.mnemonic, name: payload.name, protection },
+      })
+      if (protection.mode === 'pin') {
+        await context.vault.unlockWallet({ credential: protection.pin, walletId })
+      }
+      for (const account of payload.accounts) {
+        await createAccountMutation.mutateAsync({
+          input: {
+            derivationIndex: account.derivationIndex,
+            name: account.name,
+            publicKey: account.publicKey,
+            secretKey: account.secretKey,
+            type: account.type,
+            walletId,
+          },
+        })
+      }
+      toastSuccess('Wallet imported!')
+      return true
+    } catch (error) {
+      toastError(`${error}`)
+      return false
+    }
   }
 }

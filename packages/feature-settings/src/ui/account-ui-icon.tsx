@@ -7,6 +7,8 @@ export function AccountUiIcon({ type }: { type: AccountType }) {
 }
 export function getAccountUiIcon(type: AccountType): UiIconName {
   switch (type) {
+    case 'Connected':
+      return 'externalLink'
     case 'Derived':
       return 'derive'
     case 'Imported':

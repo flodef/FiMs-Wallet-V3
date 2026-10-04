@@ -2,6 +2,9 @@
   "dependencies": {
     "@solana/kit": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@wallet-standard/app": "1.1.0",
+    "@wallet-standard/core": "catalog:",
+    "@wallet-standard/features": "1.1.0",
     "@workspace/context-react": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/i18n": "workspace:*",

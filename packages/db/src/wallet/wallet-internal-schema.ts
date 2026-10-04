@@ -9,6 +9,9 @@ export const walletInternalSchema = z.object({
   createdAt: z.date(),
   derivationPath: z.string(),
   description: z.string().max(50).optional(),
+  // For wallets that only group externally-connected accounts (Solflare,
+  // Phantom…): the wallet-standard name — these wallets hold no secrets.
+  externalWallet: z.string().optional(),
   id: z.string(),
   mnemonic: z.string(),
   name: z.string().trim().min(1).max(20),

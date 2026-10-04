@@ -5,9 +5,11 @@ import { derivationPaths } from '@workspace/keypair/derivation-paths'
 import type { MnemonicStrength } from '@workspace/keypair/generate-mnemonic'
 import { getMnemonicWordStatus } from '@workspace/keypair/get-mnemonic-word-status'
 import { validateMnemonic } from '@workspace/keypair/validate-mnemonic'
+import { Button } from '@workspace/ui/components/button'
 import { Form } from '@workspace/ui/components/form'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
+import { Textarea } from '@workspace/ui/components/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/components/toggle-group'
 import { UiBackButton } from '@workspace/ui/components/ui-back-button'
 import { UiCard } from '@workspace/ui/components/ui-card'
@@ -24,11 +26,13 @@ import {
   parseCreateNewWalletProtectionMode,
   useCreateNewWallet,
   useCreateNewWalletFromPrivateKey,
+  useImportWalletTransfer,
 } from './data-access/use-create-new-wallet.tsx'
 import { DEMO_MNEMONIC, demoSetState, useDemoState } from './demo/demo-store.tsx'
 import { OnboardingUiMnemonicWordInput } from './onboarding-ui-mnemonic-word-input.tsx'
 import { OnboardingUiMnemonicSave } from './ui/onboarding-ui-mnemonic-save.tsx'
 import { OnboardingUiMnemonicSelectStrength } from './ui/onboarding-ui-mnemonic-select-strength.tsx'
+import { OnboardingUiQrScanner } from './ui/onboarding-ui-qr-scanner.tsx'
 import { OnboardingUiWalletProtection } from './ui/onboarding-ui-wallet-protection.tsx'
 
 const onboardingImportSchema = z.object({
@@ -48,10 +52,14 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
   const [pinConfirm, setPinConfirm] = useState('')
   const [protectionMode, setProtectionMode] = useState<CreateNewWalletProtectionMode>('password')
   const [unsecuredConfirmText, setUnsecuredConfirmText] = useState('')
-  const [importMode, setImportMode] = useState<'mnemonic' | 'privateKey'>('mnemonic')
+  const [importMode, setImportMode] = useState<'mnemonic' | 'privateKey' | 'transfer'>('mnemonic')
   const [privateKey, setPrivateKey] = useState('')
+  const [transferCode, setTransferCode] = useState('')
+  const [transferScan, setTransferScan] = useState(false)
   const createPrivateKey = useCreateNewWalletFromPrivateKey()
+  const importTransfer = useImportWalletTransfer()
   const privateKeyId = useId()
+  const transferCodeId = useId()
 
   const form = useForm<OnboardingImportForm>({
     defaultValues: {
@@ -133,7 +141,9 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
       const created =
         importMode === 'privateKey'
           ? await createPrivateKey(privateKey, protection)
-          : await create(validateMnemonic({ mnemonic: words.slice(0, wordCount).join(' ') }), protection)
+          : importMode === 'transfer'
+            ? await importTransfer(transferCode, protection)
+            : await create(validateMnemonic({ mnemonic: words.slice(0, wordCount).join(' ') }), protection)
       if (created) {
         await navigate(redirectTo)
       }
@@ -199,10 +209,22 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
             <div className="flex w-full justify-between">
               <UiTextPasteButton
                 label={t(($) => $.importToastPaste)}
-                onPaste={importMode === 'privateKey' ? (data) => setPrivateKey(data.trim()) : handlePaste}
+                onPaste={
+                  importMode === 'privateKey'
+                    ? (data) => setPrivateKey(data.trim())
+                    : importMode === 'transfer'
+                      ? (data) => setTransferCode(data.trim())
+                      : handlePaste
+                }
               />
               <OnboardingUiMnemonicSave
-                disabled={importMode === 'privateKey' ? !privateKey.trim().length : !isFormComplete}
+                disabled={
+                  importMode === 'privateKey'
+                    ? !privateKey.trim().length
+                    : importMode === 'transfer'
+                      ? !transferCode.trim().length
+                      : !isFormComplete
+                }
                 label={t(($) => $.importButtonSubmit)}
               />
             </div>
@@ -216,8 +238,8 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
         >
           <div className="space-y-6">
             <ToggleGroup
-              className="grid w-full grid-cols-2"
-              onValueChange={(value) => value && setImportMode(value as 'mnemonic' | 'privateKey')}
+              className="grid w-full grid-cols-3"
+              onValueChange={(value) => value && setImportMode(value as 'mnemonic' | 'privateKey' | 'transfer')}
               type="single"
               value={importMode}
               variant="outline"
@@ -234,9 +256,45 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
               >
                 {t(($) => $.importModePrivateKey)}
               </ToggleGroupItem>
+              <ToggleGroupItem
+                className="h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug"
+                value="transfer"
+              >
+                {t(($) => $.importModeTransfer)}
+              </ToggleGroupItem>
             </ToggleGroup>
 
-            {importMode === 'privateKey' ? (
+            {importMode === 'transfer' ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor={transferCodeId}>{t(($) => $.importTransferLabel)}</Label>
+                  <Textarea
+                    autoComplete="off"
+                    id={transferCodeId}
+                    onChange={(event) => setTransferCode(event.target.value)}
+                    placeholder={t(($) => $.importTransferPlaceholder)}
+                    value={transferCode}
+                  />
+                  <p className="text-muted-foreground text-xs">{t(($) => $.importTransferHint)}</p>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => setTransferScan((value) => !value)}
+                  type="button"
+                  variant="outline"
+                >
+                  {transferScan ? t(($) => $.importTransferScanHide) : t(($) => $.importTransferScanShow)}
+                </Button>
+                {transferScan ? (
+                  <OnboardingUiQrScanner
+                    onScan={(value) => {
+                      setTransferCode(value)
+                      setTransferScan(false)
+                    }}
+                  />
+                ) : null}
+              </div>
+            ) : importMode === 'privateKey' ? (
               <div className="space-y-2">
                 <Label htmlFor={privateKeyId}>{t(($) => $.importPrivateKeyLabel)}</Label>
                 <Input

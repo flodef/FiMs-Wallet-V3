@@ -122,70 +122,86 @@ export function SettingsFeatureWalletAddAccount() {
           </Item>
         ) : null}
 
-        <Item variant="outline">
-          <ItemMedia variant="icon">
-            <UiIcon className="size-4" icon="search" />
-          </ItemMedia>
-          <ItemContent>
-            <ItemTitle>Generate a vanity account</ItemTitle>
-            <ItemDescription>Find a prefix or suffix match for this wallet</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <Button asChild size="sm" variant="outline">
-              <Link to={`/settings/wallets/${wallet.id}/add/generate-vanity`}>Generate</Link>
-            </Button>
-          </ItemActions>
-        </Item>
-
-        <Item variant="outline">
-          <ItemMedia variant="icon">
-            <AccountUiIcon type="Imported" />
-          </ItemMedia>
-          <ItemContent>
-            <ItemTitle>{t(($) => $.walletAddAccountImportTitle)}</ItemTitle>
-            <ItemDescription>{t(($) => $.walletAddAccountImportDescription)}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <UiPrompt
-              action={(value) => createAccountImported(wallet, value)}
-              actionLabel={t(($) => $.actionImport)}
-              description={t(($) => $.walletAddAccountImportDescription)}
-              label={t(($) => $.walletAddAccountImportLabel)}
-              placeholder={t(($) => $.walletAddAccountImportPlaceholder)}
-              title={t(($) => $.walletAddAccountImportTitle)}
-              value=""
-            >
-              <Button size="sm" variant="outline">
-                {t(($) => $.actionImport)}
+        {wallet.externalWallet ? null : (
+          <Item variant="outline">
+            <ItemMedia variant="icon">
+              <UiIcon className="size-4" icon="search" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>Generate a vanity account</ItemTitle>
+              <ItemDescription>Find a prefix or suffix match for this wallet</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/settings/wallets/${wallet.id}/add/generate-vanity`}>Generate</Link>
               </Button>
-            </UiPrompt>
-          </ItemActions>
-        </Item>
+            </ItemActions>
+          </Item>
+        )}
 
-        <Item variant="outline">
-          <ItemMedia variant="icon">
-            <AccountUiIcon type="Watched" />
-          </ItemMedia>
-          <ItemContent>
-            <ItemTitle>{t(($) => $.walletAddAccountWatchTitle)}</ItemTitle>
-            <ItemDescription>{t(($) => $.walletAddAccountWatchDescription)}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <UiPrompt
-              action={(value) => createAccountWatched(wallet.id, value)}
-              actionLabel={t(($) => $.actionWatch)}
-              description={t(($) => $.walletAddAccountWatchDescription)}
-              label={t(($) => $.walletAddAccountWatchLabel)}
-              placeholder={t(($) => $.walletAddAccountWatchPlaceholder)}
-              title={t(($) => $.walletAddAccountWatchTitle)}
-              value=""
-            >
-              <Button size="sm" variant="outline">
-                {t(($) => $.actionWatch)}
-              </Button>
-            </UiPrompt>
-          </ItemActions>
-        </Item>
+        {wallet.externalWallet ? (
+          <Item variant="outline">
+            <ItemMedia variant="icon">
+              <AccountUiIcon type="Connected" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{wallet.externalWallet}</ItemTitle>
+              <ItemDescription>{t(($) => $.walletConnectItemDescription)}</ItemDescription>
+            </ItemContent>
+          </Item>
+        ) : (
+          <>
+            <Item variant="outline">
+              <ItemMedia variant="icon">
+                <AccountUiIcon type="Imported" />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{t(($) => $.walletAddAccountImportTitle)}</ItemTitle>
+                <ItemDescription>{t(($) => $.walletAddAccountImportDescription)}</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <UiPrompt
+                  action={(value) => createAccountImported(wallet, value)}
+                  actionLabel={t(($) => $.actionImport)}
+                  description={t(($) => $.walletAddAccountImportDescription)}
+                  label={t(($) => $.walletAddAccountImportLabel)}
+                  placeholder={t(($) => $.walletAddAccountImportPlaceholder)}
+                  title={t(($) => $.walletAddAccountImportTitle)}
+                  value=""
+                >
+                  <Button size="sm" variant="outline">
+                    {t(($) => $.actionImport)}
+                  </Button>
+                </UiPrompt>
+              </ItemActions>
+            </Item>
+
+            <Item variant="outline">
+              <ItemMedia variant="icon">
+                <AccountUiIcon type="Watched" />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{t(($) => $.walletAddAccountWatchTitle)}</ItemTitle>
+                <ItemDescription>{t(($) => $.walletAddAccountWatchDescription)}</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <UiPrompt
+                  action={(value) => createAccountWatched(wallet.id, value)}
+                  actionLabel={t(($) => $.actionWatch)}
+                  description={t(($) => $.walletAddAccountWatchDescription)}
+                  label={t(($) => $.walletAddAccountWatchLabel)}
+                  placeholder={t(($) => $.walletAddAccountWatchPlaceholder)}
+                  title={t(($) => $.walletAddAccountWatchTitle)}
+                  value=""
+                >
+                  <Button size="sm" variant="outline">
+                    {t(($) => $.actionWatch)}
+                  </Button>
+                </UiPrompt>
+              </ItemActions>
+            </Item>
+          </>
+        )}
       </div>
     </UiCard>
   )

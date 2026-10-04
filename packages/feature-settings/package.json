@@ -2,6 +2,8 @@
   "dependencies": {
     "@hookform/resolvers": "catalog:",
     "@solana/kit": "catalog:",
+    "@wallet-standard/core": "catalog:",
+    "@wallet-standard/features": "1.1.0",
     "@workspace/context-react": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/db-react": "workspace:*",
