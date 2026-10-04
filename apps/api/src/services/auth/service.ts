@@ -161,3 +161,17 @@ export function requireOwnerOrAdmin(signer: string, ownerAddress: string) {
     ? Effect.void
     : Effect.fail(new AuthForbidden({ address: signer }))
 }
+
+/**
+ * Verify a raw ed25519 signature by `address` over `content`. Used for
+ * wallet-link consent: the new wallet signs the canonical link message
+ * separately from the HTTP request signature (which only proves the intent
+ * of the already-linked signer).
+ */
+export function verifyAddressSignature(address: string, content: Uint8Array, signatureB64: string): boolean {
+  try {
+    return ed25519.verify(b64ToBytes(signatureB64), content, Uint8Array.from(getBase58Encoder().encode(address)))
+  } catch {
+    return false
+  }
+}

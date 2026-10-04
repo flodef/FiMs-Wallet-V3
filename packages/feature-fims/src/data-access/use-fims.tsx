@@ -15,12 +15,22 @@ import type {
   FimsToken,
   FimsTransaction,
   FimsUser,
+  FimsUserAddress,
   FimsUserHistoricPoint,
   FimsVote,
   FimsVoteKind,
   FimsVoteStatus,
 } from '../fims-api.ts'
-import { FimsApiError, fimsGet, fimsGetAll, fimsSignedFetch, fimsSignedGet, fimsSignedGetAll } from '../fims-api.ts'
+import {
+  FimsApiError,
+  fimsGet,
+  fimsGetAll,
+  fimsLinkAddressMessage,
+  fimsSignedFetch,
+  fimsSignedGet,
+  fimsSignedGetAll,
+  fimsSignMessage,
+} from '../fims-api.ts'
 
 export function useFimsEndpoint() {
   const [apiEndpoint] = useSetting('apiEndpoint')
@@ -264,5 +274,56 @@ export function useFimsAddressBookDelete(account: Account, userId: number) {
   return useMutation({
     mutationFn: (id: number) => signedFetch<string>('DELETE', `/address-book/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'address-book', userId] }),
+  })
+}
+
+// Multi-wallet members: one user, several wallets. When an address is unknown
+// to the API the member page proposes a name — three outcomes:
+//   name free                 → self-register (POST /users)
+//   name taken, ours          → link the wallet to that member (both wallets
+//                               sign: request by an already-linked account,
+//                               consent by the new one)
+//   name taken, not ours      → server-side uniqueness rejects it
+export function useFimsUserClaim(account: Account, accounts: Account[]) {
+  const apiEndpoint = useFimsEndpoint()
+  const accountSecretKey = useAccountSecretKey()
+  const signedGet = useFimsSignedGet(account)
+  const queryClient = useQueryClient()
+  const signerOf = async (a: Account) => createKeyPairSignerFromJson({ json: await accountSecretKey({ account: a }) })
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const matches = await signedGet<FimsUser[]>('/users', { name })
+      const existing = matches.find((u) => u.name.toLowerCase() === name.toLowerCase())
+      if (!existing) {
+        const signer = await signerOf(account)
+        const user = await fimsSignedFetch<FimsUser>(apiEndpoint, signer, 'POST', '/users', {
+          address: account.publicKey,
+          name,
+        })
+        return { action: 'registered' as const, user }
+      }
+      const linkedAccount = accounts.find((a) => (existing.addresses ?? [existing.address]).includes(a.publicKey))
+      if (!linkedAccount) {
+        // The name belongs to someone else — or to us on a wallet not
+        // imported here. Either way this wallet cannot prove ownership.
+        throw new FimsApiError(403, `name already taken: ${name}`)
+      }
+      const consent = await fimsSignMessage(
+        await signerOf(account),
+        fimsLinkAddressMessage(existing.id, account.publicKey),
+      )
+      await fimsSignedFetch<FimsUserAddress>(
+        apiEndpoint,
+        await signerOf(linkedAccount),
+        'POST',
+        `/users/${existing.id}/addresses`,
+        {
+          address: account.publicKey,
+          signature: consent,
+        },
+      )
+      return { action: 'linked' as const, user: existing }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims'] }),
   })
 }

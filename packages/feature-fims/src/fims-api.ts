@@ -4,6 +4,8 @@ import { canonicalResource } from './fims-canonical-query.ts'
 // Types mirror the Effect schemas in apps/api/src/routes/fims/api.ts
 export interface FimsUser {
   address: string
+  // Canonical + linked wallet addresses — only present on the list endpoint.
+  addresses?: string[]
   createdAt: string
   id: number
   isPro: boolean
@@ -76,6 +78,14 @@ export interface FimsPricePoint {
   date: string
   price: number
   token: string
+}
+
+// Extra wallet linked to a member (multi-wallet: one user, several wallets).
+export interface FimsUserAddress {
+  address: string
+  createdAt: string
+  id: number
+  userId: number
 }
 
 export type FimsAddressBookType = 'binance' | 'coinbase' | 'fimseur' | 'nexo' | 'other'
@@ -241,6 +251,24 @@ export async function fimsSignedGetAll<T>(
   params?: Record<string, string>,
 ): Promise<T[]> {
   return fimsGetAll<T>(apiEndpoint, path, params, (p) => fimsSignedGet<T[]>(apiEndpoint, signer, path, p))
+}
+
+// Canonical consent message the NEW wallet signs to accept being linked to a
+// member — must match the server-side builder in apps/api routes/fims/http.ts.
+// Binding the user id prevents a consent signature captured on one link
+// request from being replayed to attach the address to a different member.
+export const fimsLinkAddressMessage = (userId: number, address: string) =>
+  new TextEncoder().encode(`fims-wallet-v3\nlink-address\n${userId}\n${address}`)
+
+// Raw ed25519 signature over arbitrary content (base64), separate from the
+// request signature: proves the NEW wallet consents to being linked.
+export async function fimsSignMessage(signer: KeyPairSigner, content: Uint8Array): Promise<string> {
+  const [signatures] = await signer.signMessages([{ content, signatures: {} }])
+  const signature = signatures?.[signer.address]
+  if (!signature) {
+    throw new FimsApiError(401, 'wallet did not sign the consent message')
+  }
+  return getBase64Decoder().decode(signature)
 }
 
 export async function fimsSignedFetch<T>(

@@ -16,6 +16,8 @@ const TransactionType = Schema.Literal(
 
 export class User extends Schema.Class<User>('User')({
   address: Schema.String,
+  // Canonical + linked wallet addresses — only present on the list endpoint.
+  addresses: Schema.optional(Schema.Array(Schema.String)),
   createdAt: Schema.Date,
   id: Schema.Number,
   isPro: Schema.Boolean,
@@ -24,6 +26,14 @@ export class User extends Schema.Class<User>('User')({
   profileUpdatedAt: Schema.NullOr(Schema.Date),
   riskTarget: Schema.NullOr(Schema.Number),
   updatedAt: Schema.Date,
+}) {}
+
+// Extra wallet linked to a member (multi-wallet: one user, several wallets).
+export class UserAddress extends Schema.Class<UserAddress>('UserAddress')({
+  address: Schema.String,
+  createdAt: Schema.Date,
+  id: Schema.Number,
+  userId: Schema.Number,
 }) {}
 
 export class Transaction extends Schema.Class<Transaction>('Transaction')({
@@ -134,6 +144,15 @@ const UpdateUserBody = Schema.Struct({
   // Member's own rebalance target (% of risky assets). Preference, not
   // identity — exempt from the once-a-day profile-edit cooldown.
   riskTarget: Schema.optional(Schema.NullOr(Schema.Number.pipe(Schema.between(0, 100)))),
+})
+
+// `signature` is the new address's ed25519 consent over the canonical link
+// message `fims-wallet-v3\nlink-address\n<userId>\n<address>` (base64). It is
+// required for member-initiated links: the already-linked request signer
+// alone cannot squat a foreign key. Admins may attach addresses without it.
+const LinkUserAddressBody = Schema.Struct({
+  address: SolanaAddress,
+  signature: Schema.optional(Schema.String),
 })
 
 const CreateTransactionBody = Schema.Struct({
@@ -308,6 +327,30 @@ export class FimsApi extends HttpApiGroup.make('Fims')
     HttpApiEndpoint.del('deleteUser', '/fims/users/:id')
       .annotate(OpenApi.Summary, 'Delete user')
       .setPath(Schema.Struct({ id: Schema.NumberFromString }))
+      .addSuccess(Schema.String)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('addUserAddress', '/fims/users/:id/addresses')
+      .annotate(OpenApi.Summary, 'Link an extra wallet address to a user')
+      .setPath(Schema.Struct({ id: Schema.NumberFromString }))
+      .setPayload(LinkUserAddressBody)
+      .addSuccess(UserAddress)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(AuthForbidden, { status: 403 })
+      .addError(NotFound, { status: 404 })
+      .addError(BadRequest, { status: 400 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.del('removeUserAddress', '/fims/users/:id/addresses/:address')
+      .annotate(OpenApi.Summary, 'Unlink a wallet address from a user')
+      .setPath(Schema.Struct({ address: Schema.String, id: Schema.NumberFromString }))
       .addSuccess(Schema.String)
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })

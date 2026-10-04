@@ -50,6 +50,20 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
 
+// Extra wallet addresses linked to a member — one user, several wallets.
+// users.address stays the canonical (primary) address; rows here are the
+// additional ones. Linking requires a signature from an already-linked
+// address plus the new address's own consent signature, so a squatter
+// cannot attach a foreign key and an outsider cannot self-attach.
+export const userAddresses = pgTable('user_addresses', {
+  address: text('address').notNull().unique(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+})
+
 export const tokens = pgTable('tokens', {
   address: text('address'),
   description: text('description'),

@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { useMemo } from 'react'
-import { Link } from 'react-router'
 import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
@@ -23,6 +22,7 @@ import { getFimsTransactionType } from './fims-transaction-type.ts'
 import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
+import { FimsUiMemberClaim } from './fims-ui-member-claim.tsx'
 import { FimsUiProfileEdit } from './fims-ui-profile-edit.tsx'
 import { FimsUiRatioBadges } from './fims-ui-ratio-badges.tsx'
 import { FimsUiRebalance } from './fims-ui-rebalance.tsx'
@@ -49,17 +49,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
   if (isLoading) return <UiLoader />
 
   if (!member) {
-    return (
-      <UiCard title={t(($) => $.memberNotFoundTitle)}>
-        <p className="text-muted-foreground text-sm">
-          {t(($) => $.memberNotFoundDescription)}
-          <br />
-          <Link className="text-primary underline" to="/fims/community">
-            {t(($) => $.memberNotFoundCommunityLink)}
-          </Link>
-        </p>
-      </UiCard>
-    )
+    return <FimsUiMemberClaim account={account} />
   }
 
   const latest = historic.data?.at(-1)

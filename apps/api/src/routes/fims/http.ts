@@ -1,5 +1,5 @@
 import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
-import { and, asc, desc, eq, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, getTableColumns, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.js'
 import {
@@ -10,6 +10,7 @@ import {
   prices,
   tokens,
   transactions,
+  userAddresses,
   userHistoric,
   users,
   voteBallots,
@@ -24,7 +25,7 @@ import {
   optionalWalletRequest,
   requireAdmin,
   requireNotDemo,
-  requireOwnerOrAdmin,
+  verifyAddressSignature,
   verifyWalletRequest,
 } from '../../services/auth/service.js'
 import { BadRequest, RateLimited } from './api.js'
@@ -47,6 +48,39 @@ interface UserAccess {
   isPublic: boolean
 }
 
+// An address reaches a member either as users.address (canonical) or through
+// a user_addresses alias — every member resolution must go through this so a
+// linked wallet inherits the member's visibility and write rights.
+const addressLinkedToUser = (address: string) =>
+  or(
+    eq(users.address, address),
+    sql`${users.id} in (select ${userAddresses.userId} from ${userAddresses} where ${userAddresses.address} = ${address})`,
+  )
+
+// Like requireOwnerOrAdmin but for multi-wallet members: any address linked
+// to the user (canonical or alias) signs with equal rights. Also yields the
+// 404 the previous ownerAddressOfUser lookup produced.
+const requireLinkedOrAdmin = (signer: string, userId: number) =>
+  Effect.gen(function* () {
+    yield* userAccessOfId(userId)
+    yield* requireNotDemo(signer)
+    if (isAdminAddress(signer)) return
+    const linked = yield* withDb((db) =>
+      db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, userId), addressLinkedToUser(signer))),
+    )
+    if (!linked.length) return yield* Effect.fail(new AuthForbidden({ address: signer }))
+  })
+
+// Canonical consent message the NEW wallet signs to accept being linked to a
+// member (must match the client-side builder in fims-api.ts). Binding the
+// user id prevents a consent signature captured on one link request from
+// being replayed to attach the address to a different member.
+export const linkAddressMessage = (userId: number, address: string) =>
+  new TextEncoder().encode(`fims-wallet-v3\nlink-address\n${userId}\n${address}`)
+
 // A non-public user's data is only visible to that user (signed) or an admin.
 // Any other signer is just a keypair — same visibility as anonymous.
 // The filter lives in the WHERE clause: filtering after LIMIT/OFFSET would
@@ -54,7 +88,7 @@ interface UserAccess {
 const visibilityFilter = (signer: Option.Option<string>) =>
   Option.match(signer, {
     onNone: () => eq(users.isPublic, true),
-    onSome: (s) => (isAdminAddress(s) ? undefined : or(eq(users.isPublic, true), eq(users.address, s))),
+    onSome: (s) => (isAdminAddress(s) ? undefined : or(eq(users.isPublic, true), addressLinkedToUser(s))),
   })
 
 const userAccessOfId = (userId: number) =>
@@ -63,8 +97,6 @@ const userAccessOfId = (userId: number) =>
   ).pipe(
     Effect.flatMap((rows) => (rows[0] ? Effect.succeed<UserAccess>(rows[0]) : Effect.fail(notFound(`user ${userId}`)))),
   )
-
-const ownerAddressOfUser = (userId: number) => userAccessOfId(userId).pipe(Effect.map((u) => u.address))
 
 const PROFILE_EDIT_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
@@ -81,16 +113,10 @@ const memberProfileEditAllowed = (userId: number) =>
     }),
   )
 
-const ownerAddressOfAddressBookEntry = (id: number) =>
-  withDb((db) =>
-    db
-      .select({ address: users.address })
-      .from(addressBook)
-      .leftJoin(users, eq(addressBook.userId, users.id))
-      .where(eq(addressBook.id, id)),
-  ).pipe(
+const ownerUserIdOfAddressBookEntry = (id: number) =>
+  withDb((db) => db.select({ userId: addressBook.userId }).from(addressBook).where(eq(addressBook.id, id))).pipe(
     Effect.flatMap((rows) =>
-      rows[0] ? Effect.succeed(rows[0].address ?? '') : Effect.fail(notFound(`address book entry ${id}`)),
+      rows[0] ? Effect.succeed(rows[0].userId) : Effect.fail(notFound(`address book entry ${id}`)),
     ),
   )
 
@@ -139,7 +165,7 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
       Option.match(signer, {
         onNone: () => Effect.succeed(null),
         onSome: (address) =>
-          withDb((db) => db.select({ id: users.id }).from(users).where(eq(users.address, address))).pipe(
+          withDb((db) => db.select({ id: users.id }).from(users).where(addressLinkedToUser(address))).pipe(
             Effect.map((rows) => rows[0] ?? null),
           ),
       }),
@@ -222,12 +248,21 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const { limit, offset } = pageParams(urlParams)
             return yield* withDb((db) =>
               db
-                .select()
+                .select({
+                  ...getTableColumns(users),
+                  // All linked addresses (canonical + aliases) so the client
+                  // can recognize a member from any of its wallets.
+                  addresses: sql<
+                    string[]
+                  >`array_prepend(${users.address}, coalesce((select array_agg(${userAddresses.address}) from ${userAddresses} where ${userAddresses.userId} = ${users.id}), '{}'))`.as(
+                    'addresses',
+                  ),
+                })
                 .from(users)
                 .where(
                   and(
                     urlParams.name ? ilike(users.name, urlParams.name) : undefined,
-                    urlParams.address ? eq(users.address, urlParams.address) : undefined,
+                    urlParams.address ? addressLinkedToUser(urlParams.address) : undefined,
                     visibilityFilter(signer),
                   ),
                 )
@@ -268,8 +303,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            const owner = yield* ownerAddressOfUser(path.id)
-            yield* requireOwnerOrAdmin(signer, owner)
+            yield* requireLinkedOrAdmin(signer, path.id)
             // Privileged fields are admin-only: `address` reassignment would let a
             // member squat someone else's pubkey (member resolution picks the
             // lowest-id row → the squatter's address book is shown to the victim),
@@ -318,14 +352,85 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            const owner = yield* ownerAddressOfUser(path.id)
-            yield* requireOwnerOrAdmin(signer, owner)
+            yield* requireLinkedOrAdmin(signer, path.id)
             const rows = yield* withDb((db) =>
               db.delete(users).where(eq(users.id, path.id)).returning({ id: users.id }),
             )
             if (!rows[0]) return yield* Effect.fail(notFound(`user ${path.id}`))
             yield* auditAdmin(signer, 'delete_user', String(path.id))
             return `deleted user ${path.id}`
+          }),
+        )
+        // Multi-wallet members: attach an extra address to a user. The HTTP
+        // signature proves an already-linked wallet consents; `payload.signature`
+        // proves the NEW address consents too — neither side can squat alone.
+        .handle('addUserAddress', ({ path, payload }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* verifyWalletRequest(request)
+            yield* requireLinkedOrAdmin(signer, path.id)
+            if (!isAdminAddress(signer)) {
+              if (!payload.signature)
+                return yield* Effect.fail(new BadRequest({ reason: 'missing link consent signature' }))
+              if (
+                !verifyAddressSignature(
+                  payload.address,
+                  linkAddressMessage(path.id, payload.address),
+                  payload.signature,
+                )
+              )
+                return yield* Effect.fail(new BadRequest({ reason: 'invalid link consent signature' }))
+            }
+            // A canonical users.address already identifies a member: it can
+            // never become an alias (resolution would be ambiguous).
+            const canonical = yield* withDb((db) =>
+              db.select({ id: users.id }).from(users).where(eq(users.address, payload.address)),
+            )
+            if (canonical[0])
+              return yield* Effect.fail(
+                new BadRequest({
+                  reason:
+                    canonical[0].id === path.id
+                      ? 'address is already the canonical address of this member'
+                      : 'address already belongs to another member',
+                }),
+              )
+            const existing = yield* withDb((db) =>
+              db
+                .select({ userId: userAddresses.userId })
+                .from(userAddresses)
+                .where(eq(userAddresses.address, payload.address)),
+            )
+            if (existing[0]) {
+              if (existing[0].userId === path.id)
+                return yield* Effect.fail(new BadRequest({ reason: 'address is already linked to this member' }))
+              // Moving an alias between members would silently hand one
+              // member's history to another — admins must unlink first.
+              return yield* Effect.fail(new BadRequest({ reason: 'address is already linked to another member' }))
+            }
+            const rows = yield* withDb((db) =>
+              db.insert(userAddresses).values({ address: payload.address, userId: path.id }).returning(),
+            )
+            const created = rows[0]
+            if (!created) return yield* Effect.fail(insertFailed())
+            yield* auditAdmin(signer, 'link_user_address', `${path.id}/${payload.address}`, payload)
+            return created
+          }),
+        )
+        .handle('removeUserAddress', ({ path }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            const signer = yield* verifyWalletRequest(request)
+            yield* requireLinkedOrAdmin(signer, path.id)
+            const rows = yield* withDb((db) =>
+              db
+                .delete(userAddresses)
+                .where(and(eq(userAddresses.userId, path.id), eq(userAddresses.address, path.address)))
+                .returning({ id: userAddresses.id }),
+            )
+            if (!rows[0]) return yield* Effect.fail(notFound(`linked address ${path.address}`))
+            yield* auditAdmin(signer, 'unlink_user_address', `${path.id}/${path.address}`)
+            return `unlinked address ${path.address} from user ${path.id}`
           }),
         )
         .handle('transactions', ({ urlParams }) =>
@@ -341,7 +446,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const privacy = Option.match(signer, {
               onNone: () => or(isNull(users.id), eq(users.isPublic, true)),
               onSome: (s) =>
-                isAdminAddress(s) ? undefined : or(isNull(users.id), eq(users.isPublic, true), eq(users.address, s)),
+                isAdminAddress(s) ? undefined : or(isNull(users.id), eq(users.isPublic, true), addressLinkedToUser(s)),
             })
             if (privacy) filters.push(privacy)
             const rows = yield* withDb((db) =>
@@ -501,8 +606,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            const owner = yield* ownerAddressOfUser(payload.userId)
-            yield* requireOwnerOrAdmin(signer, owner)
+            yield* requireLinkedOrAdmin(signer, payload.userId)
             const rows = yield* withDb((db) =>
               db
                 .insert(addressBook)
@@ -519,8 +623,8 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            const owner = yield* ownerAddressOfAddressBookEntry(path.id)
-            yield* requireOwnerOrAdmin(signer, owner)
+            const owner = yield* ownerUserIdOfAddressBookEntry(path.id)
+            yield* requireLinkedOrAdmin(signer, owner)
             const rows = yield* withDb((db) =>
               db.update(addressBook).set(payload).where(eq(addressBook.id, path.id)).returning(),
             )
@@ -534,8 +638,8 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            const owner = yield* ownerAddressOfAddressBookEntry(path.id)
-            yield* requireOwnerOrAdmin(signer, owner)
+            const owner = yield* ownerUserIdOfAddressBookEntry(path.id)
+            yield* requireLinkedOrAdmin(signer, owner)
             const rows = yield* withDb((db) =>
               db.delete(addressBook).where(eq(addressBook.id, path.id)).returning({ id: addressBook.id }),
             )
@@ -553,7 +657,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const signer = yield* verifyWalletRequest(request)
             yield* requireNotDemo(signer)
             const memberRows = yield* withDb((db) =>
-              db.select({ id: users.id }).from(users).where(eq(users.address, signer)),
+              db.select({ id: users.id }).from(users).where(addressLinkedToUser(signer)),
             )
             const member = memberRows[0]
             if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
@@ -731,7 +835,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             if (vote.status !== 'open' || (vote.closesAt && vote.closesAt.getTime() < Date.now()))
               return yield* Effect.fail(new BadRequest({ reason: 'vote is not open' }))
             const memberRows = yield* withDb((db) =>
-              db.select({ id: users.id }).from(users).where(eq(users.address, signer)),
+              db.select({ id: users.id }).from(users).where(addressLinkedToUser(signer)),
             )
             const member = memberRows[0]
             if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))

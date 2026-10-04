@@ -63,6 +63,13 @@
       "tag": "0008_donation_target_association",
       "version": "7",
       "when": 1791073177392
+    },
+    {
+      "breakpoints": true,
+      "idx": 9,
+      "tag": "0009_user_addresses",
+      "version": "7",
+      "when": 1791122945130
     }
   ],
   "version": "7"

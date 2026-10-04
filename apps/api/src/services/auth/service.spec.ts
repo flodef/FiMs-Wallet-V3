@@ -5,7 +5,7 @@ import { Effect, Layer } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DatabaseService } from '../../db/service.ts'
-import { canonicalizeQuery, verifyWalletRequest } from './service.ts'
+import { canonicalizeQuery, verifyAddressSignature, verifyWalletRequest } from './service.ts'
 
 const privateKey = ed25519.utils.randomPrivateKey()
 const address = getBase58Decoder().decode(ed25519.getPublicKey(privateKey))
@@ -249,6 +249,79 @@ describe('verify-wallet-request', () => {
 
       // ACT & ASSERT
       await expect(run(verifyWalletRequest(request))).rejects.toThrow()
+    })
+  })
+})
+
+// Consent proof for multi-wallet linking: the NEW address signs the canonical
+// link message (`fims-wallet-v3\nlink-address\n<userId>\n<address>`) so an
+// already-linked signer alone cannot squat a foreign key.
+describe('verify-address-signature', () => {
+  const linkContent = (userId: number, addr: string) =>
+    new TextEncoder().encode(`fims-wallet-v3\nlink-address\n${userId}\n${addr}`)
+  const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
+
+  describe('expected behavior', () => {
+    it('should accept a consent signature by the linked address', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const content = linkContent(7, address)
+      const signature = ed25519.sign(content, privateKey)
+
+      // ACT
+      const result = verifyAddressSignature(address, content, b64(signature))
+
+      // ASSERT
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('unexpected behavior', () => {
+    beforeEach(() => {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('should reject a consent signature by a different key', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const otherKey = ed25519.utils.randomPrivateKey()
+      const content = linkContent(7, address)
+      const signature = ed25519.sign(content, otherKey)
+
+      // ACT
+      const result = verifyAddressSignature(address, content, b64(signature))
+
+      // ASSERT
+      expect(result).toBe(false)
+    })
+
+    it('should reject a consent signature replayed for a different member', () => {
+      // ARRANGE
+      expect.assertions(1)
+      // Signed for member 7 — must not attach the address to member 8.
+      const signature = ed25519.sign(linkContent(7, address), privateKey)
+
+      // ACT
+      const result = verifyAddressSignature(address, linkContent(8, address), b64(signature))
+
+      // ASSERT
+      expect(result).toBe(false)
+    })
+
+    it('should reject a malformed consent signature instead of throwing', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const content = linkContent(7, address)
+
+      // ACT
+      const result = verifyAddressSignature(address, content, 'not-a-signature!!')
+
+      // ASSERT
+      expect(result).toBe(false)
     })
   })
 })
