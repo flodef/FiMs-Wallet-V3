@@ -201,10 +201,14 @@ console.log('deltas:', JSON.stringify(tx?.deltas))
 const product = tx?.deltas.map((d) => productForBackingMint(d.mint)).find(Boolean)
 console.log('product:', product)
 if (product !== 'fims-eur') throw new Error('backing not detected')
-const mintSig = await custodialMint('fims-eur', member.address, 40_000_000n)
+// EURF units = backing / price index (tokens table — mirrors the handler).
+const price = Number(process.env['TEST_PRODUCT_PRICE'] ?? '1.18622801457467')
+const productUnits = BigInt(Math.round((40 / price) * 1e6))
+console.log('minting EURF units:', `${productUnits}`)
+const mintSig = await custodialMint('fims-eur', member.address, productUnits)
 console.log('custodial mint sig:', mintSig)
 
-// 4. Member redeems 10 FiMsEUR
+// 4. Member redeems 10 EURF
 const fimsMint = `${wrappedProductConfig('fims-eur')?.mint}`
 const memberFimsAta = await ata(fimsMint, member.address)
 const custodyFimsAta = await ata(fimsMint, `${custodyAddr}`)
@@ -234,6 +238,9 @@ console.log('deltas:', JSON.stringify(tx2?.deltas))
 const product2 = tx2?.deltas.map((d) => productForWrappedMint(d.mint)).find(Boolean)
 console.log('product:', product2)
 if (product2 !== 'fims-eur') throw new Error('wrapped mint not detected')
-const redeemDoneSig = await custodialRedeem('fims-eur', member.address, 10_000_000n)
+// backing returned = product units * price index.
+const backingUnits = BigInt(Math.round(10 * price * 1e6))
+console.log('returning backing units:', `${backingUnits}`)
+const redeemDoneSig = await custodialRedeem('fims-eur', member.address, 10_000_000n, backingUnits)
 console.log('custodial redeem sig:', redeemDoneSig)
 console.log('OK — full deposit/redeem cycle passed')

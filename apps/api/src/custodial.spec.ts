@@ -67,12 +67,12 @@ describe('custodial', () => {
       // ASSERT
       expect(result).toEqual({
         backingMint: EURC_MINT,
-        backingSymbol: 'EURC',
         mint: EURO_PRODUCT_MINT,
+        symbol: 'EURF',
         units: 1_000_000n,
       })
       expect(result2?.backingMint).toBe(USDG_MINT)
-      expect(result2?.backingSymbol).toBe('USDC')
+      expect(result2?.symbol).toBe('USDF')
       expect(result?.mint).toBe(EURO_PRODUCT_MINT)
       expect(result?.units).toBe(1_000_000n)
     })

@@ -146,10 +146,8 @@ async function createMint(name: string, symbol: string, supplyTo?: bigint): Prom
   return mint.address
 }
 
-// Symbols are EURC/USDC (not FiMsEUR/FiMsUSD) so wallets display the wrapped
-// position in the backing currency — members only ever see EURC/USDC.
-const fimsEur = await createMint('FiMs Euro', 'EURC')
-const fimsUsd = await createMint('FiMs USD', 'USDC')
+const fimsEur = await createMint('FiMs Euro', 'EURF')
+const fimsUsd = await createMint('FiMs USD', 'USDF')
 
 console.log('\n# env')
 console.log(`FIMS_EURO_MINT=${fimsEur}`)

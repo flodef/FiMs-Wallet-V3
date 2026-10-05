@@ -1019,9 +1019,9 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                 ? [
                     {
                       backingMint: `${config.backingMint}`,
-                      backingSymbol: config.backingSymbol,
                       id,
                       mint: `${config.mint}`,
+                      symbol: config.symbol,
                     },
                   ]
                 : []
@@ -1093,8 +1093,18 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
 
     const config = wrappedProductConfig(product)
     if (!config) return yield* Effect.fail(new CustodialUnavailable({ reason: `${product} mint is not configured` }))
-    const units = BigInt(Math.round(delta.amount * 1e6))
-    if (units <= 0n) return yield* Effect.fail(new BadRequest({ reason: 'amount too small' }))
+
+    // Product units are priced by the operator-maintained index in `tokens`
+    // (EURF tracks the FiMs Token NAV, USDF starts at 1): minted units =
+    // backing / price; redeemed backing = product units * price.
+    const tokenRows = yield* withDb((db) => db.select().from(tokens))
+    const price = tokenRows.find((t) => t.symbol === config.symbol)?.value ?? 0
+    if (price <= 0)
+      return yield* Effect.fail(new CustodialUnavailable({ reason: `${config.symbol} price index is not configured` }))
+    const backingUnits = BigInt(Math.round(delta.amount * (direction === 'deposit' ? 1 : price) * 1e6))
+    const productUnits = BigInt(Math.round((delta.amount / (direction === 'deposit' ? price : 1)) * 1e6))
+    if (productUnits <= 0n || backingUnits <= 0n)
+      return yield* Effect.fail(new BadRequest({ reason: 'amount too small' }))
 
     // Atomic replay claim placed AFTER validation but BEFORE the custodial
     // mint/burn — two concurrent requests for the same tx signature cannot
@@ -1116,24 +1126,23 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
       catch: (error) => new CustodialUnavailable({ reason: `custodial ${direction} failed: ${error}` }),
       try: () =>
         direction === 'deposit'
-          ? custodialMint(product, solAddress(tx.payer), units)
-          : custodialRedeem(product, solAddress(tx.payer), units),
+          ? custodialMint(product, solAddress(tx.payer), productUnits)
+          : custodialRedeem(product, solAddress(tx.payer), productUnits, backingUnits),
     })
 
-    const tokenRows = yield* withDb((db) => db.select().from(tokens))
-    const price = tokenRows.find((t) => t.symbol === config.backingSymbol)?.value ?? 0
-    const movement = price * delta.amount
+    const productAmount = Number(productUnits) / 1e6
+    const movement = price * productAmount
     const rows = yield* withDb((db) =>
       db
         .insert(transactions)
         .values({
           address: tx.payer,
-          amount: direction === 'deposit' ? delta.amount : -delta.amount,
+          amount: direction === 'deposit' ? productAmount : -productAmount,
           cost: movement,
           date: tx.blockTime ?? new Date(),
           movement: direction === 'deposit' ? movement : -movement,
           signature,
-          token: config.backingSymbol,
+          token: config.symbol,
           type: direction === 'deposit' ? ('deposit' as const) : ('withdrawal' as const),
           userId: member.id,
         })

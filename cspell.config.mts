@@ -61,6 +61,8 @@ const config: CSpellSettings = {
     'zeroization',
     'Solflare',
     'eurc',
+    'EURF',
+    'USDF',
     ...getPackageNames(),
     // English
     'arweave',

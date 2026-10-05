@@ -262,9 +262,9 @@ const WrappedTxBody = Schema.Struct({
 
 export class WrappedProduct extends Schema.Class<WrappedProduct>('WrappedProduct')({
   backingMint: Schema.String,
-  backingSymbol: Schema.String,
   id: Schema.String,
   mint: Schema.String,
+  symbol: Schema.String,
 }) {}
 
 export class WrappedConfig extends Schema.Class<WrappedConfig>('WrappedConfig')({

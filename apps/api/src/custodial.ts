@@ -51,10 +51,10 @@ export type FimsWrappedProduct = 'fims-eur' | 'fims-usd'
 export interface WrappedProductConfig {
   // Mint the member deposits / gets back on redeem.
   backingMint: Address
-  // Symbol the ledger credits — members only ever see this.
-  backingSymbol: string
   // Token-2022 mint held by the custodial keypair.
   mint: Address
+  // Product ticker — ledger rows and the price index use this symbol.
+  symbol: string
   // All four tokens use 6 decimals.
   units: bigint
 }
@@ -67,13 +67,13 @@ const PRODUCTS: Record<
     backingEnv: 'FIMS_EURO_BACKING_MINT',
     backingFallback: EURC_MINT,
     mintEnv: 'FIMS_EURO_MINT',
-    symbol: 'EURC',
+    symbol: 'EURF',
   },
   'fims-usd': {
     backingEnv: 'FIMS_USD_BACKING_MINT',
     backingFallback: USDG_MINT,
     mintEnv: 'FIMS_USD_MINT',
-    symbol: 'USDC',
+    symbol: 'USDF',
   },
 }
 
@@ -83,8 +83,8 @@ export function wrappedProductConfig(product: FimsWrappedProduct): WrappedProduc
   if (!mint) return null
   return {
     backingMint: address(process.env[def.backingEnv] || def.backingFallback),
-    backingSymbol: def.symbol,
     mint: address(mint),
+    symbol: def.symbol,
     units: 1_000_000n,
   }
 }
@@ -251,9 +251,15 @@ export async function custodialMint(product: FimsWrappedProduct, owner: Address,
   ])
 }
 
-// Burn `units` of the product token held by custody and return the same units
-// of backing to `owner` — creating their backing ATA when needed.
-export async function custodialRedeem(product: FimsWrappedProduct, owner: Address, units: bigint): Promise<Signature> {
+// Burn `productUnits` of the product token held by custody and return
+// `backingUnits` of backing to `owner` — creating their backing ATA when
+// needed. The product/backing rate is priced off-chain (tokens table).
+export async function custodialRedeem(
+  product: FimsWrappedProduct,
+  owner: Address,
+  productUnits: bigint,
+  backingUnits: bigint,
+): Promise<Signature> {
   const config = wrappedProductConfig(product)
   if (!config) throw new Error(`${product} mint is not configured`)
   const signer = await custodialSigner()
@@ -263,7 +269,7 @@ export async function custodialRedeem(product: FimsWrappedProduct, owner: Addres
   const destinationAta = await ata(config.backingMint, owner, backingProgram)
   return sendCustodialTransaction([
     getBurnInstruction(
-      { account: custodyAta, amount: units, authority: signer, mint: config.mint },
+      { account: custodyAta, amount: productUnits, authority: signer, mint: config.mint },
       { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
     ),
     getCreateAssociatedTokenIdempotentInstruction({
@@ -275,7 +281,7 @@ export async function custodialRedeem(product: FimsWrappedProduct, owner: Addres
     }),
     getTransferCheckedInstruction(
       {
-        amount: units,
+        amount: backingUnits,
         authority: signer,
         decimals: 6,
         destination: destinationAta,
