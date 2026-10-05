@@ -1,1 +1,3 @@
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+# Comma-separated — the second key is the rate-limit fallback
+HELIUS_API_KEY=

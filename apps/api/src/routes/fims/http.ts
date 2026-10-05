@@ -28,8 +28,15 @@ import {
   voteOptions,
   votes,
 } from '../../db/schema.js'
-import { DatabaseError, DatabaseService, withDb, withTransaction } from '../../db/service.js'
+import { DatabaseError, DatabaseService, type Db, withDb, withTransaction } from '../../db/service.js'
 import { getFimsFeeRate } from '../../fee-config.js'
+import {
+  chainSymbolForMint,
+  fetchHeliusAssets,
+  fetchHeliusTransactions,
+  heliusApiKeys,
+  normalizeGtfaTransaction,
+} from '../../helius.js'
 import {
   AuthForbidden,
   isAdminAddress,
@@ -40,7 +47,7 @@ import {
   verifyWalletRequest,
 } from '../../services/auth/service.js'
 import { fetchDonationTransaction } from '../../solana-rpc.js'
-import { BadRequest, CustodialUnavailable, RateLimited } from './api.js'
+import { BadRequest, ChainUnavailable, CustodialUnavailable, RateLimited } from './api.js'
 
 const notFound = (what: string) => `not found: ${what}`
 const insertFailed = () => new DatabaseError({ cause: 'insert returned no row' })
@@ -1039,6 +1046,50 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             return yield* wrappedTransfer(payload.signature, 'redeem')
           }),
         )
+        .handle('chainLabels', () =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            yield* verifyWalletRequest(request)
+            const { rows } = yield* withDb(loadChainLabels)
+            return rows.slice(0, CHAIN_ADDRESS_MAX)
+          }),
+        )
+        .handle('chainHistory', ({ urlParams }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            yield* verifyWalletRequest(request)
+            const keys = yield* heliusKeysOrFail
+            const limit = Math.min(Math.max(1, Math.floor(urlParams.limit ?? 100)), 100)
+            const page = yield* Effect.tryPromise({
+              catch: chainUnavailable,
+              try: () => fetchHeliusTransactions(keys, urlParams.address, { cursor: urlParams.cursor, limit }),
+            })
+            const { labels, symbols } = yield* withDb(loadChainLabels)
+            const flat = new Map([...labels.entries()].map(([a, v]) => [a, v.label] as const))
+            return {
+              cursor: page.paginationToken ?? null,
+              transactions: page.data
+                .map((tx) => normalizeGtfaTransaction(tx, urlParams.address, flat, symbols))
+                .filter((tx) => tx !== null),
+            }
+          }),
+        )
+        .handle('chainAssets', ({ urlParams }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            yield* verifyWalletRequest(request)
+            const keys = yield* heliusKeysOrFail
+            const assets = yield* Effect.tryPromise({
+              catch: chainUnavailable,
+              try: () => fetchHeliusAssets(keys, urlParams.address),
+            })
+            const { symbols } = yield* withDb(loadChainLabels)
+            return assets.map((asset) => ({
+              ...asset,
+              symbol: asset.mint ? (asset.symbol ?? chainSymbolForMint(asset.mint, symbols)) : 'SOL',
+            }))
+          }),
+        )
     )
   }),
 ).pipe(Layer.provide([DatabaseService.Default]))
@@ -1152,3 +1203,65 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
     return { custodialSignature, transactions: rows }
   })
 }
+
+// ─── On-chain tx reader ─────────────────────────────────────────────────────
+// Helius calls are proxied here so the API key(s) stay server-side. Labels let
+// the UI render "Tontine", "FiMs Treasury", member names or CEX labels instead
+// of raw addresses.
+
+const FIMS_TREASURY_ADDRESS = '58kZBjjtHShTtXFmygr3ZT8VSU4dH28PanRAdouHbToh'
+const CHAIN_ADDRESS_MAX = 200
+
+interface ChainLabelRow {
+  address: string
+  kind: 'cex' | 'member' | 'other' | 'tontine' | 'treasury'
+  label: string
+}
+
+// Every address the reader can name, in precedence order: built-ins first,
+// then address-book entries, then members (a member row never overwrites a
+// built-in — a squatted "Tontine" name must not re-label the pot).
+async function loadChainLabels(db: Db) {
+  const [memberRows, aliasRows, bookRows, tokenRows] = await Promise.all([
+    db.select({ address: users.address, name: users.name }).from(users),
+    db
+      .select({ address: userAddresses.address, name: users.name })
+      .from(userAddresses)
+      .innerJoin(users, eq(userAddresses.userId, users.id)),
+    db.select({ address: addressBook.address, label: addressBook.label, type: addressBook.type }).from(addressBook),
+    db.select({ address: tokens.address, symbol: tokens.symbol }).from(tokens),
+  ])
+
+  const labels = new Map<string, { kind: ChainLabelRow['kind']; label: string }>()
+  labels.set(FIMS_TREASURY_ADDRESS, { kind: 'treasury', label: 'FiMs Treasury' })
+  labels.set(FIMS_TONTINE_ADDRESS, { kind: 'tontine', label: 'Tontine' })
+  const put = (address: string, kind: ChainLabelRow['kind'], label: string) => {
+    if (!labels.has(address)) labels.set(address, { kind, label })
+  }
+  for (const row of bookRows) {
+    put(row.address, row.type === 'other' ? 'other' : 'cex', row.label || row.type)
+  }
+  for (const row of memberRows) put(row.address, 'member', row.name)
+  for (const row of aliasRows) put(row.address, 'member', row.name)
+
+  const symbols = new Map<string, string>()
+  for (const row of tokenRows) {
+    if (row.address) symbols.set(row.address, row.symbol)
+  }
+
+  const rows: ChainLabelRow[] = [...labels.entries()].map(([address, { kind, label }]) => ({
+    address,
+    kind,
+    label,
+  }))
+  return { labels, rows, symbols }
+}
+
+const chainUnavailable = (cause: unknown) =>
+  new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'chain provider unavailable' })
+
+const heliusKeysOrFail = Effect.gen(function* () {
+  const keys = heliusApiKeys()
+  if (!keys.length) return yield* Effect.fail(new ChainUnavailable({ reason: 'HELIUS_API_KEY is not configured' }))
+  return keys
+})

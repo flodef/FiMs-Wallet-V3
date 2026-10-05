@@ -6,6 +6,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Spinner } from '@workspace/ui/components/spinner'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { useLocation } from 'react-router'
+import { PortfolioFeatureChainReader } from './portfolio-feature-chain-reader.tsx'
 import { PortfolioUiActivityList } from './ui/portfolio-ui-activity-list.tsx'
 import { PortfolioUiActivityListSkeleton } from './ui/portfolio-ui-activity-list-skeleton.tsx'
 
@@ -30,6 +31,7 @@ export function PortfolioFeatureTabActivity({ account, network }: { account: Acc
       {isError ? <pre className="alert alert-error">{error?.message.toString() ?? 'Unknown error'}</pre> : null}
       {isLoading ? <PortfolioUiActivityListSkeleton /> : null}
       {isSuccess ? <PortfolioUiActivityList from={from} items={data} network={network} /> : null}
+      <PortfolioFeatureChainReader account={account} network={network} />
     </div>
   )
 }

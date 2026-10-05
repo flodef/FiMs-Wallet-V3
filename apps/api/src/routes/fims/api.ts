@@ -130,6 +130,53 @@ export class RateLimited extends Schema.TaggedError<RateLimited>()('RateLimited'
 export class CustodialUnavailable extends Schema.TaggedError<CustodialUnavailable>()('CustodialUnavailable', {
   reason: Schema.String,
 }) {}
+export class ChainUnavailable extends Schema.TaggedError<ChainUnavailable>()('ChainUnavailable', {
+  reason: Schema.String,
+}) {}
+
+// On-chain tx reader payloads — the API proxies Helius (the key stays
+// server-side) and returns this normalized shape so the UI is decoupled from
+// the upstream schema.
+export class ChainTransfer extends Schema.Class<ChainTransfer>('ChainTransfer')({
+  amount: Schema.Number,
+  counterparty: Schema.NullOr(Schema.String),
+  counterpartyLabel: Schema.NullOr(Schema.String),
+  direction: Schema.Literal('in', 'out'),
+  // null mint = native SOL.
+  mint: Schema.NullOr(Schema.String),
+  symbol: Schema.NullOr(Schema.String),
+}) {}
+
+export class ChainTransaction extends Schema.Class<ChainTransaction>('ChainTransaction')({
+  description: Schema.String,
+  feeSol: Schema.Number,
+  signature: Schema.String,
+  source: Schema.NullOr(Schema.String),
+  // Unix seconds — Helius returns a number, not an ISO date.
+  timestamp: Schema.Number,
+  transfers: Schema.Array(ChainTransfer),
+  type: Schema.String,
+}) {}
+
+export class ChainLabel extends Schema.Class<ChainLabel>('ChainLabel')({
+  address: Schema.String,
+  kind: Schema.Literal('cex', 'member', 'other', 'tontine', 'treasury'),
+  label: Schema.String,
+}) {}
+
+export class ChainAsset extends Schema.Class<ChainAsset>('ChainAsset')({
+  amount: Schema.Number,
+  mint: Schema.NullOr(Schema.String),
+  name: Schema.NullOr(Schema.String),
+  symbol: Schema.NullOr(Schema.String),
+  usdPrice: Schema.NullOr(Schema.Number),
+}) {}
+
+export class ChainHistoryPage extends Schema.Class<ChainHistoryPage>('ChainHistoryPage')({
+  // Opaque provider cursor — pass back verbatim for the next page, null at end.
+  cursor: Schema.NullOr(Schema.String),
+  transactions: Schema.Array(ChainTransaction),
+}) {}
 
 const CreateUserBody = Schema.Struct({
   address: SolanaAddress,
@@ -619,6 +666,48 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })
       .addError(NotFound, { status: 404 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    // Signed label map for the tx reader: built-ins (treasury, tontine) plus
+    // members and address-book entries so counterparties render with a name.
+    // Signed because it exposes the shared address book (CEX deposit
+    // addresses) — public would leak them.
+    HttpApiEndpoint.get('chainLabels', '/fims/chain/labels')
+      .annotate(OpenApi.Summary, 'Known-address labels for the on-chain tx reader')
+      .addSuccess(Schema.Array(ChainLabel))
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    // Signed: proxying Helius spends paid credits, so callers must prove they
+    // control a wallet. Pagination follows Helius `paginationToken` (opaque
+    // cursor, "slot:position").
+    HttpApiEndpoint.get('chainHistory', '/fims/chain/history')
+      .annotate(OpenApi.Summary, 'Normalized on-chain history for an address (Helius proxy)')
+      .setUrlParams(
+        Schema.Struct({
+          address: SolanaAddress,
+          cursor: Schema.optional(Schema.String),
+          limit: Schema.optional(Schema.NumberFromString),
+        }),
+      )
+      .addSuccess(ChainHistoryPage)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(BadRequest, { status: 400 })
+      .addError(ChainUnavailable, { status: 503 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.get('chainAssets', '/fims/chain/assets')
+      .annotate(OpenApi.Summary, 'Current token balances and USD prices for an address (Helius proxy)')
+      .setUrlParams(Schema.Struct({ address: SolanaAddress }))
+      .addSuccess(Schema.Array(ChainAsset))
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(ChainUnavailable, { status: 503 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   ) {}

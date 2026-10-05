@@ -9,6 +9,7 @@ import type { AccountInternal } from './account/account-internal.ts'
 import { accountSanitizer } from './account/account-sanitizer.ts'
 import type { BookmarkAccount } from './bookmark-account/bookmark-account.ts'
 import type { BookmarkTransaction } from './bookmark-transaction/bookmark-transaction.ts'
+import type { ChainTransactionRecord } from './chain/chain-transaction.ts'
 import { createDbVault } from './create-db-vault.ts'
 import type { Network } from './network/network.ts'
 import { populate } from './populate.ts'
@@ -24,6 +25,7 @@ export class Database extends Dexie {
   accounts!: Table<AccountInternal>
   bookmarkAccounts!: Table<BookmarkAccount>
   bookmarkTransactions!: Table<BookmarkTransaction>
+  chainTransactions!: Table<ChainTransactionRecord>
   networks!: Table<Network>
   settings!: Table<Setting>
   wallets!: Table<WalletInternal>
@@ -34,6 +36,9 @@ export class Database extends Dexie {
       accounts: 'id, [order+walletId], derivationIndex, order, publicKey, type, walletId',
       bookmarkAccounts: 'id, address, label, updatedAt',
       bookmarkTransactions: 'id, signature, label, updatedAt',
+      // Composite key: the same signature can be cached for several watched
+      // addresses; `timestamp` powers the per-address chronological read.
+      chainTransactions: '[address+signature], address, timestamp',
       networks: 'id, name, type',
       settings: 'id, &key',
       wallets: 'id, name, order',
@@ -41,6 +46,7 @@ export class Database extends Dexie {
 
     this.version(1).stores(stores)
     this.version(2).stores(stores).upgrade(migrateLegacyPlaintextWalletsToUnsecured)
+    this.version(3).stores(stores)
 
     this.accounts.hook('reading', accountReadingHook)
     this.wallets.hook('reading', walletReadingHook)
