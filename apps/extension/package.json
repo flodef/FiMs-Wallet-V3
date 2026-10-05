@@ -1,0 +1,36 @@
+{
+  "dependencies": {
+    "@workspace/background": "workspace:*",
+    "@workspace/feature-shell": "workspace:*",
+    "@workspace/ui": "workspace:*",
+    "@workspace/wallet-standard": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "@workspace/config-typescript": "workspace:*",
+    "@wxt-dev/auto-icons": "1.1.1",
+    "@wxt-dev/module-react": "1.2.2",
+    "babel-plugin-react-compiler": "catalog:",
+    "baseline-browser-mapping": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "wxt": "catalog:"
+  },
+  "name": "extension",
+  "private": true,
+  "scripts": {
+    "build": "wxt build",
+    "check-types": "tsc --noEmit",
+    "compile": "tsc --noEmit",
+    "dev": "wxt",
+    "postinstall": "wxt prepare",
+    "zip": "wxt zip"
+  },
+  "type": "module",
+  "version": "0.0.0"
+}

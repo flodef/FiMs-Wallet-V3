@@ -1,0 +1,27 @@
+import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from 'wxt'
+
+export default defineConfig({
+  manifest: {
+    name: 'FiMs Wallet',
+    permissions: ['storage'],
+    web_accessible_resources: [
+      {
+        matches: ['*://*/*'],
+        resources: ['injected.js'],
+      },
+    ],
+  },
+  modules: ['@wxt-dev/auto-icons', '@wxt-dev/module-react'],
+  react: {
+    vite: {
+      babel: {
+        plugins: ['babel-plugin-react-compiler'],
+      },
+    },
+  },
+  srcDir: 'src',
+  vite: () => ({
+    plugins: [tailwindcss()],
+  }),
+})
