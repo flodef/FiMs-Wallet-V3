@@ -116,6 +116,14 @@ it('should throw an error with an invalid key', async () => {
 4. **Type Errors**: Use `// @ts-expect-error: Testing invalid input` for intentional type violations
 5. **Clear Descriptions**: Test descriptions should clearly state what is being tested and under what conditions
 
+## Security Rules
+
+- **Never** use `dangerouslySetInnerHTML` (or `innerHTML`, `document.write`, `eval`) with anything other than static markup bundled at build time. The only existing exception is `apps/web/src/landing/landing-page.tsx`, which injects a build-time HTML asset — any new usage needs an explicit justification comment and a biome-ignore.
+- **Never** put user signing keys server-side: no private keys, seeds, mnemonics, or decrypted wallet secrets in `apps/api`, env vars, the database, or logs. Signing happens client-side only. The single documented exception is `CUSTODIAL_KEYPAIR` (apps/api custodial service) — mint authority + custody wallet for the wrapped FiMs products, a deliberate hot key that must never be extended to user funds.
+- **Never** log or persist decrypted key material; clear cached CryptoKeys on lock and on failed unlock.
+- When rendering external data (token metadata, memos, transaction labels, Solana Pay fields, dApp-provided strings), rely on React escaping — no manual HTML injection.
+- New send/transfer recipients must stay visible by name when known (account name, bookmark label, `known-recipients.ts` registry); unknown recipients must keep the `sendConfirmUnknownRecipient` warning.
+
 ## Devnet Testing
 
 - A funded throwaway devnet wallet exists for live devnet verification: `GyU9ZpTL3ce8kfS6XSpoiXaiiGb9svJfFEWer33SMmPS`.
