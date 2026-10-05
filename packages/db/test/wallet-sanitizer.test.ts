@@ -66,7 +66,7 @@ describe('wallet-sanitizer', () => {
         mnemonic: 'mnemonic',
         name: 'Wallet',
         order: 0,
-        secret: await createPinWalletProtection({ pin: '123456' }),
+        secret: await createPinWalletProtection({ pin: '12345678' }),
         updatedAt: now,
       } satisfies WalletInternal
 

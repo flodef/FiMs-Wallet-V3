@@ -53,7 +53,7 @@ describe('wallet-create', () => {
       // ARRANGE
       expect.assertions(4)
       ctx.vault.lock()
-      const input = testWalletCreateInput({ mnemonic: 'test mnemonic', protection: { mode: 'pin', pin: '123456' } })
+      const input = testWalletCreateInput({ mnemonic: 'test mnemonic', protection: { mode: 'pin', pin: '12345678' } })
 
       // ACT
       const result = await walletCreate(ctx, input)
@@ -177,7 +177,7 @@ describe('wallet-create', () => {
       const input = testWalletCreateInput({ protection: { mode: 'pin', pin: '123' } })
 
       // ACT & ASSERT
-      await expect(walletCreate(ctx, input)).rejects.toThrow('PIN must be at least 6 digits')
+      await expect(walletCreate(ctx, input)).rejects.toThrow('PIN must be at least 8 digits')
     })
 
     it('should throw an error when creating a wallet fails', async () => {

@@ -50,12 +50,12 @@ describe('wallet-reprotect', () => {
       const accountId = await accountCreate(ctx, accountInput)
 
       // ACT
-      await walletReprotect(ctx, { protection: { mode: 'pin', pin: '123456' }, walletId })
+      await walletReprotect(ctx, { protection: { mode: 'pin', pin: '12345678' }, walletId })
       ctx.vault.lock()
 
       // ASSERT
       await expect(walletReadMnemonic(ctx, walletId)).rejects.toThrow('Wallet is locked')
-      await ctx.vault.unlockWallet({ credential: '123456', walletId })
+      await ctx.vault.unlockWallet({ credential: '12345678', walletId })
       expect(await walletReadMnemonic(ctx, walletId)).toBe(walletInput.mnemonic)
       expect(await accountReadSecretKey(ctx, accountId)).toBe(accountInput.secretKey)
     })
@@ -65,10 +65,10 @@ describe('wallet-reprotect', () => {
       expect.assertions(2)
       const walletInput = testWalletCreateInput({
         mnemonic: 'test mnemonic',
-        protection: { mode: 'pin', pin: '123456' },
+        protection: { mode: 'pin', pin: '12345678' },
       })
       const walletId = await walletCreate(ctx, walletInput)
-      await ctx.vault.unlockWallet({ credential: '123456', walletId })
+      await ctx.vault.unlockWallet({ credential: '12345678', walletId })
       const accountInput = testAccountCreateInput({ secretKey: 'test-secret-key', walletId })
       const accountId = await accountCreate(ctx, accountInput)
 
@@ -85,10 +85,10 @@ describe('wallet-reprotect', () => {
       expect.assertions(2)
       const walletInput = testWalletCreateInput({
         mnemonic: 'test mnemonic',
-        protection: { mode: 'pin', pin: '123456' },
+        protection: { mode: 'pin', pin: '12345678' },
       })
       const walletId = await walletCreate(ctx, walletInput)
-      await ctx.vault.unlockWallet({ credential: '123456', walletId })
+      await ctx.vault.unlockWallet({ credential: '12345678', walletId })
       const accountInput = testAccountCreateInput({ secretKey: 'test-secret-key', walletId })
       const accountId = await accountCreate(ctx, accountInput)
 
@@ -107,22 +107,22 @@ describe('wallet-reprotect', () => {
       expect.assertions(4)
       const walletInput = testWalletCreateInput({
         mnemonic: 'test mnemonic',
-        protection: { mode: 'pin', pin: '123456' },
+        protection: { mode: 'pin', pin: '12345678' },
       })
       const walletId = await walletCreate(ctx, walletInput)
-      await ctx.vault.unlockWallet({ credential: '123456', walletId })
+      await ctx.vault.unlockWallet({ credential: '12345678', walletId })
       const accountInput = testAccountCreateInput({ secretKey: 'test-secret-key', walletId })
       const accountId = await accountCreate(ctx, accountInput)
 
       // ACT
-      await walletReprotect(ctx, { protection: { mode: 'pin', pin: '567890' }, walletId })
+      await walletReprotect(ctx, { protection: { mode: 'pin', pin: '56789012' }, walletId })
 
       // ASSERT
       await expect(walletReadMnemonic(ctx, walletId)).rejects.toThrow('Wallet is locked')
-      await expect(ctx.vault.unlockWallet({ credential: '123456', walletId })).rejects.toThrow(
+      await expect(ctx.vault.unlockWallet({ credential: '12345678', walletId })).rejects.toThrow(
         'Unable to unlock wallet',
       )
-      await ctx.vault.unlockWallet({ credential: '567890', walletId })
+      await ctx.vault.unlockWallet({ credential: '56789012', walletId })
       expect(await walletReadMnemonic(ctx, walletId)).toBe(walletInput.mnemonic)
       expect(await accountReadSecretKey(ctx, accountId)).toBe(accountInput.secretKey)
     })
@@ -136,11 +136,11 @@ describe('wallet-reprotect', () => {
       const accountId = await accountCreate(ctx, accountInput)
 
       // ACT
-      await walletReprotect(ctx, { protection: { mode: 'pin', pin: '123456' }, walletId })
+      await walletReprotect(ctx, { protection: { mode: 'pin', pin: '12345678' }, walletId })
 
       // ASSERT
       await expect(walletReadMnemonic(ctx, walletId)).rejects.toThrow('Wallet is locked')
-      await ctx.vault.unlockWallet({ credential: '123456', walletId })
+      await ctx.vault.unlockWallet({ credential: '12345678', walletId })
       expect(await walletReadMnemonic(ctx, walletId)).toBe(walletInput.mnemonic)
       expect(await accountReadSecretKey(ctx, accountId)).toBe(accountInput.secretKey)
     })
@@ -174,7 +174,7 @@ describe('wallet-reprotect', () => {
     it('should throw an error when the current wallet key cannot be resolved', async () => {
       // ARRANGE
       expect.assertions(1)
-      const walletId = await walletCreate(ctx, testWalletCreateInput({ protection: { mode: 'pin', pin: '123456' } }))
+      const walletId = await walletCreate(ctx, testWalletCreateInput({ protection: { mode: 'pin', pin: '12345678' } }))
 
       // ACT & ASSERT
       await expect(walletReprotect(ctx, { protection: { mode: 'unsecured' }, walletId })).rejects.toThrow(
@@ -189,7 +189,7 @@ describe('wallet-reprotect', () => {
 
       // ACT & ASSERT
       await expect(walletReprotect(ctx, { protection: { mode: 'pin', pin: '123' }, walletId })).rejects.toThrow(
-        'PIN must be at least 6 digits',
+        'PIN must be at least 8 digits',
       )
     })
   })
