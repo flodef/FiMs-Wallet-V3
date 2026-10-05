@@ -40,6 +40,7 @@ import {
   getTransferCheckedInstruction,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '@solana-program/token-2022'
+import { yieldInstructions } from './yield-placement.js'
 
 // Mainnet backing mints. Overridable via env so devnet can point at test
 // mints created by scripts/create-fims-mints.ts.
@@ -228,24 +229,31 @@ const ata = async (mint: Address, owner: Address, tokenProgram?: Address) =>
     })
   )[0]
 
-// Mint `units` of the product token to `owner` — creates their ATA first when
-// needed. The custodial pays rent and fees.
-export async function custodialMint(product: FimsWrappedProduct, owner: Address, units: bigint): Promise<Signature> {
+// Mint `productUnits` of the product token to `owner` — creates their ATA
+// first when needed. When a yield venue is configured, `backingUnits` are
+// deposited into it in the same transaction (atomic placement + mint).
+export async function custodialMint(
+  product: FimsWrappedProduct,
+  owner: Address,
+  productUnits: bigint,
+  backingUnits: bigint,
+): Promise<Signature> {
   const config = wrappedProductConfig(product)
   if (!config) throw new Error(`${product} mint is not configured`)
   const signer = await custodialSigner()
   const destinationAta = await ata(config.mint, owner)
-  const createAtaIx = getCreateAssociatedTokenIdempotentInstruction({
-    ata: destinationAta,
-    mint: config.mint,
-    owner,
-    payer: signer,
-    tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
-  })
+  const depositIxs = await yieldInstructions(product, 'deposit', config, signer.address, backingUnits)
   return sendCustodialTransaction([
-    createAtaIx,
+    getCreateAssociatedTokenIdempotentInstruction({
+      ata: destinationAta,
+      mint: config.mint,
+      owner,
+      payer: signer,
+      tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+    }),
+    ...depositIxs,
     getMintToInstruction(
-      { amount: units, mint: config.mint, mintAuthority: signer, token: destinationAta },
+      { amount: productUnits, mint: config.mint, mintAuthority: signer, token: destinationAta },
       { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
     ),
   ])
@@ -267,11 +275,13 @@ export async function custodialRedeem(
   const custodyAta = await ata(config.mint, signer.address, TOKEN_2022_PROGRAM_ADDRESS)
   const backingCustodyAta = await ata(config.backingMint, signer.address, backingProgram)
   const destinationAta = await ata(config.backingMint, owner, backingProgram)
+  const withdrawIxs = await yieldInstructions(product, 'withdraw', config, signer.address, backingUnits)
   return sendCustodialTransaction([
     getBurnInstruction(
       { account: custodyAta, amount: productUnits, authority: signer, mint: config.mint },
       { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
     ),
+    ...withdrawIxs,
     getCreateAssociatedTokenIdempotentInstruction({
       ata: destinationAta,
       mint: config.backingMint,

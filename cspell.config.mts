@@ -48,6 +48,8 @@ const config: CSpellSettings = {
     'Jdjwb',
     'JLP',
     'Kamino',
+    'klend',
+    'ktx',
     'PDA',
     'pubkeys',
     'Rpesrt',

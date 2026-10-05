@@ -171,9 +171,9 @@ describe('custodial', () => {
       const { custodialMint } = await loadCustodial()
 
       // ACT & ASSERT
-      await expect(custodialMint('fims-eur', 'Member111111111111111111111111111111111' as never, 1n)).rejects.toThrow(
-        'fims-eur mint is not configured',
-      )
+      await expect(
+        custodialMint('fims-eur', 'Member111111111111111111111111111111111' as never, 1n, 1n),
+      ).rejects.toThrow('fims-eur mint is not configured')
     })
   })
 

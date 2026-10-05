@@ -205,7 +205,7 @@ if (product !== 'fims-eur') throw new Error('backing not detected')
 const price = Number(process.env['TEST_PRODUCT_PRICE'] ?? '1.18622801457467')
 const productUnits = BigInt(Math.round((40 / price) * 1e6))
 console.log('minting EURF units:', `${productUnits}`)
-const mintSig = await custodialMint('fims-eur', member.address, productUnits)
+const mintSig = await custodialMint('fims-eur', member.address, productUnits, 40_000_000n)
 console.log('custodial mint sig:', mintSig)
 
 // 4. Member redeems 10 EURF

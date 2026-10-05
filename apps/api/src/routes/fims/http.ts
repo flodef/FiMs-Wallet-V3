@@ -1126,7 +1126,7 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
       catch: (error) => new CustodialUnavailable({ reason: `custodial ${direction} failed: ${error}` }),
       try: () =>
         direction === 'deposit'
-          ? custodialMint(product, solAddress(tx.payer), productUnits)
+          ? custodialMint(product, solAddress(tx.payer), productUnits, backingUnits)
           : custodialRedeem(product, solAddress(tx.payer), productUnits, backingUnits),
     })
 
