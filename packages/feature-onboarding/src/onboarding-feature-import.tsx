@@ -13,6 +13,7 @@ import { Textarea } from '@workspace/ui/components/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@workspace/ui/components/toggle-group'
 import { UiBackButton } from '@workspace/ui/components/ui-back-button'
 import { UiCard } from '@workspace/ui/components/ui-card'
+import { UiQrRegionScan } from '@workspace/ui/components/ui-qr-region-scan'
 import { UiTextPasteButton } from '@workspace/ui/components/ui-text-paste-button'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { VAULT_UNSECURED_CONFIRM_PHRASE } from '@workspace/vault/encrypted-value-schema'
@@ -56,6 +57,9 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
   const [privateKey, setPrivateKey] = useState('')
   const [transferCode, setTransferCode] = useState('')
   const [transferScan, setTransferScan] = useState(false)
+  const [transferRegion, setTransferRegion] = useState(false)
+  const canRegionScan =
+    typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function'
   const createPrivateKey = useCreateNewWalletFromPrivateKey()
   const importTransfer = useImportWalletTransfer()
   const privateKeyId = useId()
@@ -291,6 +295,26 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
                       setTransferCode(value)
                       setTransferScan(false)
                     }}
+                  />
+                ) : null}
+                {canRegionScan ? (
+                  <Button
+                    className="w-full"
+                    onClick={() => setTransferRegion((value) => !value)}
+                    type="button"
+                    variant="outline"
+                  >
+                    {transferRegion ? t(($) => $.importTransferRegionHide) : t(($) => $.importTransferRegionShow)}
+                  </Button>
+                ) : null}
+                {transferRegion ? (
+                  <UiQrRegionScan
+                    noCodeMessage={t(($) => $.importTransferRegionNoCode)}
+                    onScan={(value) => {
+                      setTransferCode(value)
+                      setTransferRegion(false)
+                    }}
+                    reshareLabel={t(($) => $.importTransferRegionReshare)}
                   />
                 ) : null}
               </div>
