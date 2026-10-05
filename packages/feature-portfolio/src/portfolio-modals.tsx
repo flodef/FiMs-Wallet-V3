@@ -11,6 +11,7 @@ import { PortfolioFeatureModalBurn } from './portfolio-feature-modal-burn.tsx'
 import { PortfolioFeatureModalComplete } from './portfolio-feature-modal-complete.tsx'
 import { PortfolioFeatureModalConfirm } from './portfolio-feature-modal-confirm.tsx'
 import { PortfolioFeatureModalPay } from './portfolio-feature-modal-pay.tsx'
+import { PortfolioFeatureModalPayRequest } from './portfolio-feature-modal-pay-request.tsx'
 import { PortfolioFeatureModalReceive } from './portfolio-feature-modal-receive.tsx'
 import { PortfolioFeatureModalSelectAmount } from './portfolio-feature-modal-select-amount.tsx'
 import { PortfolioFeatureModalSelectDestination } from './portfolio-feature-modal-select-destination.tsx'
@@ -84,6 +85,16 @@ export default function PortfolioModals({
     },
     { element: <PortfolioFeatureModalComplete />, path: 'complete/:signature' },
     { element: <PortfolioFeatureModalPay />, path: 'pay' },
+    {
+      element: (
+        <PortfolioFeatureModalPayRequest
+          address={account.publicKey}
+          getTransactionSigner={getTransactionSigner}
+          network={network}
+        />
+      ),
+      path: 'pay-request',
+    },
     { element: <PortfolioFeatureModalReceive account={account} />, path: 'receive' },
     { element: <PortfolioFeatureModalSelectTokens account={account} network={network} />, path: 'send' },
     {
