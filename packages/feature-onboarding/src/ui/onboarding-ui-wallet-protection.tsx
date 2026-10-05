@@ -1,3 +1,4 @@
+import { envAllowUnsecuredWallets } from '@workspace/env/env'
 import { useTranslation } from '@workspace/i18n'
 import { Alert, AlertDescription } from '@workspace/ui/components/alert'
 import { Input } from '@workspace/ui/components/input'
@@ -35,6 +36,9 @@ export function OnboardingUiWalletProtection({
   const pinId = useId()
   const protectionId = useId()
   const unsecuredConfirmId = useId()
+  // Cleartext storage only ever appears when the build opts in
+  // (VITE_ALLOW_UNSECURED_WALLETS) — production users never see it.
+  const allowUnsecured = envAllowUnsecuredWallets()
 
   return (
     <details className="space-y-4">
@@ -42,7 +46,7 @@ export function OnboardingUiWalletProtection({
       <div className="space-y-4 pt-2">
         <ToggleGroup
           aria-label={t(($) => $.walletProtectionTitle)}
-          className="grid w-full grid-cols-1 sm:grid-cols-3"
+          className={`grid w-full grid-cols-1 ${allowUnsecured ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
           id={protectionId}
           onValueChange={onProtectionModeChange}
           type="single"
@@ -58,12 +62,14 @@ export function OnboardingUiWalletProtection({
           <ToggleGroupItem className="h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug" value="pin">
             {t(($) => $.walletProtectionPin)}
           </ToggleGroupItem>
-          <ToggleGroupItem
-            className="h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug"
-            value="unsecured"
-          >
-            {t(($) => $.walletProtectionUnsecured)}
-          </ToggleGroupItem>
+          {allowUnsecured ? (
+            <ToggleGroupItem
+              className="h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug"
+              value="unsecured"
+            >
+              {t(($) => $.walletProtectionUnsecured)}
+            </ToggleGroupItem>
+          ) : null}
         </ToggleGroup>
         {protectionMode === 'pin' ? (
           <div className="space-y-3">
@@ -102,7 +108,7 @@ export function OnboardingUiWalletProtection({
             </div>
           </div>
         ) : null}
-        {protectionMode === 'unsecured' ? (
+        {allowUnsecured && protectionMode === 'unsecured' ? (
           <div className="space-y-3">
             <Alert variant="warning">
               <AlertDescription>{t(($) => $.walletProtectionUnsecuredWarning)}</AlertDescription>

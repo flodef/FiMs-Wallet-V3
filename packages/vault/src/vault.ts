@@ -4,6 +4,7 @@ import {
   generateVaultKeyMaterial,
   importVaultKey,
 } from './encrypted-value.ts'
+import { checkUnlockThrottle, clearUnlockThrottle, recordUnlockFailure } from './unlock-throttle.ts'
 import { unlockPinWalletProtection, unlockUnsecuredWalletProtection } from './wallet-protection.ts'
 import { walletProtectionSchema } from './wallet-protection-schema.ts'
 
@@ -108,27 +109,40 @@ export function createVault(store: VaultStorage): Vault {
       if (!encryptedVaultKey) {
         throw new Error('Vault is not configured')
       }
+      checkUnlockThrottle('vault')
       try {
         const keyMaterial = await decryptWithPassword({ encrypted: encryptedVaultKey, password })
         key = await importVaultKey({ keyMaterial })
+        clearUnlockThrottle('vault')
       } catch (error) {
         key = null
         walletKeys.clear()
+        recordUnlockFailure('vault')
         throw new Error('Unable to unlock vault', { cause: error })
       }
     },
     async unlockWallet({ credential, walletId }) {
       const protection = await getWalletProtection(walletId)
+      const throttleTarget = `wallet:${walletId}`
+      if (protection.mode === 'pin') {
+        checkUnlockThrottle(throttleTarget)
+      }
       try {
         switch (protection.mode) {
           case 'password':
             requireDefaultKey()
             return
           case 'pin':
-            walletKeys.set(
-              walletId,
-              await unlockPinWalletProtection({ pin: credential, protection: JSON.stringify(protection) }),
-            )
+            try {
+              walletKeys.set(
+                walletId,
+                await unlockPinWalletProtection({ pin: credential, protection: JSON.stringify(protection) }),
+              )
+              clearUnlockThrottle(throttleTarget)
+            } catch (error) {
+              recordUnlockFailure(throttleTarget)
+              throw error
+            }
             return
           case 'unsecured':
             walletKeys.set(walletId, await unlockUnsecuredWalletProtection({ protection: JSON.stringify(protection) }))

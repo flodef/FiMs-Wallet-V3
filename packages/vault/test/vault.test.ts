@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { decryptWithPassword } from '../src/encrypted-value.ts'
+import { resetUnlockThrottle } from '../src/unlock-throttle.ts'
 import { createVault, type VaultStorage } from '../src/vault.ts'
 
 let vaultKey: string | undefined
@@ -18,6 +19,7 @@ const storage: VaultStorage = {
 describe('vault', () => {
   beforeEach(() => {
     vaultKey = undefined
+    resetUnlockThrottle()
   })
 
   describe('expected behavior', () => {

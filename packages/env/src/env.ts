@@ -5,6 +5,9 @@ export const envSchema = z.object({
     .enum(['networkDevnet', 'networkLocalnet', 'networkMainnet', 'networkTestnet'])
     .default('networkDevnet'),
   adminAddresses: z.string().default('CCLcWAJX6fubUqGyZWz8dyUGEddRj8h4XZZCNSDzMVx4'),
+  // VITE_ALLOW_UNSECURED_WALLETS — dev/test escape hatch: the cleartext
+  // storage protection mode must never be offered in production builds.
+  allowUnsecuredWallets: z.string().default(''),
   // Same-origin by default: Vercel rewrites /api/* to the api function
   // (api/[...path].ts), so the bundle and the API code always deploy together.
   // The Cloudflare worker remains reachable for other clients.
@@ -28,6 +31,10 @@ export function env(key: keyof Env): string {
     memoizedEnv = envSchema.parse({})
   }
   return memoizedEnv[key]
+}
+
+export function envAllowUnsecuredWallets(): boolean {
+  return env('allowUnsecuredWallets') === 'true'
 }
 
 // Comma-separated public keys (VITE_ADMIN_ADDRESSES). These are not secrets —

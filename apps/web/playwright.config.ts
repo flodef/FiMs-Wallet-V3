@@ -41,7 +41,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'bun e2e/web-server.ts',
-    env: { VITE_ACTIVE_NETWORK_ID: 'networkLocalnet' },
+    env: { VITE_ACTIVE_NETWORK_ID: 'networkLocalnet', VITE_ALLOW_UNSECURED_WALLETS: 'true' },
     gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
     reuseExistingServer: false,
     timeout: 180_000,

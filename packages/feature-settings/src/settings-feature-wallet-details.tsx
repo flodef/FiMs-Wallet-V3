@@ -8,6 +8,7 @@ import { useAccountsForWalletLive } from '@workspace/db-react/use-accounts-for-w
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useWalletFindUnique } from '@workspace/db-react/use-wallet-find-unique'
 import { useWalletReprotect } from '@workspace/db-react/use-wallet-reprotect'
+import { envAllowUnsecuredWallets } from '@workspace/env/env'
 import { useTranslation } from '@workspace/i18n'
 import { solToLamports } from '@workspace/solana-client/sol-to-lamports'
 import { useRequestAirdrop } from '@workspace/solana-client-react/use-request-airdrop'
@@ -81,6 +82,10 @@ export function SettingsFeatureWalletDetails() {
   const activeNetwork = useNetworkActive()
   const requestAirdropMutation = useRequestAirdrop(activeNetwork)
   const currentProtectionMode = wallet?.protectionMode ?? 'password'
+  // Cleartext storage is opt-in per build (VITE_ALLOW_UNSECURED_WALLETS);
+  // an already-unsecured wallet keeps the option visible so it can be
+  // switched away — or back — without a dead-end form state.
+  const allowUnsecured = envAllowUnsecuredWallets() || currentProtectionMode === 'unsecured'
   const protectionModeLabels: ProtectionModeLabels = {
     password: t(($) => $.walletProtectionPassword),
     pin: t(($) => $.walletProtectionPin),
@@ -213,7 +218,7 @@ export function SettingsFeatureWalletDetails() {
           <div className="space-y-2">
             <Label htmlFor={protectionId}>{t(($) => $.walletProtectionTitle)}</Label>
             <ToggleGroup
-              className="grid w-full grid-cols-1 sm:grid-cols-3"
+              className={`grid w-full grid-cols-1 ${allowUnsecured ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
               id={protectionId}
               onValueChange={handleProtectionModeChange}
               type="single"
@@ -232,12 +237,14 @@ export function SettingsFeatureWalletDetails() {
               >
                 {t(($) => $.walletProtectionPin)}
               </ToggleGroupItem>
-              <ToggleGroupItem
-                className="h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug"
-                value="unsecured"
-              >
-                {t(($) => $.walletProtectionUnsecured)}
-              </ToggleGroupItem>
+              {allowUnsecured ? (
+                <ToggleGroupItem
+                  className="h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug"
+                  value="unsecured"
+                >
+                  {t(($) => $.walletProtectionUnsecured)}
+                </ToggleGroupItem>
+              ) : null}
             </ToggleGroup>
           </div>
           {selectedProtectionMode === 'pin' ? (
@@ -350,6 +357,9 @@ function getWalletProtectionInput(input: {
       }
       return { mode: 'pin', pin: input.pin }
     case 'unsecured':
+      if (!envAllowUnsecuredWallets()) {
+        throw new Error('Unsecured wallet protection is not available')
+      }
       if (input.unsecuredConfirmText !== VAULT_UNSECURED_CONFIRM_PHRASE) {
         throw new Error(input.validationMessages.unsecuredConfirm)
       }

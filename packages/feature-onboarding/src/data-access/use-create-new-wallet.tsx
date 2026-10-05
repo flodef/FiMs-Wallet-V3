@@ -5,6 +5,7 @@ import { useAccountCreate } from '@workspace/db-react/use-account-create'
 import { useWalletCreate } from '@workspace/db-react/use-wallet-create'
 import { useWalletDetermineName } from '@workspace/db-react/use-wallet-determine-name'
 import { useWalletGenerateWithAccount } from '@workspace/db-react/use-wallet-generate-with-account'
+import { envAllowUnsecuredWallets } from '@workspace/env/env'
 import { derivationPaths } from '@workspace/keypair/derivation-paths'
 import { importKeyPairToPublicKeySecretKey } from '@workspace/keypair/import-key-pair-to-public-key-secret-key'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
@@ -109,6 +110,10 @@ export function getCreateNewWalletProtection(input: {
       }
       return { mode: 'pin', pin: input.pin }
     case 'unsecured':
+      // Cleartext storage is a dev/test escape hatch (VITE_ALLOW_UNSECURED_WALLETS).
+      if (!envAllowUnsecuredWallets()) {
+        throw new Error('Unsecured wallet protection is not available')
+      }
       if (input.unsecuredConfirmText !== VAULT_UNSECURED_CONFIRM_PHRASE) {
         throw new Error(`Type ${VAULT_UNSECURED_CONFIRM_PHRASE} to confirm this wallet is not protected`)
       }
