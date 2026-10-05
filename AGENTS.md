@@ -35,39 +35,37 @@
 All tests must follow this strict structure:
 
 ```typescript
-describe('function-name', () => {
+describe("function-name", () => {
   beforeEach(async () => {
     // Clear database or reset state
-  })
+  });
 
-  describe('expected behavior', () => {
-    it('should do something when condition is met', async () => {
+  describe("expected behavior", () => {
+    it("should do something when condition is met", async () => {
       // Test implementation
-    })
-  })
+    });
+  });
 
-  describe('unexpected behavior', () => {
+  describe("unexpected behavior", () => {
     beforeEach(() => {
-      vi.spyOn(console, 'log').mockImplementation(() => {})
-    })
+      vi.spyOn(console, "log").mockImplementation(() => {});
+    });
 
     afterEach(() => {
-      vi.restoreAllMocks()
-    })
+      vi.restoreAllMocks();
+    });
 
-    it('should throw an error when something fails', async () => {
+    it("should throw an error when something fails", async () => {
       // Test implementation
-    })
-  })
-})
+    });
+  });
+});
 ```
 
 ### Test Sections
 
 1. **Expected Behavior**: Tests for normal operation and valid inputs
-2. **Unexpected Behavior**: Tests for error handling, invalid inputs, and edge cases
-  2.1 Must mock `console.log` in beforeEach
-  2.2 Must restore mocks in afterEach
+2. **Unexpected Behavior**: Tests for error handling, invalid inputs, and edge cases — must mock `console.log` in `beforeEach` and restore mocks in `afterEach`
 
 Exception: `*.integration.test.ts` files may omit the `unexpected behavior` section when the test is a focused happy-path wrapper around an external service, RPC endpoint, or runtime integration and adding synthetic failure cases would expand the intended coverage. Keep the `expected behavior` section and ARRANGE/ACT/ASSERT structure.
 
@@ -76,18 +74,18 @@ Exception: `*.integration.test.ts` files may omit the `unexpected behavior` sect
 Every test must follow the ARRANGE/ACT/ASSERT pattern with explicit comments:
 
 ```typescript
-it('should create a network', async () => {
+it("should create a network", async () => {
   // ARRANGE
-  expect.assertions(2) // REQUIRED: Explicit assertion count
-  const input = testNetworkInputCreate()
+  expect.assertions(2); // REQUIRED: Explicit assertion count
+  const input = testNetworkInputCreate();
 
   // ACT
-  const result = await networkCreate(db, input) // REQUIRED: Results must be called result, result1, etc...
+  const result = await networkCreate(db, input); // REQUIRED: Results must be called result, result1, etc...
 
   // ASSERT
-  expect(result).toBeDefined()
-  expect(result?.name).toBe(input.name)
-})
+  expect(result).toBeDefined();
+  expect(result?.name).toBe(input.name);
+});
 ```
 
 ### Combined ACT & ASSERT
@@ -95,17 +93,17 @@ it('should create a network', async () => {
 For error testing, ACT & ASSERT can be combined:
 
 ```typescript
-it('should throw an error with an invalid key', async () => {
+it("should throw an error with an invalid key", async () => {
   // ARRANGE
-  expect.assertions(1) // REQUIRED: Explicit assertion count
+  expect.assertions(1); // REQUIRED: Explicit assertion count
   const input = testNetworkInputCreate({
     // @ts-expect-error: Testing invalid input
-    type: 'invalid-type',
-  })
+    type: "invalid-type",
+  });
 
   // ACT & ASSERT
-  await expect(networkCreate(db, input)).rejects.toThrow()
-})
+  await expect(networkCreate(db, input)).rejects.toThrow();
+});
 ```
 
 ### Key Requirements
@@ -122,7 +120,7 @@ it('should throw an error with an invalid key', async () => {
 - **Never** put user signing keys server-side: no private keys, seeds, mnemonics, or decrypted wallet secrets in `apps/api`, env vars, the database, or logs. Signing happens client-side only. The single documented exception is `CUSTODIAL_KEYPAIR` (apps/api custodial service) — mint authority + custody wallet for the wrapped FiMs products, a deliberate hot key that must never be extended to user funds.
 - **Never** log or persist decrypted key material; clear cached CryptoKeys on lock and on failed unlock.
 - When rendering external data (token metadata, memos, transaction labels, Solana Pay fields, dApp-provided strings), rely on React escaping — no manual HTML injection.
-- New send/transfer recipients must stay visible by name when known (account name, bookmark label, `known-recipients.ts` registry); unknown recipients must keep the `sendConfirmUnknownRecipient` warning.
+- New send/transfer recipients must stay visible by name when known (account name, bookmark label, `fims-known-recipients.ts` registry); unknown recipients must keep the `sendConfirmUnknownRecipient` warning. The same labeling applies to dApp signing prompts (`feature-request`), where `analyze-wire-inspection` must run before any transaction signature.
 
 ## Devnet Testing
 

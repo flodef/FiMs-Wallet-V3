@@ -1,8 +1,13 @@
 {
   "dependencies": {
+    "@solana/kit": "catalog:",
     "@solana/wallet-standard-features": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@workspace/background": "workspace:*",
+    "@workspace/db-react": "workspace:*",
+    "@workspace/i18n": "workspace:*",
+    "@workspace/solana-client": "workspace:*",
+    "@workspace/solana-client-react": "workspace:*",
     "@workspace/ui": "workspace:*",
     "react-router": "catalog:"
   },
@@ -11,7 +16,9 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@workspace/config-typescript": "workspace:*",
-    "typescript": "catalog:"
+    "@workspace/config-vitest": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "exports": {
     "./*": "./src/*.tsx"

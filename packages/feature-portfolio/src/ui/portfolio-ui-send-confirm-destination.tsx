@@ -2,17 +2,17 @@ import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useBookmarkAccountLive } from '@workspace/db-react/use-bookmark-account-live'
 import { formatBalance } from '@workspace/feature-explorer/data-access/format-balance'
 import { useTranslation } from '@workspace/i18n'
+import {
+  FIMS_DEMO_RECIPIENT,
+  FIMS_TONTINE_RECIPIENT,
+  FIMS_TREASURY_RECIPIENT,
+} from '@workspace/solana-client/fims-known-recipients'
 import type { TransferRecipient } from '@workspace/solana-client/transfer-recipient'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@workspace/ui/components/field'
 import { Input } from '@workspace/ui/components/input'
 import { UiWarning } from '@workspace/ui/components/ui-warning'
 import { useId, useMemo } from 'react'
 import { findLookalikeAddress } from '../data-access/find-lookalike-address.ts'
-import {
-  FIMS_DEMO_RECIPIENT,
-  FIMS_TONTINE_RECIPIENT,
-  FIMS_TREASURY_RECIPIENT,
-} from '../data-access/known-recipients.ts'
 import type { TokenBalance } from '../data-access/use-get-token-balances.ts'
 
 export function PortfolioUiSendConfirmDestination({

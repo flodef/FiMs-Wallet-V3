@@ -8,6 +8,7 @@ import enExplorer from '../locales/en/explorer.json' with { type: 'json' }
 import enFims from '../locales/en/fims.json' with { type: 'json' }
 import enOnboarding from '../locales/en/onboarding.json' with { type: 'json' }
 import enPortfolio from '../locales/en/portfolio.json' with { type: 'json' }
+import enRequest from '../locales/en/request.json' with { type: 'json' }
 import enSettings from '../locales/en/settings.json' with { type: 'json' }
 import enShell from '../locales/en/shell.json' with { type: 'json' }
 import enTranslation from '../locales/en/translation.json' with { type: 'json' }
@@ -18,6 +19,7 @@ import esExplorer from '../locales/es/explorer.json' with { type: 'json' }
 import esFims from '../locales/es/fims.json' with { type: 'json' }
 import esOnboarding from '../locales/es/onboarding.json' with { type: 'json' }
 import esPortfolio from '../locales/es/portfolio.json' with { type: 'json' }
+import esRequest from '../locales/es/request.json' with { type: 'json' }
 import esSettings from '../locales/es/settings.json' with { type: 'json' }
 import esShell from '../locales/es/shell.json' with { type: 'json' }
 import esTranslation from '../locales/es/translation.json' with { type: 'json' }
@@ -28,6 +30,7 @@ import frExplorer from '../locales/fr/explorer.json' with { type: 'json' }
 import frFims from '../locales/fr/fims.json' with { type: 'json' }
 import frOnboarding from '../locales/fr/onboarding.json' with { type: 'json' }
 import frPortfolio from '../locales/fr/portfolio.json' with { type: 'json' }
+import frRequest from '../locales/fr/request.json' with { type: 'json' }
 import frSettings from '../locales/fr/settings.json' with { type: 'json' }
 import frShell from '../locales/fr/shell.json' with { type: 'json' }
 import frTranslation from '../locales/fr/translation.json' with { type: 'json' }
@@ -48,6 +51,7 @@ i18n.use(initReactI18next).init({
       fims: enFims,
       onboarding: enOnboarding,
       portfolio: enPortfolio,
+      request: enRequest,
       settings: enSettings,
       shell: enShell,
       translation: enTranslation,
@@ -60,6 +64,7 @@ i18n.use(initReactI18next).init({
       fims: esFims,
       onboarding: esOnboarding,
       portfolio: esPortfolio,
+      request: esRequest,
       settings: esSettings,
       shell: esShell,
       translation: esTranslation,
@@ -72,6 +77,7 @@ i18n.use(initReactI18next).init({
       fims: frFims,
       onboarding: frOnboarding,
       portfolio: frPortfolio,
+      request: frRequest,
       settings: frSettings,
       shell: frShell,
       translation: frTranslation,

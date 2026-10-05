@@ -16,7 +16,7 @@ export interface FormatSimulatedTransactionChangeOptions {
 }
 
 export interface GetSimulatedTransactionChangeRowsOptions {
-  simulation: SimulatePreparedTransactionSuccessResult
+  simulation: Pick<SimulatePreparedTransactionSuccessResult, 'solBalanceChanges' | 'tokenBalanceChanges'>
 }
 
 export type GetSimulatedTransactionChangeRowsResult = SimulatedTransactionChangeRow[]
