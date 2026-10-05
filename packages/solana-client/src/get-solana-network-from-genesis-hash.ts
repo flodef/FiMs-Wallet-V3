@@ -1,5 +1,5 @@
 /*
- * From https://github.com/gillsdk/gill and adapted for Samui Wallet
+ * From https://github.com/gillsdk/gill and adapted for FiMs Wallet
  * MIT License
  * Copyright (c) 2023 Solana Foundation
  */

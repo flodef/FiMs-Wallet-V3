@@ -1,7 +1,7 @@
 import { registerWallet } from '@wallet-standard/core'
 
-import { SamuiWallet } from './wallet.ts'
+import { FimsWallet } from './wallet.ts'
 
 export function setup() {
-  registerWallet(new SamuiWallet())
+  registerWallet(new FimsWallet())
 }

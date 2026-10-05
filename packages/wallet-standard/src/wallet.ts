@@ -44,7 +44,7 @@ type WalletFeatures = SolanaSignAndSendTransactionFeature &
   StandardDisconnectFeature &
   StandardEventsFeature
 
-export class SamuiWallet implements Wallet {
+export class FimsWallet implements Wallet {
   get accounts(): readonly WalletAccount[] {
     return this.#accounts
   }
@@ -120,7 +120,7 @@ export class SamuiWallet implements Wallet {
   }
 
   get name(): string {
-    return 'Samui'
+    return 'FiMs'
   }
 
   get version(): WalletVersion {

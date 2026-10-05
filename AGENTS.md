@@ -1,4 +1,4 @@
-# Agent Guidelines for Samui Wallet
+# Agent Guidelines for FiMs Wallet
 
 ## Commands
 

@@ -1,4 +1,4 @@
-The Samui Wallet code of conduct is derived from [The Ruby Community Conduct Guideline](https://www.ruby-lang.org/en/conduct/).
+The FiMs Wallet code of conduct is derived from [The Ruby Community Conduct Guideline](https://www.ruby-lang.org/en/conduct/).
 
 - Participants will be tolerant of opposing views.
 - Participants must ensure that their language and actions are free of personal attacks and disparaging personal remarks.

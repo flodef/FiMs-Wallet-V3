@@ -1,6 +1,6 @@
 import { setup } from '@workspace/wallet-standard'
 
-const preloadErrorReloadKey = 'samui:preload-error-reloaded'
+const preloadErrorReloadKey = 'fims:preload-error-reloaded'
 
 window.addEventListener('load', () => {
   sessionStorage.removeItem(preloadErrorReloadKey)

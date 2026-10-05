@@ -1,6 +1,6 @@
-# Samui Wallet Public Roadmap
+# FiMs Wallet Roadmap
 
-This roadmap shares what the Samui team is building now, what's next, and where the community can have outsized impact. It reflects current priorities and sequencing.
+This roadmap shares what the FiMs team is building now, what's next, and where the community can have outsized impact. It reflects current priorities and sequencing.
 
 In addition, please take a look at our [open GitHub issues](https://github.com/samui-build/samui-wallet/issues).
 
@@ -15,16 +15,16 @@ In addition, please take a look at our [open GitHub issues](https://github.com/s
 
 * Pick a "Community" item below, then **open a GitHub Issue in this repo** with the title: `Roadmap: <item> — Contribution Proposal`.
 * In your issue, include: goals, approach/design sketch, deliverables, estimated timeline, and how you'll demo/measure success.
-* The Samui team will **review and offer consulting** (design feedback, API guidance, intros) so you can ship confidently.
+* The FiMs team will **review and offer consulting** (design feedback, API guidance, intros) so you can ship confidently.
 * Docs are credibly neutral and community‑owned: contribute guides, templates, and examples to the GitBook repo → [https://github.com/murrlincoln/x402-gitbook](https://github.com/murrlincoln/x402-gitbook) (PRs welcome).
 
 
 
 ## Recently shipped
 
-* ### Samui Wallet Hackathon submission
-  - **Why**: Samui Wallet participated in the Cypherpunk Hackathon by Colosseum.
-  - **What**: An initial version of the web version of Samui Wallet.
+* ### FiMs Wallet (then Samui Wallet) hackathon submission
+  - **Why**: the wallet (as Samui Wallet) participated in the Cypherpunk Hackathon by Colosseum.
+  - **What**: An initial version of the web version of the wallet.
   - **Status/Target**: **Shipped – Oct 30, 2025**.
   - **Community**: Initial feedback and feature requests, pull requests and issues.
 

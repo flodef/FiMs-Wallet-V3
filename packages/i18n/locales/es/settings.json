@@ -41,7 +41,7 @@
   "exportSecretKeyHide": "Ocultar clave secreta",
   "exportSecretKeyReveal": "Revelar clave secreta",
   "exportSecretKeyShow": "Mostrar clave secreta",
-  "exportWarning1": "El equipo de Samui nunca solicitará tus secretos.",
+  "exportWarning1": "El equipo de FiMs nunca solicitará tus secretos.",
   "exportWarning2": "Nunca compartas tu secreto ni lo introduzcas en una aplicación o sitio web.",
   "exportWarning3": "Cualquiera que tenga tu secreto tendrá control total de tu cuenta.",
   "exportWarningAccept": "Acepto que la exportación de este valor es bajo mi propio riesgo.",

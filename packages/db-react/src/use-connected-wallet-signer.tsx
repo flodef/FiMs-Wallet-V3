@@ -5,7 +5,7 @@ import { createWalletStandardSigner } from '@workspace/solana-client/wallet-stan
 
 // The wallet we register ourselves to act as a wallet for dApps — it must
 // not appear in the "connect external wallet" list.
-const SELF_WALLET_NAME = 'Samui'
+const SELF_WALLET_NAME = 'FiMs'
 
 export function useDetectedWallets() {
   return getWallets()

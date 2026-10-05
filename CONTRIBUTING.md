@@ -1,6 +1,6 @@
 # Contributing
 
-We welcome contributions to Samui Wallet. Please follow these guidelines to ensure a smooth process.
+We welcome contributions to FiMs Wallet. Please follow these guidelines to ensure a smooth process.
 
 ## How to Contribute
 
@@ -31,7 +31,7 @@ We strongly prefer small, single-purpose PRs. Large PRs delay merges and increas
 
 Try to break down large features into smaller, incremental changes. Each PR should represent a single, logical unit of work.
 
-Avoid including unrelated changes. If you notice something that needs fixing but is outside the scope of your current work, create a separate [issue](https://github.com/samui-build/samui-wallet/issues/new/choose) or address it in a follow-up PR. This helps keep your PRs focused and easy to review.
+Avoid including unrelated changes. If you notice something that needs fixing but is outside the scope of your current work, create a separate [issue](https://github.com/flodef/FiMs-Wallet-V3/issues/new) or address it in a follow-up PR. This helps keep your PRs focused and easy to review.
 
 ## Prerequisites
 
@@ -111,7 +111,7 @@ Healthy debate is welcome, but the way we communicate matters. To keep our feedb
 Keep discussions focused on the task at hand. The primary goal of a Pull Request (PR) is to get it merged once it's "good enough."
 
 -   **PR comments are not a forum.** Reviews should focus on improving the code within that specific PR.
--   If a review sparks a thought about an unrelated topic, please move the discussion to a more appropriate venue, such as [**Discord**](http://samui.build/go/discord) or a [**new GitHub issue**](https://github.com/samui-build/samui-wallet/issues/new/choose).
+-   If a review sparks a thought about an unrelated topic, please move the discussion to a more appropriate venue, such as a [**new GitHub issue**](https://github.com/flodef/FiMs-Wallet-V3/issues/new).
 -   Any discussion that isn't a pressing issue or directly improving the quality of the PR should be postponed. This keeps our PRs small, focused, and moving forward.
 
 Ultimately, we ship code, not comments. Let's prioritize actions that help us meet our goals and maintain a healthy ratio of commits to comments.

@@ -18,7 +18,7 @@ describe('setting-find-many', () => {
       expect.assertions(2)
       const [key, value] = testSettingSetInput()
       await settingSetValue(ctx, key, value)
-      await settingSetValue(ctx, 'apiEndpoint', 'https://api.samui.build')
+      await settingSetValue(ctx, 'apiEndpoint', 'https://api.fims.fi')
 
       // ACT
       const result = await settingFindMany(ctx, { key })
@@ -33,7 +33,7 @@ describe('setting-find-many', () => {
       expect.assertions(2)
       const [key, value] = testSettingSetInput()
       await settingSetValue(ctx, key, value)
-      await settingSetValue(ctx, 'apiEndpoint', 'https://api.samui.build')
+      await settingSetValue(ctx, 'apiEndpoint', 'https://api.fims.fi')
 
       // ACT
       const result = await settingFindMany(ctx, { value })
@@ -48,7 +48,7 @@ describe('setting-find-many', () => {
       expect.assertions(2)
       const [key, value] = testSettingSetInput()
       await settingSetValue(ctx, key, value)
-      await settingSetValue(ctx, 'apiEndpoint', 'https://api.samui.build')
+      await settingSetValue(ctx, 'apiEndpoint', 'https://api.fims.fi')
 
       // ACT
       const result = await settingFindMany(ctx, { key, value })

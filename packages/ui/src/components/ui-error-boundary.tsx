@@ -58,15 +58,11 @@ function UiErrorBoundarySupport() {
       Please{' '}
       <a
         className="hover:underline"
-        href="https://github.com/samui-build/samui-wallet/issues/new/choose"
+        href="https://github.com/flodef/FiMs-Wallet-V3/issues/new"
         rel="noopener noreferrer"
         target="_blank"
       >
         create a GitHub issue
-      </a>{' '}
-      or{' '}
-      <a className="hover:underline" href="https://samui.build/go/discord" rel="noopener noreferrer" target="_blank">
-        join our Discord
       </a>{' '}
       if the issue persists.
     </div>

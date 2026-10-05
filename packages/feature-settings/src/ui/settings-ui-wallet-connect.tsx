@@ -26,7 +26,7 @@ export function SettingsUiWalletConnect() {
   const createWallet = useWalletCreate()
   const createAccount = useAccountCreate()
   const [pending, setPending] = useState<string>()
-  // 'Samui' is the wallet we register for dApps — not an external wallet.
+  // 'FiMs' is the wallet we register for dApps — not an external wallet.
   const detected = useDetectedWallets().filter((wallet) => wallet.features[StandardConnect])
 
   async function connect(wallet: StandardWallet) {
