@@ -29,6 +29,7 @@ describe('create-db', () => {
         'accounts',
         'bookmarkAccounts',
         'bookmarkTransactions',
+        'chainTransactions',
         'networks',
         'settings',
         'wallets',
