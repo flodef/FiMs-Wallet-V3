@@ -151,6 +151,11 @@ pub mod fims_strategy {
         let debt_before = token_amount(&debt_ata)?;
         let supply_before = position_field(&position, POSITION_SUPPLY_OFF)?;
         let dust_before = position_field(&position, POSITION_DEBT_OFF)?;
+        let others_before = snapshot_undeclared_atas(
+            ctx.remaining_accounts,
+            vault_key,
+            &[col_ata.key(), debt_ata.key(), nft_ata.key()],
+        );
 
         cpi_whitelisted(state, ctx.remaining_accounts, data, vault_key, state.vault_bump)?;
 
@@ -169,7 +174,7 @@ pub mod fims_strategy {
         //   debt_delta > 0 borrow   -> vault borrow-mint arrives by >= delta
         //   debt_delta < 0 repay    -> vault borrow-mint leaves by >= |delta|
         assert_delta(&col_ata, col_before, -col_delta, StrategyError::BadCollateralFlow)?;
-        assert_delta(&debt_ata, debt_before, -debt_delta, StrategyError::BadDebtFlow)?;
+        assert_delta(&debt_ata, debt_before, debt_delta, StrategyError::BadDebtFlow)?;
 
         // Total debt is bound by the position's own accounting — the ceiling
         // is real, not a per-operation guess.
@@ -181,6 +186,7 @@ pub mod fims_strategy {
         assert_healthy_ata(&col_ata, vault_key)?;
         assert_healthy_ata(&debt_ata, vault_key)?;
         assert_healthy_ata(&nft_ata, vault_key)?;
+        assert_undeclared_atas_intact(ctx.remaining_accounts, vault_key, &others_before)?;
         emit!(JlOperate { strategy: strategy_index, col_delta, debt_delta });
         Ok(())
     }
@@ -196,6 +202,7 @@ pub mod fims_strategy {
     ) -> Result<()> {
         let state = &ctx.accounts.state;
         require!(!state.paused, StrategyError::Paused);
+        require!(amount > 0, StrategyError::BadConfig);
         let strategy = state
             .strategies
             .get(strategy_index as usize)
@@ -205,6 +212,7 @@ pub mod fims_strategy {
 
         let ata = find_ata(ctx.remaining_accounts, vault_key, stable_mint)?;
         let before = token_amount(&ata)?;
+        let others_before = snapshot_undeclared_atas(ctx.remaining_accounts, vault_key, &[ata.key()]);
 
         cpi_whitelisted(state, ctx.remaining_accounts, data, vault_key, state.vault_bump)?;
 
@@ -214,6 +222,7 @@ pub mod fims_strategy {
         };
         assert_delta(&ata, before, expected, StrategyError::BadStableFlow)?;
         assert_healthy_ata(&ata, vault_key)?;
+        assert_undeclared_atas_intact(ctx.remaining_accounts, vault_key, &others_before)?;
         emit!(KaminoFlow { strategy: strategy_index, direction, amount });
         Ok(())
     }
@@ -239,11 +248,17 @@ pub mod fims_strategy {
                 .any(|p| p.from == in_mint && p.to == out_mint),
             StrategyError::MintPairNotAllowed
         );
+        require!(amount > 0 && min_out > 0, StrategyError::BadConfig);
         let vault_key = ctx.accounts.vault.key();
         let in_ata = find_ata(ctx.remaining_accounts, vault_key, in_mint)?;
         let out_ata = find_ata(ctx.remaining_accounts, vault_key, out_mint)?;
         let in_before = token_amount(&in_ata)?;
         let out_before = token_amount(&out_ata)?;
+        let others_before = snapshot_undeclared_atas(
+            ctx.remaining_accounts,
+            vault_key,
+            &[in_ata.key(), out_ata.key()],
+        );
 
         cpi_whitelisted(state, ctx.remaining_accounts, data, vault_key, state.vault_bump)?;
 
@@ -254,6 +269,7 @@ pub mod fims_strategy {
         assert_delta(&out_ata, out_before, min_out as i64, StrategyError::BadSwapOut)?;
         assert_healthy_ata(&in_ata, vault_key)?;
         assert_healthy_ata(&out_ata, vault_key)?;
+        assert_undeclared_atas_intact(ctx.remaining_accounts, vault_key, &others_before)?;
         emit!(Swap { in_mint, out_mint, amount, min_out });
         Ok(())
     }
@@ -443,6 +459,12 @@ fn validate_whitelists(programs: &[Pubkey], members: &[Pubkey]) -> Result<()> {
     require!(members.len() <= MAX_MEMBERS, StrategyError::WhitelistTooLarge);
     // Never allow the strategy program itself as a CPI target.
     require!(!programs.contains(&crate::ID), StrategyError::ProgramNotAllowed);
+    // Generic transfer/account programs are never valid CPI targets: they can
+    // move vault assets to arbitrary accounts with no protocol-side witness
+    // for the post-conditions to check against.
+    for banned in [TOKEN_PROGRAM_ID, ATA_PROGRAM_ID, SYSTEM_PROGRAM_ID] {
+        require!(!programs.contains(&banned), StrategyError::ProgramNotAllowed);
+    }
     require!(!members.contains(&Pubkey::default()), StrategyError::BadConfig);
     for (i, p) in programs.iter().enumerate() {
         require!(!programs[..i].contains(p), StrategyError::BadConfig);
@@ -557,6 +579,53 @@ fn position_field(position: &AccountInfo, offset: usize) -> Result<u64> {
     let data = position.try_borrow_data()?;
     require!(data.len() >= POSITION_LEN, StrategyError::WrongAccount);
     Ok(u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap()))
+}
+
+/// SPL token balance if `info` is a token account owned by `vault`, else None.
+fn vault_ata_amount(info: &AccountInfo, vault: &Pubkey) -> Option<u64> {
+    if info.owner != &TOKEN_PROGRAM_ID {
+        return None
+    }
+    let data = info.try_borrow_data().ok()?;
+    if data.len() < 165 {
+        return None
+    }
+    if Pubkey::try_from(&data[TA_OWNER..TA_OWNER + 32]).ok()? != *vault {
+        return None
+    }
+    Some(u64::from_le_bytes(data[TA_AMOUNT..TA_AMOUNT + 8].try_into().ok()?))
+}
+
+/// Snapshot every vault-owned token account passed in `remaining` that the
+/// caller does not declare — the declared ATAs are asserted individually.
+fn snapshot_undeclared_atas(
+    remaining: &[AccountInfo],
+    vault: Pubkey,
+    exempt: &[Pubkey],
+) -> Vec<(usize, u64)> {
+    remaining
+        .iter()
+        .enumerate()
+        .filter(|(_, info)| !exempt.contains(&info.key()))
+        .filter_map(|(i, info)| vault_ata_amount(info, &vault).map(|amt| (i, amt)))
+        .collect()
+}
+
+/// Post-condition on the ATAs the instruction did not declare: their balance
+/// must not have decreased and they must still be healthy vault accounts.
+/// This is what stops a crafted whitelisted CPI from routing an undeclared
+/// vault token (or a delegate/close authority) out of the vault.
+fn assert_undeclared_atas_intact(
+    remaining: &[AccountInfo],
+    vault: Pubkey,
+    before: &[(usize, u64)],
+) -> Result<()> {
+    for (i, amt) in before {
+        let info = &remaining[*i];
+        require!(token_amount(info)? >= *amt, StrategyError::UndeclaredOutflow);
+        assert_healthy_ata(info, vault)?;
+    }
+    Ok(())
 }
 
 /// Declared delta must match the actual on-chain delta within tolerance —
@@ -978,6 +1047,8 @@ pub struct AdminAccepted {
 
 #[error_code]
 pub enum StrategyError {
+    #[msg("an undeclared vault token account lost funds during the CPI")]
+    UndeclaredOutflow,
     #[msg("strategy is paused")]
     Paused,
     #[msg("target program is not whitelisted")]

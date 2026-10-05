@@ -122,7 +122,9 @@ async function main() {
     payer.publicKey.toBuffer(), // delegate
     guardian.publicKey.toBuffer(), // guardian
     payer.publicKey.toBuffer(), // treasury
-    borshVec([TOKEN_PROGRAM.toBuffer(), SystemProgram.programId.toBuffer()]),
+    // Generic transfer programs (SPL token, system, ATA) are rejected by
+    // validate_whitelists — a CPI through them has no protocol-side witness.
+    borshVec([]),
     borshVec([member.publicKey.toBuffer(), payer.publicKey.toBuffer()]),
     borshVec([]), // strategies — none on localnet (no Fluid positions)
     borshVec([mintPair]), // allowed_mint_pairs: A→B for the swap test
@@ -290,7 +292,23 @@ async function main() {
   await send([sweepIx(treasuryAtaA, 50_000_000n)], [payer], 'sweep 50 → treasury ATA')
   await trySend([sweepIx(memberAtaA, 50_000_000n)], [payer], 'sweep → member ATA (wrong dest)')
 
-  // 6. swap post-conditions (crafted inner instruction = token transfer) --------
+  // 6. allowed_programs invariant: generic transfer programs must be refused --
+  // through them a CPI has no protocol-side witness, so the post-conditions
+  // could never see a crafted outflow. Whitelisting them would let the
+  // delegate sign a plain vault -> anywhere transfer.
+  const allowIxs = (programs: PublicKey[]) =>
+    new TransactionInstruction({
+      data: Buffer.concat([disc('schedule_config'), Buffer.from([0]), borshVec(programs.map((p) => p.toBuffer()))]),
+      keys: stateKeys(payer.publicKey, true),
+      programId: PROGRAM_ID,
+    })
+  await trySend([allowIxs([TOKEN_PROGRAM])], [payer], 'whitelist SPL token program')
+  await trySend([allowIxs([SystemProgram.programId])], [payer], 'whitelist system program')
+  await trySend([allowIxs([ATA_PROGRAM])], [payer], 'whitelist ATA program')
+  await trySend([allowIxs([PROGRAM_ID])], [payer], 'whitelist self')
+
+  // 7. CPI paths are all closed while allowed_programs is empty: every op is
+  // rejected before reaching its inner instruction.
   const swapIx = (inner: TransactionInstruction, amount: bigint, minOut: bigint) =>
     new TransactionInstruction({
       data: Buffer.concat([
@@ -310,41 +328,12 @@ async function main() {
       ],
       programId: PROGRAM_ID,
     })
-
-  // A positive swap path needs a real two-token venue — covered on the
-  // mainnet-fork. Here we assert the three drain modes are impossible:
-  // 1. drain disguised as a zero-amount swap
-  // 2. honestly-declared input but output routed outside the vault
-  // 3. non-whitelisted mint pair
   const drainInner = tokenTransferIx(vaultAtaA, attackerAtaA, vaultPda, 100_000_000n)
-  // declare-0 while tokens leave → assert_delta_exact catches the outflow.
-  await trySend([swapIx(drainInner, 0n, 0n)], [payer], 'swap masking a vault drain (declared 0)')
-  // same drain but honestly declared: input check passes, output never lands
-  // in the vault B ATA → BadSwapOut.
-  await trySend([swapIx(drainInner, 100_000_000n, 1n)], [payer], 'swap drain to attacker ATA')
-  // output mint not whitelisted → pair check.
-  const wrongPairInner = tokenTransferIx(vaultAtaA, vaultAtaA, vaultPda, 1n)
-  const wrongPairIx = new TransactionInstruction({
-    data: Buffer.concat([
-      disc('swap'),
-      mintA.publicKey.toBuffer(),
-      mintA.publicKey.toBuffer(), // A→A not whitelisted
-      u64(1n),
-      u64(1n),
-      borshBytes(wrongPairInner.data),
-    ]),
-    keys: [
-      { isSigner: true, isWritable: false, pubkey: payer.publicKey },
-      { isSigner: false, isWritable: false, pubkey: statePda },
-      { isSigner: false, isWritable: false, pubkey: vaultPda },
-      ...wrongPairInner.keys.map((k): AccountMeta => ({ ...k, isSigner: false })),
-      { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
-    ],
-    programId: PROGRAM_ID,
-  })
-  await trySend([wrongPairIx], [payer], 'swap non-whitelisted mint pair')
+  await trySend([swapIx(drainInner, 100_000_000n, 1n)], [payer], 'swap with empty allowed_programs')
+  // Positive CPI paths (swap, jl_operate, kamino_flow + the undeclared-ATA
+  // guard) need a real whitelisted venue — covered on the mainnet-fork.
 
-  // 7. governance ---------------------------------------------------------------
+  // 8. governance ---------------------------------------------------------------
   const pauseIx = (caller: PublicKey, paused: boolean, guardianIx = false) =>
     new TransactionInstruction({
       data: guardianIx ? disc('guardian_pause') : Buffer.concat([disc('set_paused'), Buffer.from([paused ? 1 : 0])]),
@@ -433,7 +422,7 @@ async function main() {
     'accept_admin → payer restored',
   )
 
-  // 8. delegate-only ops are still delegate-only --------------------------------
+  // 9. delegate-only ops are still delegate-only --------------------------------
   await send(
     [SystemProgram.transfer({ fromPubkey: payer.publicKey, lamports: 10_000_000, toPubkey: attacker.publicKey })],
     [payer],
