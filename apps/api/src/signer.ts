@@ -13,8 +13,10 @@
 //             (status quo; the byte decode stays in the caller for error text)
 //   gcp_kms : ${PREFIX}_GCP_KMS_KEY_NAME  — full cryptoKeyVersion resource name
 //             ${PREFIX}_GCP_KMS_PUBLIC_KEY — base58 Solana pubkey of that key
-//             + Application Default Credentials (GCP workload identity /
-//               GOOGLE_APPLICATION_CREDENTIALS on Vercel)
+//             + GCP credentials: either GOOGLE_APPLICATION_CREDENTIALS already
+//               pointing at a service-account file, or GCP_SA_KEY_JSON holding
+//               the service-account JSON itself (written to /tmp — google's
+//               ADC only reads credential files, never inline JSON).
 //
 // The returned object is a Kit TransactionSigner: a keychain
 // SolanaTransactionSigner extends TransactionPartialSigner, so it drops
@@ -58,6 +60,7 @@ export async function createBackendSigner(
         `${prefix}_GCP_KMS_KEY_NAME and ${prefix}_GCP_KMS_PUBLIC_KEY are required for the gcp_kms backend`,
       )
     }
+    await provisionAdcFile()
     // Dynamic import keeps google-auth-library out of the cold path — a
     // memory-backend deployment never loads it.
     const { createGcpKmsSigner } = await import('@solana/keychain-gcp-kms')
@@ -65,4 +68,25 @@ export async function createBackendSigner(
   }
   // Unreachable: signerBackend() rejects unknown values first.
   throw new Error(`unhandled signer backend: ${backend}`)
+}
+
+// Application Default Credentials only read a credential FILE — on Vercel the
+// service-account JSON lives in an env var, so materialize it once per warm
+// instance. Skipped entirely when GOOGLE_APPLICATION_CREDENTIALS is already
+// set (local gcloud auth, CI, a mounted file).
+const ADC_PATH = '/tmp/fims-gcp-sa.json'
+async function provisionAdcFile(): Promise<void> {
+  if (process.env['GOOGLE_APPLICATION_CREDENTIALS']) return
+  const json = process.env['GCP_SA_KEY_JSON']
+  if (!json) {
+    throw new Error(
+      'gcp_kms backend needs credentials: set GCP_SA_KEY_JSON (service-account JSON) ' +
+        'or GOOGLE_APPLICATION_CREDENTIALS (path to a key file)',
+    )
+  }
+  // Mode 0600 — the file holds a credential, not key material, but keep it
+  // owner-only anyway; the JSON itself stays a Vercel secret.
+  const { writeFile } = await import('node:fs/promises')
+  await writeFile(ADC_PATH, json, { mode: 0o600 })
+  process.env['GOOGLE_APPLICATION_CREDENTIALS'] = ADC_PATH
 }

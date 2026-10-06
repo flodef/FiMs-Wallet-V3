@@ -109,5 +109,28 @@ describe('createBackendSigner', () => {
         'STRATEGY_DELEGATE_GCP_KMS_KEY_NAME and STRATEGY_DELEGATE_GCP_KMS_PUBLIC_KEY are required',
       )
     })
+
+    it('should throw when the gcp_kms backend lacks credentials', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      process.env['STRATEGY_DELEGATE_GCP_KMS_KEY_NAME'] =
+        'projects/p/locations/global/keyRings/kr/cryptoKeys/k/cryptoKeyVersions/1'
+      process.env['STRATEGY_DELEGATE_GCP_KMS_PUBLIC_KEY'] = 'GyU9ZpTL3ce8kfS6XSpoiXaiiGb9svJfFEWer33SMmPS'
+      const savedCredentials = process.env['GOOGLE_APPLICATION_CREDENTIALS']
+      const savedJson = process.env['GCP_SA_KEY_JSON']
+      delete process.env['GOOGLE_APPLICATION_CREDENTIALS']
+      delete process.env['GCP_SA_KEY_JSON']
+      const unused = () => new Uint8Array(32)
+
+      try {
+        // ACT & ASSERT
+        await expect(createBackendSigner('STRATEGY_DELEGATE', unused)).rejects.toThrow(
+          'gcp_kms backend needs credentials',
+        )
+      } finally {
+        if (savedCredentials !== undefined) process.env['GOOGLE_APPLICATION_CREDENTIALS'] = savedCredentials
+        if (savedJson !== undefined) process.env['GCP_SA_KEY_JSON'] = savedJson
+      }
+    })
   })
 })
