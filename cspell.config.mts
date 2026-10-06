@@ -69,6 +69,7 @@ const config: CSpellSettings = {
     'Bloopsy',
     'misattributed',
     'permissionless',
+    'idempotently',
     'eurc',
     'EURF',
     'USDF',

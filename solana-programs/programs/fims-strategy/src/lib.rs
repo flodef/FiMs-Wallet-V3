@@ -144,6 +144,31 @@ pub mod fims_strategy {
             StrategyError::WrongAccount
         );
         require!(ctx.accounts.delegate.key() == state.delegate, StrategyError::WrongAccount);
+        require!(ctx.accounts.share_mint.key() == strategy.share_mint, StrategyError::WrongAccount);
+        require!(
+            ctx.accounts.member_share_ata.key() == ata_address(ctx.accounts.member.key(), strategy.share_mint),
+            StrategyError::WrongAccount
+        );
+
+        // The member's share ATA must exist by the time the delegate issues
+        // shares — create it idempotently here so the member (not the
+        // delegate's tip float) pays the rent.
+        invoke(
+            &create_ata_ix(
+                ctx.accounts.member.key(),
+                ctx.accounts.member_share_ata.key(),
+                ctx.accounts.member.key(),
+                strategy.share_mint,
+            ),
+            &[
+                ctx.accounts.member.to_account_info(),
+                ctx.accounts.member_share_ata.to_account_info(),
+                ctx.accounts.member.to_account_info(),
+                ctx.accounts.share_mint.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+                ctx.accounts.token_program.to_account_info(),
+            ],
+        )?;
 
         // Member is a real signer — a plain invoke (no PDA seeds) moves the
         // collateral into the vault.
@@ -833,6 +858,24 @@ fn spl_transfer_ix(source: Pubkey, destination: Pubkey, authority: Pubkey, amoun
     }
 }
 
+/// ATA program `CreateIdempotent` — creates the account if missing, no-ops
+/// otherwise. Lets `deposit` guarantee the member's share ATA exists in the
+/// same transaction, so the delegate never has to fund member rent.
+fn create_ata_ix(payer: Pubkey, ata: Pubkey, owner: Pubkey, mint: Pubkey) -> Instruction {
+    Instruction {
+        program_id: ATA_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(ata, false),
+            AccountMeta::new_readonly(owner, false),
+            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
+            AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
+        ],
+        data: vec![1u8], // CreateIdempotent
+    }
+}
+
 /// Rolling-window allowance for SOL payouts (hourly buckets).
 fn spend_allowance(state: &mut StrategyState, amount: u64) -> Result<()> {
     let tx_cap = state.tx_cap_lamports;
@@ -1131,6 +1174,12 @@ pub struct Deposit<'info> {
     /// CHECK: must equal state.delegate — receives the member tip (checked).
     #[account(mut)]
     pub delegate: UncheckedAccount<'info>,
+    /// CHECK: must equal the strategy's share_mint (checked in handler).
+    pub share_mint: UncheckedAccount<'info>,
+    /// CHECK: the member's share ATA — created idempotently by this ix so the
+    /// member (not the delegate) pays its rent (checked in handler).
+    #[account(mut)]
+    pub member_share_ata: UncheckedAccount<'info>,
     #[account(
         init_if_needed,
         payer = member,
@@ -1145,6 +1194,9 @@ pub struct Deposit<'info> {
     /// CHECK: pinned to the system program id.
     #[account(address = SYSTEM_PROGRAM_ID)]
     pub system_program: UncheckedAccount<'info>,
+    /// CHECK: pinned to the canonical ATA program id.
+    #[account(address = ATA_PROGRAM_ID)]
+    pub ata_program: UncheckedAccount<'info>,
 }
 
 /// Delegate-issued share payout tied to a recorded deposit — no whitelist

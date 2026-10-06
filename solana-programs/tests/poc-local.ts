@@ -219,7 +219,8 @@ async function main() {
         createAtaIx(payer.publicKey, vaultAtaB, vaultPda, mintB.publicKey),
         createAtaIx(payer.publicKey, memberAtaA, member.publicKey, mintA.publicKey),
         createAtaIx(payer.publicKey, member2AtaA, member2.publicKey, mintA.publicKey),
-        createAtaIx(payer.publicKey, member2AtaB, member2.publicKey, mintB.publicKey),
+        // member2AtaB deliberately NOT created — deposit() must create the
+        // member's share ATA idempotently (member pays its own rent).
         createAtaIx(payer.publicKey, treasuryAtaA, payer.publicKey, mintA.publicKey),
         createAtaIx(payer.publicKey, attackerAtaA, attacker.publicKey, mintA.publicKey),
         createAtaIx(payer.publicKey, attackerAtaB, attacker.publicKey, mintB.publicKey),
@@ -358,9 +359,12 @@ async function main() {
         { isSigner: false, isWritable: true, pubkey: vaultPda },
         { isSigner: false, isWritable: true, pubkey: vaultAtaA },
         { isSigner: false, isWritable: true, pubkey: payer.publicKey }, // delegate
+        { isSigner: false, isWritable: false, pubkey: mintB.publicKey }, // share_mint
+        { isSigner: false, isWritable: true, pubkey: member2AtaB }, // member share ATA (created by deposit)
         { isSigner: false, isWritable: true, pubkey: member2DepositPda },
         { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
         { isSigner: false, isWritable: false, pubkey: SystemProgram.programId },
+        { isSigner: false, isWritable: false, pubkey: ATA_PROGRAM },
       ],
       programId: PROGRAM_ID,
     })

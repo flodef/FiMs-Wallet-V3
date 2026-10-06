@@ -1,5 +1,11 @@
 # Agent Guidelines for FiMs Wallet
 
+## Deployment & Infrastructure
+
+- **The API deploys on Vercel**, not Cloudflare: serverless function `api/[...path].ts`, routes under `/api/*` on `https://wallet-v3.fims.fi`. `apps/api/wrangler.jsonc` is legacy — never suggest `wrangler deploy` / `wrangler secret put`; use `bunx vercel env add <NAME> production` from the repo root.
+- **Single Neon Postgres database** shared by all environments (`DATABASE_URL` in `apps/api/.env` IS the production DB). Apply drizzle migrations directly and verify by querying — do not ask the user to check.
+- **cron-job.org**: API key in the pass store at `cron-job-org/api-key`. Keeper automation jobs: "FiMs Strategy Keeper (prod)" (`8587518`, POST `/api/fims/strategy/delegate-run` every minute) and "FiMs Strategy Monitor (prod)" (`8587519`, GET `/api/fims/strategy/status` every 5 min, failure alerts on).
+
 ## Commands
 
 - **Build**: `bun run build`
