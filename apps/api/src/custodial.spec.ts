@@ -177,6 +177,89 @@ describe('custodial', () => {
     })
   })
 
+  describe('backingVault', () => {
+    it('should return null when FIMS_BACKING_VAULT is unset', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const { backingVault } = await loadCustodial()
+
+      // ACT
+      const result = backingVault()
+
+      // ASSERT
+      expect(result).toBeNull()
+    })
+
+    it('should return the configured vault address', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const vault = 'Fe1RpesrtYMJdjwbNXtpVCDNpnFvk6jSic3sJd2aCBng'
+      vi.stubEnv('FIMS_BACKING_VAULT', vault)
+      const { backingVault } = await loadCustodial()
+
+      // ACT
+      const result = backingVault()
+
+      // ASSERT
+      expect(result).toBe(vault)
+    })
+  })
+
+  describe('floatTarget', () => {
+    it('should default to 200 backing units when unset', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const { floatTarget } = await loadCustodial()
+
+      // ACT
+      const result = floatTarget('fims-eur')
+
+      // ASSERT
+      expect(result).toBe(200_000_000n)
+    })
+
+    it('should honor the per-product override in whole units', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      vi.stubEnv('FIMS_USD_FLOAT', '750')
+      const { floatTarget } = await loadCustodial()
+
+      // ACT
+      const result = floatTarget('fims-usd')
+
+      // ASSERT
+      expect(result).toBe(750_000_000n)
+    })
+  })
+
+  describe('sweepAmount', () => {
+    it('should return the excess above the float target', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const { sweepAmount } = await loadCustodial()
+
+      // ACT
+      const result = sweepAmount(1_000_000_000n, 200_000_000n)
+
+      // ASSERT
+      expect(result).toBe(800_000_000n)
+    })
+
+    it('should return zero at or below the float target', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      const { sweepAmount } = await loadCustodial()
+
+      // ACT
+      const result = sweepAmount(200_000_000n, 200_000_000n)
+      const result2 = sweepAmount(150_000_000n, 200_000_000n)
+
+      // ASSERT
+      expect(result).toBe(0n)
+      expect(result2).toBe(0n)
+    })
+  })
+
   describe('unexpected behavior', () => {
     beforeEach(() => {
       vi.spyOn(console, 'log').mockImplementation(() => {})

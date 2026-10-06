@@ -161,6 +161,27 @@ export class DelegateRunReport extends Schema.Class<DelegateRunReport>('Delegate
   skipped: Schema.optional(Schema.String),
 }) {}
 
+// Custodial keeper payloads. Bigints travel as base-unit strings.
+export class CustodialSweepReport extends Schema.Class<CustodialSweepReport>('CustodialSweepReport')({
+  product: Schema.String,
+  signature: Schema.NullOr(Schema.String),
+  swept: Schema.String,
+}) {}
+
+export class CustodialBackingRow extends Schema.Class<CustodialBackingRow>('CustodialBackingRow')({
+  backingTotal: Schema.String,
+  float: Schema.String,
+  floatTarget: Schema.String,
+  healthy: Schema.Boolean,
+  product: Schema.String,
+  supply: Schema.String,
+  vault: Schema.String,
+}) {}
+
+export class CustodialBackingStatus extends Schema.Class<CustodialBackingStatus>('CustodialBackingStatus')({
+  products: Schema.Array(CustodialBackingRow),
+}) {}
+
 // On-chain tx reader payloads — the API proxies Helius (the key stays
 // server-side) and returns this normalized shape so the UI is decoupled from
 // the upstream schema.
@@ -757,5 +778,24 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addError(AuthUnauthorized, { status: 401 })
       .addError(ChainUnavailable, { status: 503 })
       .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    // Custodial keeper: same shared-secret auth. `backing-status` is the
+    // monitor (503 = unbacked supply or sweep broken); `sweep` moves the
+    // excess above each product's float into the Squads vault.
+    HttpApiEndpoint.get('custodialBackingStatus', '/fims/custodial/backing-status')
+      .annotate(OpenApi.Summary, 'Wrapped supply vs float + vault backing')
+      .addSuccess(CustodialBackingStatus)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(ChainUnavailable, { status: 503 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('custodialSweep', '/fims/custodial/sweep')
+      .annotate(OpenApi.Summary, 'Sweep backing above each float target into the multisig vault')
+      .addSuccess(Schema.Array(CustodialSweepReport))
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(ChainUnavailable, { status: 503 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   ) {}

@@ -243,7 +243,7 @@ export async function custodialMint(
   const signer = await custodialSigner()
   const destinationAta = await ata(config.mint, owner)
   const depositIxs = await yieldInstructions(product, 'deposit', config, signer.address, backingUnits)
-  return sendCustodialTransaction([
+  const signature = await sendCustodialTransaction([
     getCreateAssociatedTokenIdempotentInstruction({
       ata: destinationAta,
       mint: config.mint,
@@ -257,6 +257,148 @@ export async function custodialMint(
       { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
     ),
   ])
+  // Best-effort float sweep right after minting — the backing just landed, so
+  // move the excess to the multisig vault now rather than waiting for the
+  // keeper. A failure must not fail the mint: the backing is already safe in
+  // custody and the next keeper pass sweeps it.
+  try {
+    await custodialSweep(product)
+  } catch {
+    // logged nowhere on purpose: sweep failures surface in backing-status.
+  }
+  return signature
+}
+
+// ---------------------------------------------------------------------------
+// Backing vault (Squads multisig) + float.
+//
+// The hot custodial key is the mint authority AND the wallet holding all the
+// EURC/USDG backing: a leaked key could drain everything. The mitigation is
+// structural, on-chain: the wallet only keeps a capped float — enough to
+// honor redeems instantly — and a keeper sweeps every excess unit to a
+// Squads vault whose signers are humans (2-of-3). The hot key can send TO
+// the vault but never FROM it, so a leak only ever exposes the float.
+//
+// Ops: create the multisig once (wallet UI or Squads app), then set
+// FIMS_BACKING_VAULT to its vault PDA. Unset = vault feature off.
+// ---------------------------------------------------------------------------
+
+export function backingVault(): Address | null {
+  const raw = process.env['FIMS_BACKING_VAULT']
+  return raw ? address(raw) : null
+}
+
+// Float target per product, in the backing token's base units (6 decimals).
+// FIMS_EURO_FLOAT / FIMS_USD_FLOAT override the 200-unit default.
+const FLOAT_ENV: Record<FimsWrappedProduct, string> = {
+  'fims-eur': 'FIMS_EURO_FLOAT',
+  'fims-usd': 'FIMS_USD_FLOAT',
+}
+const FLOAT_DEFAULT_UNITS = 200n
+
+export function floatTarget(product: FimsWrappedProduct): bigint {
+  const config = wrappedProductConfig(product)
+  const raw = process.env[FLOAT_ENV[product]]
+  const units = raw !== undefined ? BigInt(raw) : FLOAT_DEFAULT_UNITS
+  return units * (config?.units ?? 1_000_000n)
+}
+
+// Pure sweep decision: above the float target, move the excess; at or below,
+// nothing to do. Exported for tests.
+export function sweepAmount(balance: bigint, target: bigint): bigint {
+  return balance > target ? balance - target : 0n
+}
+
+async function tokenBalance(tokenAccount: Address): Promise<bigint> {
+  const rpc = createSolanaRpc(rpcUrl())
+  const { value } = await rpcCall(() => rpc.getTokenAccountBalance(tokenAccount).send())
+  return BigInt(value.amount)
+}
+
+// Transfer the excess above floatTarget to the vault's ATA. Called after
+// every mint (best-effort) and by the keeper cron — both paths idempotent.
+export async function custodialSweep(product: FimsWrappedProduct): Promise<{
+  product: FimsWrappedProduct
+  swept: bigint
+  signature: Signature | null
+}> {
+  const config = wrappedProductConfig(product)
+  const vault = backingVault()
+  if (!config || !vault) return { product, signature: null, swept: 0n }
+  const signer = await custodialSigner()
+  const backingProgram = await mintProgram(config.backingMint)
+  const custodyAta = await ata(config.backingMint, signer.address, backingProgram)
+  const amount = sweepAmount(await tokenBalance(custodyAta), floatTarget(product))
+  if (amount === 0n) return { product, signature: null, swept: 0n }
+  const vaultAta = await ata(config.backingMint, vault, backingProgram)
+  const signature = await sendCustodialTransaction([
+    getCreateAssociatedTokenIdempotentInstruction({
+      ata: vaultAta,
+      mint: config.backingMint,
+      owner: vault,
+      payer: signer,
+      tokenProgram: backingProgram,
+    }),
+    getTransferCheckedInstruction(
+      {
+        amount,
+        authority: signer,
+        decimals: 6,
+        destination: vaultAta,
+        mint: config.backingMint,
+        source: custodyAta,
+      },
+      { programAddress: backingProgram },
+    ),
+  ])
+  return { product, signature, swept: amount }
+}
+
+export interface BackingStatusRow {
+  // All amounts in the backing token's base units.
+  backingTotal: string
+  float: string
+  floatTarget: string
+  healthy: boolean
+  product: FimsWrappedProduct
+  supply: string
+  vault: string
+}
+
+// For the monitor cron: the backing must cover the whole wrapped supply at
+// the current operator price — redeem all supply = supply * price backing
+// units. Anything less means unbacked product in circulation (leaked mint
+// authority or a bug). `prices` maps product symbol (EURF/USDF) → the same
+// index `wrappedTransfer` uses in the tokens table.
+export async function custodialBackingStatus(prices: Readonly<Record<string, number>>): Promise<BackingStatusRow[]> {
+  const rpc = createSolanaRpc(rpcUrl())
+  const signer = await custodialSigner()
+  const vault = backingVault()
+  const rows: BackingStatusRow[] = []
+  for (const product of Object.keys(PRODUCTS) as FimsWrappedProduct[]) {
+    const config = wrappedProductConfig(product)
+    if (!config) continue
+    const backingProgram = await mintProgram(config.backingMint)
+    const custodyAta = await ata(config.backingMint, signer.address, backingProgram)
+    const vaultAta = vault ? await ata(config.backingMint, vault, backingProgram) : null
+    const { value: supply } = await rpcCall(() => rpc.getTokenSupply(config.mint).send())
+    const float = await tokenBalance(custodyAta)
+    const vaultBalance = vaultAta ? await tokenBalance(vaultAta).catch(() => 0n) : 0n
+    const backingTotal = float + vaultBalance
+    const supplyUnits = BigInt(supply.amount)
+    const price = prices[config.symbol] ?? 0
+    const required = price > 0 ? BigInt(Math.ceil(Number(supplyUnits) * price)) : 0n
+    rows.push({
+      backingTotal: backingTotal.toString(),
+      float: float.toString(),
+      floatTarget: floatTarget(product).toString(),
+      healthy: backingTotal >= required,
+      product,
+      supply: supplyUnits.toString(),
+      vault: vaultBalance.toString(),
+    })
+  }
+  return rows
 }
 
 // Burn `productUnits` of the product token held by custody and return
@@ -275,6 +417,15 @@ export async function custodialRedeem(
   const custodyAta = await ata(config.mint, signer.address, TOKEN_2022_PROGRAM_ADDRESS)
   const backingCustodyAta = await ata(config.backingMint, signer.address, backingProgram)
   const destinationAta = await ata(config.backingMint, owner, backingProgram)
+  if (backingVault()) {
+    const float = await tokenBalance(backingCustodyAta)
+    if (backingUnits > float) {
+      throw new Error(
+        `redeem of ${backingUnits} exceeds the available float (${float}) — ` +
+          'the FiMs team must top it up from the multisig vault',
+      )
+    }
+  }
   const withdrawIxs = await yieldInstructions(product, 'withdraw', config, signer.address, backingUnits)
   return sendCustodialTransaction([
     getBurnInstruction(

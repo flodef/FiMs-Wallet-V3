@@ -5,8 +5,10 @@ import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.js'
 import {
   custodialAddress,
+  custodialBackingStatus,
   custodialMint,
   custodialRedeem,
+  custodialSweep,
   productForBackingMint,
   productForWrappedMint,
   wrappedProductConfig,
@@ -1132,6 +1134,59 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               )
             }
             return report
+          }),
+        )
+        .handle('custodialBackingStatus', () =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            if (!cronAuthorized(request.headers['x-strategy-secret'] ?? null)) {
+              return yield* Effect.fail(new AuthUnauthorized({ reason: 'invalid x-strategy-secret' }))
+            }
+            const { db } = yield* DatabaseService
+            const rows = yield* Effect.tryPromise({
+              catch: (cause) =>
+                new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'backing status failed' }),
+              try: async () => {
+                const tokenRows = await db.select().from(tokens)
+                const prices = Object.fromEntries(
+                  tokenRows.filter((row) => row.value !== null).map((row) => [row.symbol, row.value as number]),
+                )
+                return custodialBackingStatus(prices)
+              },
+            })
+            const unbacked = rows.filter((row) => !row.healthy)
+            if (unbacked.length > 0) {
+              return yield* Effect.fail(
+                new ChainUnavailable({
+                  reason: `unbacked supply: ${unbacked.map((row) => row.product).join(', ')}`,
+                }),
+              )
+            }
+            return { products: rows }
+          }),
+        )
+        .handle('custodialSweep', () =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            if (!cronAuthorized(request.headers['x-strategy-secret'] ?? null)) {
+              return yield* Effect.fail(new AuthUnauthorized({ reason: 'invalid x-strategy-secret' }))
+            }
+            const report = yield* Effect.tryPromise({
+              catch: (cause) =>
+                new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'sweep failed' }),
+              try: async () => {
+                const out = []
+                for (const product of ['fims-eur', 'fims-usd'] as const) {
+                  out.push(await custodialSweep(product))
+                }
+                return out
+              },
+            })
+            return report.map((row) => ({
+              product: row.product,
+              signature: row.signature,
+              swept: row.swept.toString(),
+            }))
           }),
         )
     )
