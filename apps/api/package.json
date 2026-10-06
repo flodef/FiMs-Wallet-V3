@@ -1,12 +1,16 @@
 {
   "dependencies": {
     "@effect/platform": "catalog:",
+    "@jac0xb/ballista": "file:vendor/jac0xb-ballista-1.0.0.tgz",
     "@neondatabase/serverless": "catalog:",
     "@noble/curves": "catalog:",
     "@solana-program/system": "catalog:",
     "@solana-program/token": "catalog:",
     "@solana-program/token-2022": "catalog:",
     "@solana/codecs-strings": "catalog:",
+    "@solana/keychain-core": "2.0.0",
+    "@solana/keychain-gcp-kms": "2.0.0",
+    "@solana/keychain-memory": "2.0.0",
     "@solana/kit": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:"

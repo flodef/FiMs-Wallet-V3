@@ -20,7 +20,6 @@ import {
   type Address,
   address,
   appendTransactionMessageInstructions,
-  createKeyPairSignerFromBytes,
   createSolanaRpc,
   createTransactionMessage,
   getBase64EncodedWireTransaction,
@@ -40,6 +39,7 @@ import {
   getTransferCheckedInstruction,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '@solana-program/token-2022'
+import { createBackendSigner } from './signer.js'
 import { yieldInstructions } from './yield-placement.js'
 
 // Mainnet backing mints. Overridable via env so devnet can point at test
@@ -149,7 +149,7 @@ function decodeBase58(text: string): number[] {
 let custodialSignerPromise: Promise<TransactionSigner> | undefined
 function custodialSigner(): Promise<TransactionSigner> {
   if (!custodialSignerPromise) {
-    custodialSignerPromise = createKeyPairSignerFromBytes(custodialSecretKey())
+    custodialSignerPromise = createBackendSigner('CUSTODIAL', custodialSecretKey)
   }
   return custodialSignerPromise
 }

@@ -21,7 +21,6 @@ import {
   address,
   appendTransactionMessageInstructions,
   type Base64EncodedBytes,
-  createKeyPairSignerFromBytes,
   createSolanaRpc,
   createTransactionMessage,
   getBase64EncodedWireTransaction,
@@ -38,6 +37,7 @@ import { findAssociatedTokenPda, getCreateAssociatedTokenIdempotentInstruction }
 import { eq } from 'drizzle-orm'
 import { strategyOps } from './db/schema.js'
 import type { Db } from './db/service.js'
+import { createBackendSigner } from './signer.js'
 
 export const STRATEGY_PROGRAM_ID = address('AtmC4gPAEZ1r4fD698mDaCpGEC5WZN5f4z55zscsdVmS')
 const TOKEN_PROGRAM_ID = address('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
@@ -419,7 +419,7 @@ function delegateSecretKey(): Uint8Array {
 
 let delegateSignerPromise: Promise<TransactionSigner> | undefined
 function delegateSigner(): Promise<TransactionSigner> {
-  delegateSignerPromise ??= createKeyPairSignerFromBytes(delegateSecretKey())
+  delegateSignerPromise ??= createBackendSigner('STRATEGY_DELEGATE', delegateSecretKey)
   return delegateSignerPromise
 }
 

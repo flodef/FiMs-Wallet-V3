@@ -1,11 +1,4 @@
-import {
-  type Address,
-  address,
-  generateKeyPairSigner,
-  type Lamports,
-  type Signature,
-  type TransactionSigner,
-} from '@solana/kit'
+import { type Address, generateKeyPairSigner, type Lamports, type Signature, type TransactionSigner } from '@solana/kit'
 import { getDelegateStakeInstruction, getInitializeInstruction } from '@solana-program/stake'
 import { getCreateAccountInstruction } from '@solana-program/system'
 import { STAKE_PROGRAM_ADDRESS } from './constants.ts'
@@ -14,7 +7,6 @@ import { sendPreparedTransaction } from './send-prepared-transaction.ts'
 import type { SolanaClient } from './solana-client.ts'
 
 export const STAKE_ACCOUNT_SPACE = 200n
-const STAKE_CONFIG_ADDRESS = address('StakeConfig11111111111111111111111111111111')
 
 export interface CreateStakeAccountOptions {
   amount: Lamports
@@ -64,7 +56,6 @@ export async function createStakeAccount(
   const delegateStakeInstruction = getDelegateStakeInstruction({
     stake: stakeAccount.address,
     stakeAuthority: transactionSigner,
-    unused: STAKE_CONFIG_ADDRESS,
     vote,
   })
 
