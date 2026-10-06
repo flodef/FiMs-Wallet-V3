@@ -8,7 +8,7 @@ import {
 import {
   PASSWORD_KDF_MIN_ITERATIONS,
   VAULT_PASSWORD_CREATE_MIN_LENGTH,
-  VAULT_PIN_CREATE_MIN_LENGTH,
+  VAULT_PIN_RECOMMENDED_MIN_LENGTH,
 } from './encrypted-value-schema.ts'
 import { checkUnlockThrottle, clearUnlockThrottle, recordUnlockFailure } from './unlock-throttle.ts'
 import { unlockPinWalletProtection, unlockUnsecuredWalletProtection } from './wallet-protection.ts'
@@ -167,7 +167,7 @@ export function createVault(store: VaultStorage): Vault {
                 walletId,
                 await unlockPinWalletProtection({ pin: credential, protection: JSON.stringify(protection) }),
               )
-              if (credential.length < VAULT_PIN_CREATE_MIN_LENGTH) {
+              if (credential.length < VAULT_PIN_RECOMMENDED_MIN_LENGTH) {
                 weakPinWalletIds.add(walletId)
               } else {
                 weakPinWalletIds.delete(walletId)

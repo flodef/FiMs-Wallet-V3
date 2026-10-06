@@ -25,9 +25,9 @@ fix and public disclosure.
 - New passwords must be at least 12 characters. Vaults created under the previous
   8-character policy can still be unlocked; the wallet flags the credential as weak
   after unlock — rotate it via Settings > Security.
-- New PINs must be at least 8 digits. Wallets protected by an older 4-digit PIN can
-  still be unlocked; the wallet flags the credential as weak after unlock — switch
-  to a longer PIN or password protection in Settings > Wallet details.
+- PINs are the user's choice: at least 4 digits, gated behind an explicit warning
+  at selection time. Anything below 8 digits is flagged as weak after unlock —
+  prefer a longer PIN or password protection in Settings > Wallet details.
 - Envelopes wrapped under a lower PBKDF2 iteration count are transparently
   re-encrypted at the current floor on the next successful unlock.
 - Choosing `unsecured` protection requires typing the confirmation phrase

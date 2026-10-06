@@ -205,7 +205,7 @@
   "walletProtectionPinLabel": "PIN",
   "walletProtectionPinLengthError": "PIN must be {{min, number}}-{{max, number}} digits",
   "walletProtectionPinMismatchError": "PINs do not match",
-  "walletProtectionPinWarning": "A short PIN can be brute-forced offline if this device is compromised. Use at least 6 digits, or prefer a full password.",
+  "walletProtectionPinWarning": "A PIN only stops casual access — anyone who reads this device's storage can brute-force it offline, and a 4-digit PIN falls in seconds. Use 8+ digits, or prefer a full password for funded wallets.",
   "walletProtectionTitle": "Wallet protection",
   "walletProtectionUnsecured": "Unsecured",
   "walletProtectionUnsecuredConfirm": "Type {{phrase}} to confirm this wallet will not be protected by a password or PIN.",

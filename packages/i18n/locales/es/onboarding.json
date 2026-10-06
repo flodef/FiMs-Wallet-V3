@@ -64,7 +64,7 @@
   "walletProtectionPin": "PIN",
   "walletProtectionPinConfirmLabel": "Confirmar PIN",
   "walletProtectionPinLabel": "PIN",
-  "walletProtectionPinWarning": "Un PIN corto puede ser descifrado offline si este dispositivo se ve comprometido. Usa al menos 6 dígitos, o prefiere una contraseña completa.",
+  "walletProtectionPinWarning": "Un PIN solo detiene el acceso casual — cualquiera que lea el almacenamiento de este dispositivo puede romperlo offline, y un PIN de 4 dígitos cae en segundos. Usa 8 dígitos o más, o prefiere una contraseña completa para carteras con fondos.",
   "walletProtectionTitle": "Protección avanzada",
   "walletProtectionUnsecured": "Sin protección",
   "walletProtectionUnsecuredConfirm": "Escribe {{phrase}} para confirmar que esta billetera no estará protegida por contraseña ni PIN.",

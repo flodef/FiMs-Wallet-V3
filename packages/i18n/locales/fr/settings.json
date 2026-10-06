@@ -206,7 +206,7 @@
   "walletProtectionPinLabel": "PIN",
   "walletProtectionPinLengthError": "Le PIN doit contenir {{min, number}}-{{max, number}} chiffres",
   "walletProtectionPinMismatchError": "Les PIN ne correspondent pas",
-  "walletProtectionPinWarning": "Un PIN court peut être cassé hors ligne si cet appareil est compromis. Utilisez au moins 6 chiffres, ou préférez un mot de passe complet.",
+  "walletProtectionPinWarning": "Un PIN ne bloque qu'un accès de circonstance — quiconque lit le stockage de cet appareil peut le casser hors ligne, et un PIN à 4 chiffres tombe en quelques secondes. Utilisez 8 chiffres ou plus, ou préférez un mot de passe complet pour les wallets avec des fonds.",
   "walletProtectionTitle": "Protection du wallet",
   "walletProtectionUnsecured": "Non protégé",
   "walletProtectionUnsecuredConfirm": "Tapez {{phrase}} pour confirmer que ce wallet ne sera pas protégé par un mot de passe ou un PIN.",

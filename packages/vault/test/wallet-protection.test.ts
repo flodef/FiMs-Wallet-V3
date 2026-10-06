@@ -163,6 +163,20 @@ describe('wallet-protection', () => {
     })
   })
 
+  it('should create PIN protection with the 4-digit minimum', async () => {
+    // ARRANGE
+    expect.assertions(2)
+
+    // ACT
+    const protection = await createPinWalletProtection({ pin: '1234' })
+
+    // ASSERT
+    expect(JSON.parse(protection).mode).toBe('pin')
+    const vault = createVault(storage)
+    const walletId = createWallet(protection)
+    await expect(vault.unlockWallet({ credential: '1234', walletId })).resolves.toBeUndefined()
+  })
+
   it('should unlock PIN protection created under the legacy 4-digit policy', async () => {
     // ARRANGE
     expect.assertions(1)
