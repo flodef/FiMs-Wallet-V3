@@ -215,3 +215,19 @@ export const voteBallots = pgTable(
   },
   (t) => [primaryKey({ columns: [t.voteId, t.userId] })],
 )
+
+// Keeper audit trail: one row per on-chain member_deposit PDA. The delegate
+// records share issuance (1:1 vs deposited collateral) and the placement
+// pipeline signatures so a failed pass is retried and reconstructible.
+export const strategyOps = pgTable('strategy_ops', {
+  collateralAmount: text('collateral_amount').notNull(),
+  depositPda: text('deposit_pda').primaryKey(),
+  error: text('error'),
+  firstSeenAt: timestamp('first_seen_at', { mode: 'date' }).notNull().defaultNow(),
+  issueSignature: text('issue_signature'),
+  member: text('member').notNull(),
+  opsSignature: text('ops_signature'),
+  status: text('status').notNull(), // pending | issued | placed | failed
+  strategyIndex: integer('strategy_index').notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})

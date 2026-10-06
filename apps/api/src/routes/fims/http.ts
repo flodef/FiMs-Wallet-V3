@@ -39,6 +39,7 @@ import {
 } from '../../helius.js'
 import {
   AuthForbidden,
+  AuthUnauthorized,
   isAdminAddress,
   optionalWalletRequest,
   requireAdmin,
@@ -47,6 +48,7 @@ import {
   verifyWalletRequest,
 } from '../../services/auth/service.js'
 import { fetchDonationTransaction } from '../../solana-rpc.js'
+import { cronAuthorized, runStrategyPass, strategyHealth } from '../../strategy-delegate.js'
 import { BadRequest, ChainUnavailable, CustodialUnavailable, RateLimited } from './api.js'
 
 const notFound = (what: string) => `not found: ${what}`
@@ -1088,6 +1090,48 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               ...asset,
               symbol: asset.mint ? (asset.symbol ?? chainSymbolForMint(asset.mint, symbols)) : 'SOL',
             }))
+          }),
+        )
+        .handle('strategyStatus', () =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            if (!cronAuthorized(request.headers['x-strategy-secret'] ?? null)) {
+              return yield* Effect.fail(new AuthUnauthorized({ reason: 'invalid x-strategy-secret' }))
+            }
+            const { db } = yield* DatabaseService
+            const health = yield* Effect.tryPromise({
+              catch: (cause) => new DatabaseError({ cause }),
+              try: () => strategyHealth(db),
+            })
+            // 503 (not 200-with-issues) so the uptime monitor fires on any
+            // problem: stale pending deposits, failed ops, delegate broke.
+            if (!health.healthy) {
+              return yield* Effect.fail(new ChainUnavailable({ reason: health.issues.join('; ') }))
+            }
+            return health
+          }),
+        )
+        .handle('strategyDelegateRun', () =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            if (!cronAuthorized(request.headers['x-strategy-secret'] ?? null)) {
+              return yield* Effect.fail(new AuthUnauthorized({ reason: 'invalid x-strategy-secret' }))
+            }
+            const { db } = yield* DatabaseService
+            const report = yield* Effect.tryPromise({
+              catch: (cause) =>
+                new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'delegate pass failed' }),
+              try: () => runStrategyPass(db),
+            })
+            // Surface per-deposit failures as 503 so cron-job.org alerts —
+            // the full detail stays in the strategy_ops table.
+            const failed = report.deposits.filter((d) => d.error)
+            if (failed.length > 0) {
+              return yield* Effect.fail(
+                new ChainUnavailable({ reason: failed.map((d) => `${d.member}: ${d.error}`).join('; ') }),
+              )
+            }
+            return report
           }),
         )
     )

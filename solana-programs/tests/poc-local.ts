@@ -28,6 +28,9 @@ const payer = Keypair.fromSecretKey(
 )
 // Deterministic keys so whitelist entries stay valid across runs.
 const member = Keypair.fromSeed(createHash('sha256').update('fims-poc-member').digest())
+// A second member deliberately left OUT of the member_whitelist — used to
+// prove deposit + issue_shares do not depend on whitelist membership.
+const member2 = Keypair.fromSeed(createHash('sha256').update('fims-poc-member2').digest())
 const guardian = Keypair.fromSeed(createHash('sha256').update('fims-poc-guardian').digest())
 const newAdmin = Keypair.fromSeed(createHash('sha256').update('fims-poc-new-admin').digest())
 const attacker = Keypair.generate()
@@ -109,14 +112,31 @@ async function main() {
   const vaultAtaA = ataOf(vaultPda, mintA.publicKey)
   const vaultAtaB = ataOf(vaultPda, mintB.publicKey)
   const memberAtaA = ataOf(member.publicKey, mintA.publicKey)
+  const member2AtaA = ataOf(member2.publicKey, mintA.publicKey)
+  const member2AtaB = ataOf(member2.publicKey, mintB.publicKey)
   const treasuryAtaA = ataOf(payer.publicKey, mintA.publicKey) // treasury=payer
   const attackerAtaA = ataOf(attacker.publicKey, mintA.publicKey)
+  const attackerAtaB = ataOf(attacker.publicKey, mintB.publicKey)
 
   // 1. initialize — restricted to the program upgrade authority --------------
   // InitializeArgs: admin, delegate, guardian, treasury, allowed_programs,
   // member_whitelist, strategies, allowed_mint_pairs, daily_cap, tx_cap,
   // daily_token_cap
-  const mintPair = Buffer.concat([mintA.publicKey.toBuffer(), mintB.publicKey.toBuffer()])
+  const mintPair = Buffer.concat([mintA.publicKey.toBuffer(), mintB.publicKey.toBuffer(), Buffer.from([244, 1])])
+  // A dummy strategy: collateral=mintA (stands in for JUPSOL), share=mintB
+  // (stands in for FSOL). Fluid/Kamino program/pubkeys are never touched by
+  // deposit/issue_shares, so placeholders are fine on localnet.
+  const strategy = Buffer.concat([
+    u64(52n), // vault_id
+    u32(0), // position_id
+    mintA.publicKey.toBuffer(), // vaults_program (placeholder)
+    mintA.publicKey.toBuffer(), // position_nft_mint (placeholder)
+    mintA.publicKey.toBuffer(), // collateral_mint = mintA
+    mintB.publicKey.toBuffer(), // borrow_mint (placeholder)
+    mintB.publicKey.toBuffer(), // stable_mint (placeholder)
+    mintB.publicKey.toBuffer(), // share_mint = mintB
+    u64(10_000_000_000n), // max_debt
+  ])
   const initArgs = Buffer.concat([
     payer.publicKey.toBuffer(), // admin
     payer.publicKey.toBuffer(), // delegate
@@ -126,8 +146,8 @@ async function main() {
     // validate_whitelists — a CPI through them has no protocol-side witness.
     borshVec([]),
     borshVec([member.publicKey.toBuffer(), payer.publicKey.toBuffer()]),
-    borshVec([]), // strategies — none on localnet (no Fluid positions)
-    borshVec([mintPair]), // allowed_mint_pairs: A→B for the swap test
+    borshVec([strategy]), // strategy 0: mintA collateral → mintB shares
+    borshVec([mintPair]), // allowed_mint_pairs: A→B, 5% deviation bound
     u64(2_000_000_000n), // daily cap 2 SOL
     u64(500_000_000n), // per-tx cap 0.5 SOL
     u64(400_000_000n), // daily token cap 400 tokens (6 dec)
@@ -198,8 +218,13 @@ async function main() {
         createAtaIx(payer.publicKey, vaultAtaA, vaultPda, mintA.publicKey),
         createAtaIx(payer.publicKey, vaultAtaB, vaultPda, mintB.publicKey),
         createAtaIx(payer.publicKey, memberAtaA, member.publicKey, mintA.publicKey),
+        createAtaIx(payer.publicKey, member2AtaA, member2.publicKey, mintA.publicKey),
+        createAtaIx(payer.publicKey, member2AtaB, member2.publicKey, mintB.publicKey),
         createAtaIx(payer.publicKey, treasuryAtaA, payer.publicKey, mintA.publicKey),
         createAtaIx(payer.publicKey, attackerAtaA, attacker.publicKey, mintA.publicKey),
+        createAtaIx(payer.publicKey, attackerAtaB, attacker.publicKey, mintB.publicKey),
+        // 1000 mintA to vault + 200 mintA to member2 (deposit funds)
+        // + 1000 mintB share supply to vault (stands in for the FSOL float)
         new TransactionInstruction({
           data: Buffer.concat([Buffer.from([7]), u64(1_000_000_000n)]),
           keys: [
@@ -209,9 +234,33 @@ async function main() {
           ],
           programId: TOKEN_PROGRAM,
         }),
+        new TransactionInstruction({
+          data: Buffer.concat([Buffer.from([7]), u64(200_000_000n)]),
+          keys: [
+            { isSigner: false, isWritable: true, pubkey: mintA.publicKey },
+            { isSigner: false, isWritable: true, pubkey: member2AtaA },
+            { isSigner: true, isWritable: false, pubkey: payer.publicKey },
+          ],
+          programId: TOKEN_PROGRAM,
+        }),
+        new TransactionInstruction({
+          data: Buffer.concat([Buffer.from([7]), u64(1_000_000_000n)]),
+          keys: [
+            { isSigner: false, isWritable: true, pubkey: mintB.publicKey },
+            { isSigner: false, isWritable: true, pubkey: vaultAtaB },
+            { isSigner: true, isWritable: false, pubkey: payer.publicKey },
+          ],
+          programId: TOKEN_PROGRAM,
+        }),
       ],
       [payer, mintA, mintB],
-      'fund vault + mint 1000 A-tokens to vault ATA',
+      'fund vault + mint A/B supplies + member2 deposit balance',
+    )
+    // member2 pays its own deposit tx fee + member_deposit PDA rent
+    await send(
+      [SystemProgram.transfer({ fromPubkey: payer.publicKey, lamports: 20_000_000, toPubkey: member2.publicKey })],
+      [payer],
+      'fund member2 (fees + PDA rent)',
     )
   }
 
@@ -291,6 +340,87 @@ async function main() {
     })
   await send([sweepIx(treasuryAtaA, 50_000_000n)], [payer], 'sweep 50 → treasury ATA')
   await trySend([sweepIx(memberAtaA, 50_000_000n)], [payer], 'sweep → member ATA (wrong dest)')
+
+  // 5b. member deposit → issue_shares (1:1 guarantee, no whitelist needed) ----
+  // member2 is NOT in member_whitelist — deposit is permissionless and
+  // issue_shares pays the depositor's own ATA derived from member_deposit.
+  const member2DepositPda = PublicKey.findProgramAddressSync(
+    [Buffer.from('deposit'), member2.publicKey.toBuffer(), Buffer.from([0])],
+    PROGRAM_ID,
+  )[0]
+  const depositIx = (amount: bigint, tip: bigint) =>
+    new TransactionInstruction({
+      data: Buffer.concat([disc('deposit'), Buffer.from([0]), u64(amount), u64(tip)]),
+      keys: [
+        { isSigner: true, isWritable: true, pubkey: member2.publicKey },
+        { isSigner: false, isWritable: false, pubkey: statePda },
+        { isSigner: false, isWritable: true, pubkey: member2AtaA },
+        { isSigner: false, isWritable: true, pubkey: vaultPda },
+        { isSigner: false, isWritable: true, pubkey: vaultAtaA },
+        { isSigner: false, isWritable: true, pubkey: payer.publicKey }, // delegate
+        { isSigner: false, isWritable: true, pubkey: member2DepositPda },
+        { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
+        { isSigner: false, isWritable: false, pubkey: SystemProgram.programId },
+      ],
+      programId: PROGRAM_ID,
+    })
+  await send([depositIx(200_000_000n, 100_000n)], [member2], 'member2 deposit 200 mintA + 0.0001 tip')
+  const depAcct = await conn.getAccountInfo(member2DepositPda)
+  const pending = depAcct ? depAcct.data.readBigUInt64LE(41) : 0n
+  console.log(`  member_deposit.pending = ${pending} (expect 200000000)`)
+
+  const issueIx = (caller: PublicKey, source: PublicKey, dest: PublicKey, amount: bigint) =>
+    new TransactionInstruction({
+      data: Buffer.concat([disc('issue_shares'), u64(amount)]),
+      keys: [
+        { isSigner: true, isWritable: false, pubkey: caller },
+        { isSigner: false, isWritable: false, pubkey: statePda },
+        { isSigner: false, isWritable: true, pubkey: vaultPda },
+        { isSigner: false, isWritable: true, pubkey: member2DepositPda },
+        { isSigner: false, isWritable: true, pubkey: source },
+        { isSigner: false, isWritable: true, pubkey: dest },
+        { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
+      ],
+      programId: PROGRAM_ID,
+    })
+  // Whitelist bypass proof: a straight payout_token to member2's share ATA
+  // must fail (not whitelisted) while issue_shares to the same ATA works.
+  const payoutTokenB = (dest: PublicKey, amount: bigint) =>
+    new TransactionInstruction({
+      data: Buffer.concat([disc('payout_token'), mintB.publicKey.toBuffer(), u64(amount)]),
+      keys: [
+        { isSigner: true, isWritable: false, pubkey: payer.publicKey },
+        { isSigner: false, isWritable: true, pubkey: statePda },
+        { isSigner: false, isWritable: true, pubkey: vaultPda },
+        { isSigner: false, isWritable: true, pubkey: vaultAtaB },
+        { isSigner: false, isWritable: true, pubkey: dest },
+        { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
+      ],
+      programId: PROGRAM_ID,
+    })
+  await trySend([payoutTokenB(member2AtaB, 1_000_000n)], [payer], 'payout_token mintB → non-whitelisted member2')
+  await trySend(
+    [issueIx(member2.publicKey, vaultAtaB, member2AtaB, 100_000_000n)],
+    [member2],
+    'issue_shares by non-delegate',
+  )
+  await trySend(
+    [issueIx(payer.publicKey, vaultAtaB, member2AtaB, 500_000_000n)],
+    [payer],
+    'issue_shares over pending (500>200)',
+  )
+  await trySend([issueIx(payer.publicKey, vaultAtaB, attackerAtaB, 100_000_000n)], [payer], 'issue_shares → wrong ATA')
+  await send(
+    [issueIx(payer.publicKey, vaultAtaB, member2AtaB, 200_000_000n)],
+    [payer],
+    'issue_shares 200 mintB → member2',
+  )
+  await trySend(
+    [issueIx(payer.publicKey, vaultAtaB, member2AtaB, 1_000_000n)],
+    [payer],
+    'issue_shares replay (pending=0)',
+  )
+  await trySend([depositIx(1_000_000n, 20_000_000n)], [member2], 'deposit with tip over cap')
 
   // 6. allowed_programs invariant: generic transfer programs must be refused --
   // through them a CPI has no protocol-side witness, so the post-conditions

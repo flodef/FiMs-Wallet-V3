@@ -134,6 +134,33 @@ export class ChainUnavailable extends Schema.TaggedError<ChainUnavailable>()('Ch
   reason: Schema.String,
 }) {}
 
+// Strategy delegate (keeper) payloads — the cron-driven automation that turns
+// member_deposit records into issued shares + placed collateral. Gated by a
+// shared secret header, not a wallet signature: the caller is cron-job.org.
+export class StrategyHealth extends Schema.Class<StrategyHealth>('StrategyHealth')({
+  delegate: Schema.optional(Schema.String),
+  delegateLamports: Schema.optional(Schema.Number),
+  failedOps: Schema.Number,
+  healthy: Schema.Boolean,
+  issues: Schema.Array(Schema.String),
+  pendingDeposits: Schema.Number,
+  staleDeposits: Schema.Number,
+}) {}
+
+export class DelegateDepositReport extends Schema.Class<DelegateDepositReport>('DelegateDepositReport')({
+  error: Schema.optional(Schema.String),
+  issueSignature: Schema.optional(Schema.String),
+  member: Schema.String,
+  opsSignatures: Schema.optional(Schema.Array(Schema.String)),
+  pending: Schema.String,
+  strategy: Schema.Number,
+}) {}
+
+export class DelegateRunReport extends Schema.Class<DelegateRunReport>('DelegateRunReport')({
+  deposits: Schema.Array(DelegateDepositReport),
+  skipped: Schema.optional(Schema.String),
+}) {}
+
 // On-chain tx reader payloads — the API proxies Helius (the key stays
 // server-side) and returns this normalized shape so the UI is decoupled from
 // the upstream schema.
@@ -706,6 +733,27 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'Current token balances and USD prices for an address (Helius proxy)')
       .setUrlParams(Schema.Struct({ address: SolanaAddress }))
       .addSuccess(Schema.Array(ChainAsset))
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(ChainUnavailable, { status: 503 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    // Keeper endpoints: shared-secret auth (x-strategy-secret), called by
+    // cron-job.org. `status` returns 503 whenever the vault needs attention —
+    // that is what makes the monitor alert. `delegate-run` executes one pass.
+    HttpApiEndpoint.get('strategyStatus', '/fims/strategy/status')
+      .annotate(OpenApi.Summary, 'Keeper health: pending deposits, failed ops, delegate fee balance')
+      .addSuccess(StrategyHealth)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(ChainUnavailable, { status: 503 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.post('strategyDelegateRun', '/fims/strategy/delegate-run')
+      .annotate(OpenApi.Summary, 'Run one keeper pass: issue shares 1:1, place collateral')
+      .addSuccess(DelegateRunReport)
       .addError(AuthUnauthorized, { status: 401 })
       .addError(ChainUnavailable, { status: 503 })
       .addError(DatabaseError, { status: 500 })

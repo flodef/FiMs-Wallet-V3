@@ -1,3 +1,13 @@
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 # Comma-separated — the second key is the rate-limit fallback
 HELIUS_API_KEY=
+# Keeper (fims-strategy vault delegate): ed25519 secret key, JSON array or base58
+STRATEGY_DELEGATE_KEYPAIR=
+# Shared secret for /fims/strategy/* cron endpoints (x-strategy-secret header)
+STRATEGY_DELEGATE_SECRET=
+# Borrow sizing + alert threshold
+STRATEGY_LTV_BPS=5000
+STRATEGY_ALERT_SECS=900
+# Kamino OnRe market/reserve (reuses the USDF yield config when unset)
+STRATEGY_KAMINO_MARKET=
+STRATEGY_KAMINO_RESERVE=

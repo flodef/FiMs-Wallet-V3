@@ -77,6 +77,13 @@
       "tag": "0010_member_proposals",
       "version": "7",
       "when": 1791138103640
+    },
+    {
+      "breakpoints": true,
+      "idx": 11,
+      "tag": "0011_strategy_ops",
+      "version": "7",
+      "when": 1791249734031
     }
   ],
   "version": "7"

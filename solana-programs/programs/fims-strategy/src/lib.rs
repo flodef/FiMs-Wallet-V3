@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
-use anchor_lang::solana_program::program::invoke_signed;
+use anchor_lang::solana_program::program::{invoke, invoke_signed};
 use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::solana_program::system_instruction;
 
@@ -40,12 +40,15 @@ const HOUR_SECS: i64 = 3_600;
 const MAX_ALLOWED_PROGRAMS: usize = 16;
 const MAX_MEMBERS: usize = 64;
 const MAX_STRATEGIES: usize = 4;
+// Member-side delegate tip is capped so a fat-fingered deposit cannot
+// silently send more than this to the operator key.
+const MAX_TIP_LAMPORTS: u64 = 10_000_000; // 0.01 SOL
 
 // SPL Token account layout offsets (165 bytes).
 const TA_OWNER: usize = 32;
 const TA_AMOUNT: usize = 64;
 const TA_DELEGATE_TAG: usize = 72;
-const TA_STATE: usize = 116;
+const TA_STATE: usize = 108;
 const TA_CLOSE_AUTH_TAG: usize = 129;
 const TA_INITIALIZED: u8 = 1;
 
@@ -111,6 +114,65 @@ pub mod fims_strategy {
         state.vault_bump = ctx.bumps.vault;
         state.bump = ctx.bumps.state;
         emit!(Initialized { admin: args.admin, delegate: args.delegate });
+        Ok(())
+    }
+
+    // -- member entry ----------------------------------------------------------
+
+    /// Member deposit: moves `amount` of the strategy's collateral mint
+    /// (JUPSOL…) from the member ATA to the vault ATA and records it in the
+    /// member's `member_deposit` PDA. `tip_lamports` optionally pays the
+    /// delegate for the upcoming strategy transactions in the same atomic
+    /// transaction — capped at MAX_TIP_LAMPORTS so a bad client cannot
+    /// silently drain the member. Deposit itself is permissionless: the
+    /// member only sends funds, there is nothing to steal.
+    pub fn deposit(ctx: Context<Deposit>, strategy_index: u8, amount: u64, tip_lamports: u64) -> Result<()> {
+        let state = &ctx.accounts.state;
+        require!(!state.paused, StrategyError::Paused);
+        let strategy = state
+            .strategies
+            .get(strategy_index as usize)
+            .ok_or(StrategyError::UnknownStrategy)?;
+        require!(amount > 0, StrategyError::BadConfig);
+        require!(tip_lamports <= MAX_TIP_LAMPORTS, StrategyError::TipTooLarge);
+        require!(
+            ctx.accounts.member_ata.key() == ata_address(ctx.accounts.member.key(), strategy.collateral_mint),
+            StrategyError::WrongAccount
+        );
+        require!(
+            ctx.accounts.vault_ata.key() == ata_address(ctx.accounts.vault.key(), strategy.collateral_mint),
+            StrategyError::WrongAccount
+        );
+        require!(ctx.accounts.delegate.key() == state.delegate, StrategyError::WrongAccount);
+
+        // Member is a real signer — a plain invoke (no PDA seeds) moves the
+        // collateral into the vault.
+        invoke(
+            &spl_transfer_ix(ctx.accounts.member_ata.key(), ctx.accounts.vault_ata.key(), ctx.accounts.member.key(), amount),
+            &[
+                ctx.accounts.member_ata.to_account_info(),
+                ctx.accounts.vault_ata.to_account_info(),
+                ctx.accounts.member.to_account_info(),
+                ctx.accounts.token_program.to_account_info(),
+            ],
+        )?;
+        if tip_lamports > 0 {
+            invoke(
+                &system_instruction::transfer(&ctx.accounts.member.key(), &ctx.accounts.delegate.key(), tip_lamports),
+                &[
+                    ctx.accounts.member.to_account_info(),
+                    ctx.accounts.delegate.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+        }
+
+        let deposit = &mut ctx.accounts.member_deposit;
+        deposit.member = ctx.accounts.member.key();
+        deposit.strategy = strategy_index;
+        deposit.bump = ctx.bumps.member_deposit;
+        deposit.pending = deposit.pending.saturating_add(amount);
+        emit!(Deposited { member: deposit.member, strategy: strategy_index, amount, pending: deposit.pending });
         Ok(())
     }
 
@@ -249,6 +311,16 @@ pub mod fims_strategy {
             StrategyError::MintPairNotAllowed
         );
         require!(amount > 0 && min_out > 0, StrategyError::BadConfig);
+        // For pairs flagged near-equivalent (USDT↔USDG) the delegate cannot
+        // set a floor below `amount * (1 - max_deviation_bps)` — a compromised
+        // key could otherwise drain value via deliberately bad fills.
+        let pair = state.allowed_mint_pairs.iter().find(|p| p.from == in_mint && p.to == out_mint).unwrap();
+        if pair.max_deviation_bps > 0 {
+            let floor = (amount as u128)
+                .saturating_mul(10_000 - pair.max_deviation_bps as u128)
+                / 10_000;
+            require!(min_out as u128 >= floor, StrategyError::MinOutTooLow);
+        }
         let vault_key = ctx.accounts.vault.key();
         let in_ata = find_ata(ctx.remaining_accounts, vault_key, in_mint)?;
         let out_ata = find_ata(ctx.remaining_accounts, vault_key, out_mint)?;
@@ -327,6 +399,55 @@ pub mod fims_strategy {
             &[seeds],
         )?;
         emit!(TokenPayoutSent { destination: ctx.accounts.destination.key(), mint, amount });
+        Ok(())
+    }
+
+    /// Issue share tokens (FSOL/FLiP) to a depositor, 1:1 in base units
+    /// against the collateral recorded in `member_deposit.pending` — this is
+    /// the guarantee that N deposited JUPSOL always yield N FSOL, no matter
+    /// what the delegate does between the two transactions. The destination
+    /// is derived from the deposit record itself, so the whitelist and the
+    /// rolling payout caps do not apply: a depositor can only ever receive
+    /// their own shares, and never more than they deposited.
+    pub fn issue_shares(ctx: Context<IssueShares>, amount: u64) -> Result<()> {
+        let state = &ctx.accounts.state;
+        require!(!state.paused, StrategyError::Paused);
+        let deposit = &mut ctx.accounts.member_deposit;
+        let strategy = state
+            .strategies
+            .get(deposit.strategy as usize)
+            .ok_or(StrategyError::UnknownStrategy)?;
+        require!(amount > 0, StrategyError::BadConfig);
+        require!(amount <= deposit.pending, StrategyError::InsufficientDeposit);
+        let vault_key = ctx.accounts.vault.key();
+        require!(
+            ctx.accounts.source.key() == ata_address(vault_key, strategy.share_mint),
+            StrategyError::WrongAccount
+        );
+        require!(
+            ctx.accounts.destination.key() == ata_address(deposit.member, strategy.share_mint),
+            StrategyError::WrongAccount
+        );
+        assert_healthy_ata(&ctx.accounts.source.to_account_info(), vault_key)?;
+
+        deposit.pending -= amount;
+        let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
+        invoke_signed(
+            &spl_transfer_ix(ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
+            &[
+                ctx.accounts.source.to_account_info(),
+                ctx.accounts.destination.to_account_info(),
+                ctx.accounts.vault.to_account_info(),
+                ctx.accounts.token_program.to_account_info(),
+            ],
+            &[seeds],
+        )?;
+        emit!(SharesIssued {
+            member: deposit.member,
+            mint: strategy.share_mint,
+            amount,
+            remaining: deposit.pending,
+        });
         Ok(())
     }
 
@@ -790,6 +911,10 @@ pub struct StrategyConfig {
     pub borrow_mint: Pubkey,
     /// Yield mint supplied to Kamino (USDG).
     pub stable_mint: Pubkey,
+    /// Share token minted back to depositors (FSOL / FLIP), 1:1 in base units
+    /// with the collateral mint — enforced by `issue_shares` against
+    /// `member_deposit.pending`.
+    pub share_mint: Pubkey,
     /// Hard ceiling on total position debt (post-op dustDebtAmount must
     /// stay under it), in borrow-mint base units.
     pub max_debt: u64,
@@ -799,6 +924,11 @@ pub struct StrategyConfig {
 pub struct MintPair {
     pub from: Pubkey,
     pub to: Pubkey,
+    /// Maximum allowed input/output deviation in basis points. For
+    /// near-equivalent stables (USDT↔USDG) set ~50: `swap` then requires
+    /// `min_out >= amount * (1 - max_deviation_bps/10000)` so a compromised
+    /// delegate cannot route a deliberately bad fill. 0 = no bound.
+    pub max_deviation_bps: u16,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
@@ -855,8 +985,8 @@ impl StrategyState {
         + 1
         + 4 + 32 * MAX_ALLOWED_PROGRAMS
         + 4 + 32 * MAX_MEMBERS
-        + 4 + (8 + 4 + 32 * 4 + 32 + 32 + 8) * MAX_STRATEGIES
-        + 4 + 64 * 16
+        + 4 + (8 + 4 + 32 * 4 + 32 + 32 + 32 + 8) * MAX_STRATEGIES
+        + 4 + 66 * 16
         + 8 + 8 + 8
         + 8 * 48
         + 8
@@ -980,6 +1110,86 @@ pub struct AcceptAdmin<'info> {
     pub state: Account<'info, StrategyState>,
 }
 
+/// Member-facing deposit: the member signs, collateral moves member ATA →
+/// vault ATA, `member_deposit` records what they are owed in share units.
+#[derive(Accounts)]
+#[instruction(strategy_index: u8)]
+pub struct Deposit<'info> {
+    #[account(mut)]
+    pub member: Signer<'info>,
+    #[account(seeds = [b"state"], bump = state.bump)]
+    pub state: Account<'info, StrategyState>,
+    /// CHECK: mint binding is verified against the strategy inside the handler.
+    #[account(mut)]
+    pub member_ata: UncheckedAccount<'info>,
+    /// CHECK: derived and checked inside the handler.
+    #[account(mut, seeds = [b"vault"], bump = state.vault_bump)]
+    pub vault: UncheckedAccount<'info>,
+    /// CHECK: must be the vault ATA for the strategy collateral mint (checked).
+    #[account(mut)]
+    pub vault_ata: UncheckedAccount<'info>,
+    /// CHECK: must equal state.delegate — receives the member tip (checked).
+    #[account(mut)]
+    pub delegate: UncheckedAccount<'info>,
+    #[account(
+        init_if_needed,
+        payer = member,
+        space = MemberDeposit::SPACE,
+        seeds = [b"deposit", member.key().as_ref(), &[strategy_index]],
+        bump,
+    )]
+    pub member_deposit: Account<'info, MemberDeposit>,
+    /// CHECK: pinned to the canonical SPL Token program id.
+    #[account(address = TOKEN_PROGRAM_ID)]
+    pub token_program: UncheckedAccount<'info>,
+    /// CHECK: pinned to the system program id.
+    #[account(address = SYSTEM_PROGRAM_ID)]
+    pub system_program: UncheckedAccount<'info>,
+}
+
+/// Delegate-issued share payout tied to a recorded deposit — no whitelist
+/// needed: the destination is derived from `member_deposit.member` itself.
+#[derive(Accounts)]
+pub struct IssueShares<'info> {
+    #[account(constraint = caller.key() == state.delegate @ StrategyError::NotDelegate)]
+    pub caller: Signer<'info>,
+    #[account(seeds = [b"state"], bump = state.bump)]
+    pub state: Account<'info, StrategyState>,
+    /// CHECK: PDA authority over the vault ATAs.
+    #[account(mut, seeds = [b"vault"], bump = state.vault_bump)]
+    pub vault: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [b"deposit", member_deposit.member.as_ref(), &[member_deposit.strategy]],
+        bump = member_deposit.bump,
+    )]
+    pub member_deposit: Account<'info, MemberDeposit>,
+    /// CHECK: must be the vault ATA for the strategy share mint (checked).
+    #[account(mut)]
+    pub source: UncheckedAccount<'info>,
+    /// CHECK: must be the depositor ATA for the strategy share mint (checked).
+    #[account(mut)]
+    pub destination: UncheckedAccount<'info>,
+    /// CHECK: pinned to the canonical SPL Token program id.
+    #[account(address = TOKEN_PROGRAM_ID)]
+    pub token_program: UncheckedAccount<'info>,
+}
+
+/// Per-member pending deposit: collateral base units owed back as share
+/// tokens. Created on `deposit`, drained by `issue_shares` — the on-chain
+/// witness that makes the 1:1 issuance enforceable.
+#[account]
+pub struct MemberDeposit {
+    pub member: Pubkey,
+    pub strategy: u8,
+    pub pending: u64,
+    pub bump: u8,
+}
+
+impl MemberDeposit {
+    pub const SPACE: usize = 8 + 32 + 1 + 8 + 1;
+}
+
 // ---------------------------------------------------------------------------
 // events & errors
 // ---------------------------------------------------------------------------
@@ -1044,6 +1254,20 @@ pub struct AdminProposed {
 pub struct AdminAccepted {
     pub admin: Pubkey,
 }
+#[event]
+pub struct Deposited {
+    pub member: Pubkey,
+    pub strategy: u8,
+    pub amount: u64,
+    pub pending: u64,
+}
+#[event]
+pub struct SharesIssued {
+    pub member: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+    pub remaining: u64,
+}
 
 #[error_code]
 pub enum StrategyError {
@@ -1105,6 +1329,12 @@ pub enum StrategyError {
     NotProposedAdmin,
     #[msg("invalid configuration")]
     BadConfig,
+    #[msg("tip exceeds the per-deposit delegate tip cap")]
+    TipTooLarge,
+    #[msg("payout exceeds the member's recorded deposit")]
+    InsufficientDeposit,
+    #[msg("min_out below the pair's deviation bound")]
+    MinOutTooLow,
 }
 
 // ---------------------------------------------------------------------------
