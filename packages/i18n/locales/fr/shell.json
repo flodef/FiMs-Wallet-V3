@@ -5,6 +5,8 @@
   "accountPublicKeyCopySuccess": "Clé publique copiée",
   "actionsSidebarHide": "Masquer la barre latérale",
   "actionsSidebarShow": "Afficher la barre latérale",
+  "betaWarningBody": "Ce code n'est ni audité ni maintenu. N'y déposez pas de fonds que vous ne pouvez pas vous permettre de perdre.",
+  "betaWarningTitle": "Logiciel expérimental — bêta",
   "commandEmpty": "Aucun résultat.",
   "commandInputPlaceholder": "Tapez une commande ou recherchez...",
   "commandLanguage": "Langue",

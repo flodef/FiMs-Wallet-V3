@@ -10,6 +10,7 @@ import { getColorByName } from '@workspace/ui/lib/get-initials-colors'
 import { cn } from '@workspace/ui/lib/utils'
 import { useMemo } from 'react'
 import { NavLink, Outlet } from 'react-router'
+import { ShellUiBetaBanner } from './shell-ui-beta-banner.tsx'
 import { ShellUiCommandMenu } from './shell-ui-command-menu.tsx'
 import { ShellUiMenu } from './shell-ui-menu.tsx'
 import { ShellUiMenuActions } from './shell-ui-menu-actions.tsx'
@@ -67,6 +68,7 @@ export function ShellUiLayout() {
           <ShellUiMenuActions />
         </div>
       </header>
+      <ShellUiBetaBanner />
       <main className="flex-1 overflow-y-auto p-1 md:p-2 lg:p-4">
         <Outlet />
       </main>

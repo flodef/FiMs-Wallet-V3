@@ -5,6 +5,8 @@
   "accountPublicKeyCopySuccess": "Clave pública copiada",
   "actionsSidebarHide": "Cerrar barra lateral",
   "actionsSidebarShow": "Abrir barra lateral",
+  "betaWarningBody": "Este código no está auditado ni tiene soporte. No lo uses con fondos que no puedas permitirte perder.",
+  "betaWarningTitle": "Software experimental — beta",
   "commandEmpty": "Ningún resultado encontrado.",
   "commandInputPlaceholder": "Escriba un comando o busque...",
   "commandLanguage": "Idioma",
