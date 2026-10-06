@@ -744,7 +744,18 @@ export default interface Resources {
     pageGeneralSecurityPasskeyFailed: 'Passkey operation failed. Check your password and try again.'
     pageGeneralSecurityPasskeyHint: 'Use your fingerprint or face instead of the vault password on this device.'
     pageGeneralSecurityPasskeyUnsupported: 'No compatible passkey authenticator found on this device.'
+    pageGeneralSecurityPassword: 'App password'
+    pageGeneralSecurityPasswordChange: 'Change password'
     pageGeneralSecurityPasswordConfirm: 'Vault password (required to enroll)'
+    pageGeneralSecurityPasswordCurrent: 'Current password'
+    pageGeneralSecurityPasswordDone: 'Password changed'
+    pageGeneralSecurityPasswordFailed: 'Password change failed — check your current password.'
+    pageGeneralSecurityPasswordHint: 'Rotate the password that protects your vault on this device.'
+    pageGeneralSecurityPasswordLength: 'Password must be between {{min}} and {{max}} characters'
+    pageGeneralSecurityPasswordMismatch: 'New passwords do not match'
+    pageGeneralSecurityPasswordNew: 'New password ({{min}} characters minimum)'
+    pageGeneralSecurityPasswordRepeat: 'Repeat new password'
+    pageGeneralSecurityPasswordWeak: 'Your current password is below the recommended minimum length — change it now.'
     pageGeneralSecurityTotp: 'Two-factor authentication (TOTP)'
     pageGeneralSecurityTotpCancel: 'Cancel'
     pageGeneralSecurityTotpCode: '6-digit code'
@@ -915,5 +926,7 @@ export default interface Resources {
     unlockDialogSetupTitle: 'Create app password'
     unlockDialogTotpInvalid: 'Invalid code'
     unlockDialogTotpLabel: 'Authenticator code'
+    unlockWeakPasswordWarning: 'Your app password is below the recommended length — change it in Settings > Security.'
+    unlockWeakPinWarning: "This wallet's PIN is below the recommended length — set a longer one in Settings > Wallet details."
   }
 }

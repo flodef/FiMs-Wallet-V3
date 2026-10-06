@@ -13,5 +13,7 @@
   "unlockDialogSetupDescription": "Crea una contraseña de app una vez. Puedes agregar billeteras más tarde sin repetir la configuración.",
   "unlockDialogSetupTitle": "Crear contraseña de app",
   "unlockDialogTotpInvalid": "Código inválido",
-  "unlockDialogTotpLabel": "Código de autenticación"
+  "unlockDialogTotpLabel": "Código de autenticación",
+  "unlockWeakPasswordWarning": "Tu contraseña es más corta que el mínimo recomendado — cámbiala en Ajustes > Seguridad.",
+  "unlockWeakPinWarning": "El PIN de esta cartera es más corto que el mínimo recomendado — elige uno más largo en Ajustes > Detalles de la cartera."
 }

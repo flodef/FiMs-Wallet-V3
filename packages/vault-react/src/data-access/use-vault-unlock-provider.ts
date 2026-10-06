@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '@workspace/context-react/use-app-context'
+import { toastWarning } from '@workspace/ui/lib/toast-warning'
 import { decryptWithVaultKey } from '@workspace/vault/encrypted-value'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { optionsVault, vaultStatusQueryKey } from './options-vault.ts'
@@ -100,6 +101,21 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
     },
   })
 
+  // One warning per credential type per session — a legacy PIN nudges on the
+  // first unlock, not on every signed transaction.
+  const weakWarnedRef = useRef(new Set<'password' | 'pin'>())
+  const warnWeakCredentials = useCallback(() => {
+    const weak = context.vault.weakCredentials()
+    if (weak.password && !weakWarnedRef.current.has('password')) {
+      weakWarnedRef.current.add('password')
+      toastWarning(copy.weakPasswordWarning)
+    }
+    if (weak.walletIds.length && !weakWarnedRef.current.has('pin')) {
+      weakWarnedRef.current.add('pin')
+      toastWarning(copy.weakPinWarning)
+    }
+  }, [context.vault, copy.weakPasswordWarning, copy.weakPinWarning])
+
   const resetForm = useCallback(() => {
     setConfirmPassword('')
     setCredential('')
@@ -122,8 +138,11 @@ export function useVaultUnlockProvider(): VaultUnlockProviderValue {
       setPending(null)
       resetForm()
       request?.resolve(value)
+      if (value) {
+        warnWeakCredentials()
+      }
     },
-    [resetForm],
+    [resetForm, warnWeakCredentials],
   )
 
   const resetSubmitError = useCallback(() => {

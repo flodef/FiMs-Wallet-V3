@@ -6,7 +6,9 @@ import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { UiWarning } from '@workspace/ui/components/ui-warning'
+import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { decryptWithPassword, decryptWithVaultKey, encryptWithVaultKey } from '@workspace/vault/encrypted-value'
+import { VAULT_PASSWORD_CREATE_MIN_LENGTH, VAULT_PASSWORD_MAX_LENGTH } from '@workspace/vault/encrypted-value-schema'
 import { enrollPasskey, isPasskeyAvailable, unlockVaultWithPasskey } from '@workspace/vault-react/data-access/passkey'
 import { generateTotpSecret, totpUri, verifyTotp } from '@workspace/vault-react/data-access/totp'
 import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
@@ -25,8 +27,105 @@ export function SettingsFeatureGeneralSecurity() {
   return (
     <div className="space-y-6">
       <Label>{t(($) => $.pageGeneralSecurity)}</Label>
+      <PasswordSection context={context} t={t} />
       <PasskeySection context={context} passkey={passkey} setPasskey={setPasskey} t={t} />
       <TotpSection context={context} setTotp={setTotp} t={t} totp={totp} />
+    </div>
+  )
+}
+
+function PasswordSection({
+  context,
+  t,
+}: {
+  context: ReturnType<typeof useAppContext>
+  t: ReturnType<typeof useTranslation<'settings'>>['t']
+}) {
+  const currentId = useId()
+  const nextId = useId()
+  const repeatId = useId()
+  const [busy, setBusy] = useState(false)
+  const [current, setCurrent] = useState('')
+  const [error, setError] = useState('')
+  const [next, setNext] = useState('')
+  const [repeat, setRepeat] = useState('')
+  // Read at render: a vault unlocked with a legacy-length password reports it
+  // until the password is rotated (or the vault locks).
+  const weak = context.vault.weakCredentials().password
+
+  async function handleChange() {
+    setBusy(true)
+    setError('')
+    try {
+      if (next.length < VAULT_PASSWORD_CREATE_MIN_LENGTH || next.length > VAULT_PASSWORD_MAX_LENGTH) {
+        throw new Error('length')
+      }
+      if (next !== repeat) {
+        throw new Error('mismatch')
+      }
+      await context.vault.changePassword({ newPassword: next, oldPassword: current })
+      setCurrent('')
+      setNext('')
+      setRepeat('')
+      toastSuccess(t(($) => $.pageGeneralSecurityPasswordDone))
+    } catch (err) {
+      setError(
+        err instanceof Error && (err.message === 'length' || err.message === 'mismatch') ? err.message : 'failed',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="font-medium text-sm">{t(($) => $.pageGeneralSecurityPassword)}</div>
+      <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralSecurityPasswordHint)}</p>
+      {weak ? <UiWarning>{t(($) => $.pageGeneralSecurityPasswordWeak)}</UiWarning> : null}
+      <div className="space-y-2">
+        <Label htmlFor={currentId}>{t(($) => $.pageGeneralSecurityPasswordCurrent)}</Label>
+        <Input
+          autoComplete="current-password"
+          id={currentId}
+          onChange={(event) => setCurrent(event.target.value)}
+          type="password"
+          value={current}
+        />
+        <Label htmlFor={nextId}>
+          {t(($) => $.pageGeneralSecurityPasswordNew, { min: VAULT_PASSWORD_CREATE_MIN_LENGTH })}
+        </Label>
+        <Input
+          autoComplete="new-password"
+          id={nextId}
+          maxLength={VAULT_PASSWORD_MAX_LENGTH}
+          minLength={VAULT_PASSWORD_CREATE_MIN_LENGTH}
+          onChange={(event) => setNext(event.target.value)}
+          type="password"
+          value={next}
+        />
+        <Label htmlFor={repeatId}>{t(($) => $.pageGeneralSecurityPasswordRepeat)}</Label>
+        <Input
+          autoComplete="new-password"
+          id={repeatId}
+          onChange={(event) => setRepeat(event.target.value)}
+          type="password"
+          value={repeat}
+        />
+        <Button disabled={busy || !current || !next || !repeat} onClick={() => void handleChange()}>
+          {busy ? <UiLoader className="size-4" /> : null}
+          {t(($) => $.pageGeneralSecurityPasswordChange)}
+        </Button>
+      </div>
+      {error === 'length' ? (
+        <UiWarning>
+          {t(($) => $.pageGeneralSecurityPasswordLength, {
+            max: VAULT_PASSWORD_MAX_LENGTH,
+            min: VAULT_PASSWORD_CREATE_MIN_LENGTH,
+          })}
+        </UiWarning>
+      ) : null}
+      {error === 'mismatch' ? <UiWarning>{t(($) => $.pageGeneralSecurityPasswordMismatch)}</UiWarning> : null}
+      {error === 'failed' ? <UiWarning>{t(($) => $.pageGeneralSecurityPasswordFailed)}</UiWarning> : null}
     </div>
   )
 }

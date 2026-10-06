@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { decryptWithPassword } from '../src/encrypted-value.ts'
+import {
+  decryptWithPassword,
+  encryptWithCredential,
+  generateVaultKeyMaterial,
+  kdfIterations,
+} from '../src/encrypted-value.ts'
 import { resetUnlockThrottle } from '../src/unlock-throttle.ts'
 import { createVault, type VaultStorage } from '../src/vault.ts'
 
@@ -14,6 +19,49 @@ const storage: VaultStorage = {
   async setVaultKey(value) {
     vaultKey = value
   },
+}
+
+// Wraps fresh key material under a credential at an arbitrary PBKDF2
+// iteration count — the way pre-hardening builds wrote vault keys before the
+// current 600k floor.
+async function legacyVaultKey(credential: string, iterations: number): Promise<string> {
+  const keyMaterial = generateVaultKeyMaterial()
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const baseKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(credential), 'PBKDF2', false, [
+    'deriveKey',
+  ])
+  const key = await crypto.subtle.deriveKey(
+    { hash: 'SHA-256', iterations, name: 'PBKDF2', salt },
+    baseKey,
+    { length: 256, name: 'AES-GCM' },
+    false,
+    ['encrypt'],
+  )
+  const encrypted = new Uint8Array(
+    await crypto.subtle.encrypt({ iv, name: 'AES-GCM' }, key, new TextEncoder().encode(keyMaterial)),
+  )
+  const b64 = (v: Uint8Array) =>
+    btoa(String.fromCharCode(...v))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '')
+  return JSON.stringify({
+    auth_tag: b64(encrypted.slice(encrypted.length - 16)),
+    cipher: 'aes-256-gcm',
+    cipherparams: { iv: b64(iv) },
+    ciphertext: b64(encrypted.slice(0, encrypted.length - 16)),
+    kdf: 'pbkdf2-sha256',
+    kdfparams: { dklen: 32, hash: 'sha256', iterations, salt: b64(salt) },
+    version: 1,
+  })
+}
+
+async function legacyPinProtection(pin: string): Promise<string> {
+  const keyEnvelope = JSON.parse(
+    await encryptWithCredential({ credential: pin, minLength: 1, value: generateVaultKeyMaterial() }),
+  )
+  return JSON.stringify({ keyEnvelope, mode: 'pin', version: 1 })
 }
 
 describe('vault', () => {
@@ -68,6 +116,135 @@ describe('vault', () => {
       // ASSERT
       expect(vault.isUnlocked()).toBe(false)
       expect(vault2.requireDefaultKey()).toBeDefined()
+    })
+
+    it('should report a legacy short password as a weak credential after unlock', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      vaultKey = await legacyVaultKey('short-pass', 600_000)
+      const vault = createVault(storage)
+
+      // ACT
+      await vault.unlock({ password: 'short-pass' })
+
+      // ASSERT
+      expect(vault.isUnlocked()).toBe(true)
+      expect(vault.weakCredentials()).toEqual({ password: true, walletIds: [] })
+    })
+
+    it('should report no weak credential for a compliant password', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const vault = createVault(storage)
+      await vault.create({ password: 'password-one' })
+
+      // ACT
+      const weak = vault.weakCredentials()
+
+      // ASSERT
+      expect(weak).toEqual({ password: false, walletIds: [] })
+    })
+
+    it('should report a legacy short PIN as a weak credential after wallet unlock', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      const protection = await legacyPinProtection('1234')
+      const vault = createVault({
+        ...storage,
+        async getWalletProtection() {
+          return protection
+        },
+      })
+
+      // ACT
+      await vault.unlockWallet({ credential: '1234', walletId: 'wallet-one' })
+
+      // ASSERT
+      expect(vault.weakCredentials().walletIds).toEqual(['wallet-one'])
+      expect(vault.weakCredentials().password).toBe(false)
+    })
+
+    it('should clear the weak PIN flag when the wallet unlocks with a compliant PIN', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      const weakProtection = await legacyPinProtection('1234')
+      const strongProtection = await legacyPinProtection('12345678')
+      let protection = weakProtection
+      const vault = createVault({
+        ...storage,
+        async getWalletProtection() {
+          return protection
+        },
+      })
+      await vault.unlockWallet({ credential: '1234', walletId: 'wallet-one' })
+
+      // ACT
+      protection = strongProtection
+      await vault.unlockWallet({ credential: '12345678', walletId: 'wallet-one' })
+
+      // ASSERT
+      expect(vault.weakCredentials().walletIds).toEqual([])
+      expect(vault.weakCredentials().password).toBe(false)
+    })
+
+    it('should clear weak credentials on lock', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      vaultKey = await legacyVaultKey('short-pass', 600_000)
+      const vault = createVault(storage)
+      await vault.unlock({ password: 'short-pass' })
+
+      // ACT
+      vault.lock()
+
+      // ASSERT
+      expect(vault.weakCredentials()).toEqual({ password: false, walletIds: [] })
+      expect(vault.isUnlocked()).toBe(false)
+    })
+
+    it('should clear the weak password flag after a password change', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      vaultKey = await legacyVaultKey('short-pass', 600_000)
+      const vault = createVault(storage)
+      await vault.unlock({ password: 'short-pass' })
+
+      // ACT
+      await vault.changePassword({ newPassword: 'new-password-long', oldPassword: 'short-pass' })
+
+      // ASSERT
+      expect(vault.weakCredentials().password).toBe(false)
+      await expect(
+        decryptWithPassword({ encrypted: vaultKey as string, password: 'new-password-long' }),
+      ).resolves.toBeDefined()
+    })
+
+    it('should re-encrypt a low-iteration envelope at the current KDF floor on unlock', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      vaultKey = await legacyVaultKey('password-one', 100_000)
+      const vault = createVault(storage)
+
+      // ACT
+      await vault.unlock({ password: 'password-one' })
+
+      // ASSERT
+      expect(vault.isUnlocked()).toBe(true)
+      expect(kdfIterations(vaultKey as string)).toBe(600_000)
+    })
+
+    it('should keep a low-iteration envelope when the password is below the creation minimum', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      vaultKey = await legacyVaultKey('short-pass', 100_000)
+      const vault = createVault(storage)
+
+      // ACT
+      await vault.unlock({ password: 'short-pass' })
+
+      // ASSERT
+      expect(kdfIterations(vaultKey as string)).toBe(100_000)
+      expect(vault.weakCredentials().password).toBe(true)
     })
   })
 

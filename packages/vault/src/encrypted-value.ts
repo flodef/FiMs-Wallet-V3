@@ -120,7 +120,13 @@ export async function importVaultKey(input: { keyMaterial: string }): Promise<Cr
     throw new Error('Invalid vault key material')
   }
 
-  return await crypto.subtle.importKey('raw', keyMaterial, { name: 'AES-GCM' }, false, ['decrypt', 'encrypt'])
+  try {
+    return await crypto.subtle.importKey('raw', keyMaterial, { name: 'AES-GCM' }, false, ['decrypt', 'encrypt'])
+  } finally {
+    // Scrub the JS-visible copy — WebCrypto keeps its own non-extractable
+    // internal key, so the bytes only exist to bridge into importKey.
+    keyMaterial.fill(0)
+  }
 }
 
 export function isEncryptedValue(value: string): boolean {
@@ -128,6 +134,17 @@ export function isEncryptedValue(value: string): boolean {
     return encryptedValueSchema.safeParse(JSON.parse(value)).success
   } catch {
     return false
+  }
+}
+
+// Stored PBKDF2 iteration count, or null when the value is not a
+// PBKDF2-wrapped EncryptedValue (direct-kdf envelope, malformed JSON).
+export function kdfIterations(encrypted: string): number | null {
+  try {
+    const parsed = encryptedValueSchema.safeParse(JSON.parse(encrypted))
+    return parsed.success && parsed.data.kdf === 'pbkdf2-sha256' ? parsed.data.kdfparams.iterations : null
+  } catch {
+    return null
   }
 }
 
@@ -175,7 +192,9 @@ async function derivePasswordKey(input: {
   iterations: number
   salt: CryptoBytes
 }): Promise<CryptoKey> {
-  const key = await crypto.subtle.importKey('raw', textEncoder.encode(input.credential), 'PBKDF2', false, ['deriveKey'])
+  const credentialBytes = textEncoder.encode(input.credential)
+  const key = await crypto.subtle.importKey('raw', credentialBytes, 'PBKDF2', false, ['deriveKey'])
+  credentialBytes.fill(0)
   return await crypto.subtle.deriveKey(
     {
       hash: 'SHA-256',

@@ -84,6 +84,13 @@
       "tag": "0011_strategy_ops",
       "version": "7",
       "when": 1791249734031
+    },
+    {
+      "breakpoints": true,
+      "idx": 12,
+      "tag": "0012_closed_tyrannus",
+      "version": "7",
+      "when": 1791303964081
     }
   ],
   "version": "7"

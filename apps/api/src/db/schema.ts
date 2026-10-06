@@ -110,6 +110,21 @@ export const usedSignatures = pgTable('used_signatures', {
   signature: text('signature').primaryKey(),
 })
 
+// Shared rate-limit counters: fixed-window hits per bucket ('mut:<ip>' or
+// 'read:<ip>'). Per-instance memory buckets (index.ts) cannot see other
+// serverless isolates — this table is the enforcement that survives
+// horizontal scaling. Rows older than a few minutes are dead weight and
+// purged opportunistically by the writer.
+export const rateLimits = pgTable(
+  'rate_limits',
+  {
+    bucket: text('bucket').notNull(),
+    count: integer('count').notNull().default(0),
+    windowStart: timestamp('window_start', { mode: 'date' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.bucket, t.windowStart] })],
+)
+
 // Append-only trail of privileged actions. Only rows where an admin acted
 // on a resource they do not own land here — the ledger money moves through
 // these endpoints, so every admin write must be reconstructible.

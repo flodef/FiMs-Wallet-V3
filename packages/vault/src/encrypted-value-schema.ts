@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
 export const PASSWORD_KDF_MIN_ITERATIONS = 600_000
+// Minimum accepted when DECRYPTING an existing value. Values wrapped under
+// older, weaker KDF policies must stay readable — the vault re-encrypts them
+// at PASSWORD_KDF_MIN_ITERATIONS on the next successful unlock.
+export const PASSWORD_KDF_READ_MIN_ITERATIONS = 100_000
 export const VAULT_PASSWORD_MAX_LENGTH = 128
 // Minimum accepted when unlocking an existing vault or decrypting old data.
 // Credentials created earlier under the 8-char policy must keep working.
@@ -63,7 +67,7 @@ export const encryptedValueSchema = z.discriminatedUnion('kdf', [
     kdfparams: z.object({
       dklen: z.literal(32),
       hash: z.literal('sha256'),
-      iterations: z.number().int().min(PASSWORD_KDF_MIN_ITERATIONS),
+      iterations: z.number().int().min(PASSWORD_KDF_READ_MIN_ITERATIONS),
       salt: z.string(),
     }),
   }),

@@ -13,5 +13,7 @@
   "unlockDialogSetupDescription": "Créez un mot de passe d'application une seule fois. Vous pourrez ajouter des wallets plus tard sans répéter cette étape.",
   "unlockDialogSetupTitle": "Créer un mot de passe d'application",
   "unlockDialogTotpInvalid": "Code invalide",
-  "unlockDialogTotpLabel": "Code d'authentification"
+  "unlockDialogTotpLabel": "Code d'authentification",
+  "unlockWeakPasswordWarning": "Votre mot de passe est plus court que le minimum recommandé — changez-le dans Réglages > Sécurité.",
+  "unlockWeakPinWarning": "Le PIN de ce wallet est plus court que le minimum recommandé — allongez-le dans Réglages > Détails du wallet."
 }

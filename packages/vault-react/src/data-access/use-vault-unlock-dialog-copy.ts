@@ -16,5 +16,7 @@ export function useVaultUnlockDialogCopy() {
     setupTitle: t(($) => $.unlockDialogSetupTitle),
     totpInvalid: t(($) => $.unlockDialogTotpInvalid),
     totpLabel: t(($) => $.unlockDialogTotpLabel),
+    weakPasswordWarning: t(($) => $.unlockWeakPasswordWarning),
+    weakPinWarning: t(($) => $.unlockWeakPinWarning),
   }
 }

@@ -13,5 +13,7 @@
   "unlockDialogSetupDescription": "Create an app password once. You can add wallets later without repeating setup.",
   "unlockDialogSetupTitle": "Create app password",
   "unlockDialogTotpInvalid": "Invalid code",
-  "unlockDialogTotpLabel": "Authenticator code"
+  "unlockDialogTotpLabel": "Authenticator code",
+  "unlockWeakPasswordWarning": "Your app password is below the recommended length — change it in Settings > Security.",
+  "unlockWeakPinWarning": "This wallet's PIN is below the recommended length — set a longer one in Settings > Wallet details."
 }

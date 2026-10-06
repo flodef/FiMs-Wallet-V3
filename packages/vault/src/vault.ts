@@ -3,7 +3,13 @@ import {
   encryptWithPassword,
   generateVaultKeyMaterial,
   importVaultKey,
+  kdfIterations,
 } from './encrypted-value.ts'
+import {
+  PASSWORD_KDF_MIN_ITERATIONS,
+  VAULT_PASSWORD_CREATE_MIN_LENGTH,
+  VAULT_PIN_CREATE_MIN_LENGTH,
+} from './encrypted-value-schema.ts'
 import { checkUnlockThrottle, clearUnlockThrottle, recordUnlockFailure } from './unlock-throttle.ts'
 import { unlockPinWalletProtection, unlockUnsecuredWalletProtection } from './wallet-protection.ts'
 import { walletProtectionSchema } from './wallet-protection-schema.ts'
@@ -26,10 +32,16 @@ export interface Vault {
   unlock(input: { password: string }): Promise<void>
   unlockWallet(input: { credential: string; walletId: string }): Promise<void>
   unlockWithKeyMaterial(input: { keyMaterial: string }): Promise<void>
+  // Credentials still accepted for legacy data but below the current creation
+  // minimums — a weak vault password (< 12 chars) or wallet PIN (< 8 digits)
+  // should be rotated, the UI nudges the user toward it after unlock.
+  weakCredentials(): { password: boolean; walletIds: string[] }
 }
 
 export function createVault(store: VaultStorage): Vault {
   let key: CryptoKey | null = null
+  let weakPassword = false
+  const weakPinWalletIds = new Set<string>()
   const walletKeys = new Map<string, CryptoKey>()
 
   async function getWalletProtection(walletId: string) {
@@ -57,12 +69,14 @@ export function createVault(store: VaultStorage): Vault {
         const keyMaterial = await decryptWithPassword({ encrypted: encryptedVaultKey, password: oldPassword })
         await store.setVaultKey(await encryptWithPassword({ password: newPassword, value: keyMaterial }))
         key = await importVaultKey({ keyMaterial })
+        weakPassword = false
       } catch (error) {
         throw new Error('Unable to change vault password', { cause: error })
       }
     },
     clearWalletKey({ walletId }) {
       walletKeys.delete(walletId)
+      weakPinWalletIds.delete(walletId)
     },
     async create({ password }) {
       if (await isConfigured()) {
@@ -78,6 +92,8 @@ export function createVault(store: VaultStorage): Vault {
     },
     lock() {
       key = null
+      weakPassword = false
+      weakPinWalletIds.clear()
       walletKeys.clear()
     },
     requireDefaultKey,
@@ -112,10 +128,23 @@ export function createVault(store: VaultStorage): Vault {
       checkUnlockThrottle('vault')
       try {
         const keyMaterial = await decryptWithPassword({ encrypted: encryptedVaultKey, password })
+        // Transparent KDF upgrade: an envelope wrapped under an older,
+        // weaker iteration count is re-wrapped at the current policy in the
+        // same unlock. Skipped when the password itself is below the
+        // creation minimum — re-encrypting would fail the length check, and
+        // the weak-password flag already pushes the user toward rotation.
+        const iterations = kdfIterations(encryptedVaultKey)
+        if (iterations !== null && iterations < PASSWORD_KDF_MIN_ITERATIONS) {
+          if (password.length >= VAULT_PASSWORD_CREATE_MIN_LENGTH) {
+            await store.setVaultKey(await encryptWithPassword({ password, value: keyMaterial }))
+          }
+        }
         key = await importVaultKey({ keyMaterial })
+        weakPassword = password.length < VAULT_PASSWORD_CREATE_MIN_LENGTH
         clearUnlockThrottle('vault')
       } catch (error) {
         key = null
+        weakPassword = false
         walletKeys.clear()
         recordUnlockFailure('vault')
         throw new Error('Unable to unlock vault', { cause: error })
@@ -138,6 +167,11 @@ export function createVault(store: VaultStorage): Vault {
                 walletId,
                 await unlockPinWalletProtection({ pin: credential, protection: JSON.stringify(protection) }),
               )
+              if (credential.length < VAULT_PIN_CREATE_MIN_LENGTH) {
+                weakPinWalletIds.add(walletId)
+              } else {
+                weakPinWalletIds.delete(walletId)
+              }
               clearUnlockThrottle(throttleTarget)
             } catch (error) {
               recordUnlockFailure(throttleTarget)
@@ -160,6 +194,9 @@ export function createVault(store: VaultStorage): Vault {
         walletKeys.clear()
         throw new Error('Unable to unlock vault', { cause: error })
       }
+    },
+    weakCredentials() {
+      return { password: weakPassword, walletIds: [...weakPinWalletIds] }
     },
   }
 }
