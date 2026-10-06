@@ -191,6 +191,75 @@ describe('assert-jupiter-transaction-safe', () => {
       // ACT & ASSERT
       assertJupiterTransactionSafe({ account: WALLET, inspection })
     })
+
+    it('should count inflow to the expectedReceiveOwner toward the receive minimum', () => {
+      // ARRANGE — strategy deposit: the swap output lands in the vault ATA,
+      // not in the wallet. The vault's inflow must satisfy the min-out.
+      expect.assertions(0)
+      const VAULT = address('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM')
+      const inspection = testInspection({
+        simulation: {
+          ...testInspection().simulation,
+          tokenBalanceChanges: [
+            {
+              account: address('11111111111111111111111111111113'),
+              change: 550_000n,
+              decimals: 6,
+              mint: OUTPUT_MINT,
+              owner: VAULT,
+              postAmount: 550_000n,
+              preAmount: 0n,
+            },
+            {
+              account: address('11111111111111111111111111111114'),
+              change: 10n,
+              decimals: 6,
+              mint: OUTPUT_MINT,
+              owner: WALLET,
+              postAmount: 10n,
+              preAmount: 0n,
+            },
+          ],
+        },
+      })
+
+      // ACT & ASSERT
+      assertJupiterTransactionSafe({
+        account: WALLET,
+        expectedReceive: { amount: 500_000n, mint: OUTPUT_MINT },
+        expectedReceiveOwner: VAULT,
+        inspection,
+      })
+    })
+
+    it('should accept a wallet outflow covered by an extraSpends budget', () => {
+      // ARRANGE — the deposit also drains a pre-existing collateral balance
+      // from the member ATA into the vault (slippage gap budget).
+      expect.assertions(0)
+      const inspection = testInspection({
+        simulation: {
+          ...testInspection().simulation,
+          tokenBalanceChanges: [
+            {
+              account: address('11111111111111111111111111111113'),
+              change: -40_000n,
+              decimals: 6,
+              mint: OTHER_MINT,
+              owner: WALLET,
+              postAmount: 0n,
+              preAmount: 40_000n,
+            },
+          ],
+        },
+      })
+
+      // ACT & ASSERT
+      assertJupiterTransactionSafe({
+        account: WALLET,
+        extraSpends: [{ amount: 50_000n, mint: OTHER_MINT }],
+        inspection,
+      })
+    })
   })
 
   describe('unexpected behavior', () => {
@@ -490,6 +559,36 @@ describe('assert-jupiter-transaction-safe', () => {
         assertJupiterTransactionSafe({
           account: WALLET,
           expectedReceive: { amount: 500_000n, mint: OUTPUT_MINT },
+          inspection,
+        }),
+      ).toThrow(JupiterInspectionError)
+    })
+
+    it('should reject a wallet outflow exceeding the extraSpends budget', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const inspection = testInspection({
+        simulation: {
+          ...testInspection().simulation,
+          tokenBalanceChanges: [
+            {
+              account: address('11111111111111111111111111111113'),
+              change: -60_000n,
+              decimals: 6,
+              mint: OTHER_MINT,
+              owner: WALLET,
+              postAmount: 0n,
+              preAmount: 60_000n,
+            },
+          ],
+        },
+      })
+
+      // ACT & ASSERT
+      expect(() =>
+        assertJupiterTransactionSafe({
+          account: WALLET,
+          extraSpends: [{ amount: 50_000n, mint: OTHER_MINT }],
           inspection,
         }),
       ).toThrow(JupiterInspectionError)

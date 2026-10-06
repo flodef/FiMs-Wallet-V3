@@ -1,10 +1,22 @@
 import type { Address } from '@solana/kit'
 import {
+  AccountRole,
+  address,
+  appendTransactionMessageInstructions,
+  compileTransaction,
+  compressTransactionMessageUsingAddressLookupTables,
+  createTransactionMessage,
+  fetchAddressesForLookupTables,
+  getBase64EncodedWireTransaction,
   getBase64Encoder,
   getSignatureFromTransaction,
   getTransactionDecoder,
+  type Instruction,
+  pipe,
   type Signature,
   sendTransactionWithoutConfirmingFactory,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
   signTransactionWithSigners,
 } from '@solana/kit'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -13,12 +25,20 @@ import type { Network } from '@workspace/db/network/network'
 import { useAccountGetTransactionSigner } from '@workspace/db-react/use-account-get-transaction-signer'
 import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
 import { createKeyPairSignerFromJson } from '@workspace/keypair/create-key-pair-signer-from-json'
+import { NATIVE_MINT } from '@workspace/solana-client/constants'
 import { inspectWireTransaction } from '@workspace/solana-client/inspect-wire-transaction'
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { useCallback } from 'react'
 import { z } from 'zod'
 import { getFimsPlatformFeeBps } from '../fims-fee-config.ts'
 import { ensureTreasuryFeeAccount } from './ensure-treasury-fee-account.ts'
+import {
+  buildDepositIx,
+  FIMS_STRATEGY_NATIVE_OVERHEAD_LAMPORTS,
+  type FimsStrategyState,
+  fetchStrategyState,
+  vaultPda,
+} from './fims-strategy.ts'
 import { assertJupiterTransactionSafe } from './inspect-jupiter-transaction.ts'
 
 const JUPITER_API = 'https://lite-api.jup.ag'
@@ -36,9 +56,18 @@ function useSignAndSendTransaction({ account, network }: { account: Account; net
       base64Transaction: string,
       expectedSpend?: { amount: bigint; mint: Address },
       expectedReceive?: { amount: bigint; mint: Address },
+      extraSpends?: { amount: bigint; mint: Address }[],
+      expectedReceiveOwner?: Address,
     ): Promise<Signature> => {
       const inspection = await inspectWireTransaction(client, base64Transaction)
-      assertJupiterTransactionSafe({ account: account.publicKey, expectedReceive, expectedSpend, inspection })
+      assertJupiterTransactionSafe({
+        account: account.publicKey,
+        expectedReceive,
+        expectedReceiveOwner,
+        expectedSpend,
+        extraSpends,
+        inspection,
+      })
       const decoded = getTransactionDecoder().decode(getBase64Encoder().encode(base64Transaction))
       const json = await accountSecretKey({ account })
       const signer = await createKeyPairSignerFromJson({ json })
@@ -277,6 +306,205 @@ export function useFimsTriggerCreateOrder({ account, network }: { account: Accou
         amount: makingAmount,
         mint: inputMint as Address,
       })
+    },
+  })
+}
+
+// On-chain strategy state (delegate + share mints). Drives the "buy FSOL"
+// swap route: when the output mint is a strategy share, the swap ends with a
+// program deposit instead of a market fill.
+export function useFimsStrategyState({ network }: { network: Network }) {
+  const client = useSolanaClient({ network })
+  return useQuery({
+    queryFn: () => fetchStrategyState(client.rpc),
+    queryKey: ['fims', 'strategy-state', network.id],
+    staleTime: 60_000,
+  })
+}
+
+const swapInstructionsSchema = z.object({
+  addressLookupTableAddresses: z.array(z.string()).optional(),
+  cleanupInstruction: z
+    .object({
+      accounts: z.array(z.object({ isSigner: z.boolean(), isWritable: z.boolean(), pubkey: z.string() })),
+      data: z.string(),
+      programId: z.string(),
+    })
+    .optional(),
+  computeBudgetInstructions: z
+    .array(
+      z.object({
+        accounts: z.array(z.object({ isSigner: z.boolean(), isWritable: z.boolean(), pubkey: z.string() })),
+        data: z.string(),
+        programId: z.string(),
+      }),
+    )
+    .optional(),
+  otherInstructions: z
+    .array(
+      z.object({
+        accounts: z.array(z.object({ isSigner: z.boolean(), isWritable: z.boolean(), pubkey: z.string() })),
+        data: z.string(),
+        programId: z.string(),
+      }),
+    )
+    .optional(),
+  setupInstructions: z
+    .array(
+      z.object({
+        accounts: z.array(z.object({ isSigner: z.boolean(), isWritable: z.boolean(), pubkey: z.string() })),
+        data: z.string(),
+        programId: z.string(),
+      }),
+    )
+    .optional(),
+  swapInstruction: z.object({
+    accounts: z.array(z.object({ isSigner: z.boolean(), isWritable: z.boolean(), pubkey: z.string() })),
+    data: z.string(),
+    programId: z.string(),
+  }),
+})
+type SwapInstruction = z.infer<typeof swapInstructionsSchema>['swapInstruction']
+
+const COMPUTE_BUDGET_PROGRAM = 'ComputeBudget111111111111111111111111111111'
+// The deposit ix is appended after Jupiter's own instructions but
+// dynamicComputeUnitLimit only sizes theirs — raise the cap so the vault
+// transfer + ATA creation + PDA init cannot run the transaction dry.
+const STRATEGY_DEPOSIT_EXTRA_CU = 150_000
+
+// ComputeBudget::SetComputeUnitLimit carries a u32 at byte 1.
+function raiseComputeUnitLimit(ixs: Instruction[]): Instruction[] {
+  const idx = ixs.findIndex(
+    (ix) => ix.programAddress === COMPUTE_BUDGET_PROGRAM && ix.data?.[0] === 2 && (ix.data?.length ?? 0) >= 5,
+  )
+  if (idx < 0) {
+    const data = new Uint8Array(5)
+    data[0] = 2
+    new DataView(data.buffer).setUint32(1, STRATEGY_DEPOSIT_EXTRA_CU, true)
+    return [{ accounts: [], data, programAddress: address(COMPUTE_BUDGET_PROGRAM) }, ...ixs]
+  }
+  return ixs.map((ix, i) => {
+    if (i !== idx || !ix.data) return ix
+    const data = new Uint8Array(ix.data)
+    const view = new DataView(data.buffer)
+    view.setUint32(1, view.getUint32(1, true) + STRATEGY_DEPOSIT_EXTRA_CU, true)
+    return { ...ix, data }
+  })
+}
+
+function toKitIx(ix: SwapInstruction): Instruction {
+  return {
+    accounts: ix.accounts.map((account) => ({
+      address: address(account.pubkey),
+      role: account.isSigner
+        ? account.isWritable
+          ? AccountRole.WRITABLE_SIGNER
+          : AccountRole.READONLY_SIGNER
+        : account.isWritable
+          ? AccountRole.WRITABLE
+          : AccountRole.READONLY,
+    })),
+    data: getBase64Encoder().encode(ix.data),
+    programAddress: address(ix.programId),
+  }
+}
+
+// Buy a strategy share token (FSOL, FLiP): Jupiter swaps the input into the
+// strategy collateral (JUPSOL…) and the same transaction ends with the
+// program `deposit` — collateral lands in the vault, the member's share ATA
+// is created, the delegate gets its tip. The keeper then issues the shares
+// 1:1 within ~a minute; the member never holds the collateral.
+export function useFimsStrategySwap({ account, network }: { account: Account; network: Network }) {
+  const client = useSolanaClient({ network })
+  const getTransactionSigner = useAccountGetTransactionSigner({ account })
+  const signAndSendBase64Transaction = useSignAndSendTransaction({ account, network })
+
+  return useMutation({
+    mutationFn: async ({
+      feeMint,
+      quote,
+      state,
+      strategyIndex,
+    }: {
+      feeMint?: Address
+      quote: JupiterQuote
+      state: FimsStrategyState
+      strategyIndex: number
+    }): Promise<Signature> => {
+      const strategy = state.strategies[strategyIndex]
+      if (!strategy) throw new Error(`unknown strategy index ${strategyIndex}`)
+      const feeAccount = feeMint
+        ? await ensureTreasuryFeeAccount(client, { mint: feeMint, transactionSigner: await getTransactionSigner() })
+        : undefined
+      const res = await fetch(`${JUPITER_API}/swap/v1/swap-instructions`, {
+        body: JSON.stringify({
+          dynamicComputeUnitLimit: true,
+          feeAccount,
+          quoteResponse: quote,
+          userPublicKey: account.publicKey,
+          wrapAndUnwrapSol: true,
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+      if (!res.ok) {
+        throw new Error(`Jupiter swap-instructions failed: ${res.status}`)
+      }
+      const body = swapInstructionsSchema.parse(await res.json())
+      const instructions = raiseComputeUnitLimit(
+        [
+          ...(body.computeBudgetInstructions ?? []),
+          ...(body.setupInstructions ?? []),
+          body.swapInstruction,
+          ...(body.cleanupInstruction ? [body.cleanupInstruction] : []),
+          ...(body.otherInstructions ?? []),
+        ].map(toKitIx),
+      )
+      // Deposit the quoted amount — the program clamps to what actually
+      // arrived so slippage cannot revert the whole transaction.
+      instructions.push(
+        await buildDepositIx({
+          amount: BigInt(quote.outAmount),
+          member: account.publicKey as Address,
+          state,
+          strategyIndex,
+        }),
+      )
+
+      const { value: latestBlockhash } = await client.rpc.getLatestBlockhash().send()
+      const lookupTables = body.addressLookupTableAddresses?.length
+        ? await fetchAddressesForLookupTables(
+            body.addressLookupTableAddresses.map((a) => address(a)),
+            client.rpc,
+          )
+        : undefined
+      const message = pipe(
+        createTransactionMessage({ version: 0 }),
+        (tx) => setTransactionMessageFeePayer(address(account.publicKey), tx),
+        (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+        (tx) => appendTransactionMessageInstructions(instructions, tx),
+        (tx) => (lookupTables ? compressTransactionMessageUsingAddressLookupTables(tx, lookupTables) : tx),
+      )
+      const wire = getBase64EncodedWireTransaction(compileTransaction(message))
+
+      // The wallet spends the input mint; the collateral lands in the vault
+      // via the deposit ix, so the min-out is asserted on wallet+vault
+      // inflow while the member ATA may go net-negative by the slippage gap
+      // (a pre-existing balance gets swept into the deposit too).
+      return signAndSendBase64Transaction(
+        wire,
+        { amount: BigInt(quote.inAmount), mint: quote.inputMint as Address },
+        { amount: BigInt(quote.otherAmountThreshold), mint: strategy.collateralMint },
+        [
+          {
+            amount: BigInt(quote.outAmount) - BigInt(quote.otherAmountThreshold),
+            mint: strategy.collateralMint,
+          },
+          // Tip + share ATA rent + member_deposit PDA rent paid by the member.
+          { amount: FIMS_STRATEGY_NATIVE_OVERHEAD_LAMPORTS, mint: NATIVE_MINT },
+        ],
+        await vaultPda(),
+      )
     },
   })
 }

@@ -133,6 +133,10 @@ pub mod fims_strategy {
             .strategies
             .get(strategy_index as usize)
             .ok_or(StrategyError::UnknownStrategy)?;
+        // Clamp to the member ATA balance: the swap+deposit flow deposits the
+        // quote's expected out amount, so a small slippage shortfall must not
+        // revert the whole transaction — pending records what actually moved.
+        let amount = amount.min(token_amount(&ctx.accounts.member_ata.to_account_info())?);
         require!(amount > 0, StrategyError::BadConfig);
         require!(tip_lamports <= MAX_TIP_LAMPORTS, StrategyError::TipTooLarge);
         require!(

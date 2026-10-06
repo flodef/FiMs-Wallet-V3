@@ -14,10 +14,11 @@ import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import type { FimsStrategyState } from './data-access/fims-strategy.ts'
 import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsDebt } from './data-access/use-fims-debt.tsx'
-import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
+import { useFimsStrategyState, useFimsStrategySwap, useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT } from './fims-constants.ts'
 import { getFimsPlatformFeeBps, getFimsTontineRate } from './fims-fee-config.ts'
 import { fimsSwappableMints, isSolGasMint } from './fims-gas.ts'
@@ -66,8 +67,21 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
     }
   }, [amountText, inputToken])
 
-  const quote = useJupiterQuote({ amount, inputMint, outputMint, platformFeeBps: getFimsPlatformFeeBps() })
+  // Share tokens (FSOL, FLiP…) are issued by the strategy vault, not bought
+  // on a market: the quote targets the strategy's collateral mint and the
+  // transaction ends with a program `deposit`. Shares arrive ~1 min later
+  // via the keeper — the collateral never stays in the wallet.
+  const strategyState = useFimsStrategyState({ network })
+  const strategyIndex = useMemo(
+    () => (strategyState.data?.strategies ?? []).findIndex((s) => s.shareMint === outputMint),
+    [strategyState.data, outputMint],
+  )
+  const strategyRoute = strategyIndex >= 0 ? (strategyState.data?.strategies[strategyIndex] ?? null) : null
+  const quoteMint = strategyRoute ? strategyRoute.collateralMint : outputMint
+
+  const quote = useJupiterQuote({ amount, inputMint, outputMint: quoteMint, platformFeeBps: getFimsPlatformFeeBps() })
   const swap = useFimsSwap({ account, network })
+  const strategySwap = useFimsStrategySwap({ account, network })
   const [signature, setSignature] = useState<string>('')
 
   const canSign = account.type !== 'Watched'
@@ -84,9 +98,16 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const swapBlocked = mintMismatch || impactBlocked
 
   const handleSwap = async () => {
-    if (!quote.data) return
+    if (!quote.data || (strategyRoute && !strategyState.data)) return
     try {
-      const sig = await swap.mutateAsync({ feeMint: outputMint as Address, quote: quote.data })
+      const sig = strategyRoute
+        ? await strategySwap.mutateAsync({
+            feeMint: strategyRoute.collateralMint,
+            quote: quote.data,
+            state: strategyState.data as FimsStrategyState,
+            strategyIndex,
+          })
+        : await swap.mutateAsync({ feeMint: outputMint as Address, quote: quote.data })
       setSignature(sig)
     } catch (error) {
       reportGasTopupError(error)
@@ -211,6 +232,9 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
               </div>
               <div>{t(($) => $.swapSlippage)}: 0.5%</div>
               <div>{t(($) => $.swapNetworkFeeEstimate)}: ≈ 0.00005 SOL</div>
+              {strategyRoute ? (
+                <div className="text-primary text-xs">{t(($) => $.swapViaStrategy, { symbol: outputSymbol })}</div>
+              ) : null}
               <div className="text-xs">{t(($) => $.swapFeesIncluded)}</div>
             </div>
           ) : null}
@@ -227,10 +251,12 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
 
           <div className="flex justify-end">
             <Button
-              disabled={!canSign || !quote.data || swap.isPending || debtBlocked || swapBlocked}
+              disabled={
+                !canSign || !quote.data || swap.isPending || strategySwap.isPending || debtBlocked || swapBlocked
+              }
               onClick={handleSwap}
             >
-              {swap.isPending ? <UiLoader className="size-4" /> : null}
+              {swap.isPending || strategySwap.isPending ? <UiLoader className="size-4" /> : null}
               {t(($) => $.swapAction)}
             </Button>
           </div>

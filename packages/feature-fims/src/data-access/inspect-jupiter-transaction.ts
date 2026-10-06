@@ -14,6 +14,9 @@ const JUPITER_TRIGGER_V2 = 'j1o2qRpjcyUwEvwtcfhEQefh773ZgjxcVRry7LDqg5X'
 const SYSTEM_PROGRAM = '11111111111111111111111111111111'
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
+// FiMs strategy vault — the swap+deposit transaction (buy FSOL/FLiP) ends
+// with a `deposit` instruction that moves the swap output into the vault.
+const FIMS_STRATEGY_PROGRAM = 'AtmC4gPAEZ1r4fD698mDaCpGEC5WZN5f4z55zscsdVmS'
 
 const ALLOWED_PROGRAM_IDS = new Set<string>([
   SYSTEM_PROGRAM,
@@ -27,6 +30,7 @@ const ALLOWED_PROGRAM_IDS = new Set<string>([
   JUPITER_AGGREGATOR_V6,
   JUPITER_TRIGGER,
   JUPITER_TRIGGER_V2,
+  FIMS_STRATEGY_PROGRAM,
 ])
 
 // Extra lamports head-room on top of the expected spend: fee + rent-exempt
@@ -71,11 +75,20 @@ export function assertJupiterTransactionSafe({
   account,
   expectedSpend,
   expectedReceive,
+  expectedReceiveOwner,
+  extraSpends,
   inspection,
 }: {
   account: Address
   expectedSpend?: { amount: bigint; mint: Address } | undefined
   expectedReceive?: { amount: bigint; mint: Address } | undefined
+  // Extra owner whose token accounts count toward expectedReceive (e.g. the
+  // strategy vault: the deposit moves the output there instead of leaving
+  // it in the wallet).
+  expectedReceiveOwner?: Address | undefined
+  // Additional outflow budgets (e.g. the swap+deposit flow also moves the
+  // swap output mint out of the wallet into the strategy vault).
+  extraSpends?: { amount: bigint; mint: Address }[] | undefined
   inspection: Inspection
 }) {
   if (inspection.feePayer !== account) {
@@ -177,12 +190,20 @@ export function assertJupiterTransactionSafe({
   if (expectedSpend) {
     spendByMint.set(expectedSpend.mint, expectedSpend.amount)
   }
+  for (const extra of extraSpends ?? []) {
+    spendByMint.set(extra.mint, (spendByMint.get(extra.mint) ?? 0n) + extra.amount)
+  }
 
   const nativeTokenOutflow = inspection.simulation.tokenBalanceChanges
     .filter((change) => change.change < 0n && change.owner === account && change.mint === NATIVE_MINT)
     .reduce((total, change) => total - change.change, 0n)
   const nativeOutflow = (walletSolChange < 0n ? -walletSolChange : 0n) + nativeTokenOutflow
-  const nativeSpendBudget = (expectedSpend?.mint === NATIVE_MINT ? expectedSpend.amount : 0n) + SOL_OUTFLOW_TOLERANCE
+  const nativeSpendBudget =
+    (expectedSpend?.mint === NATIVE_MINT ? expectedSpend.amount : 0n) +
+    (extraSpends ?? [])
+      .filter((extra) => extra.mint === NATIVE_MINT)
+      .reduce((total, extra) => total + extra.amount, 0n) +
+    SOL_OUTFLOW_TOLERANCE
   if (nativeOutflow > nativeSpendBudget) {
     throw new JupiterInspectionError(`SOL outflow ${nativeOutflow} exceeds expected ${nativeSpendBudget}`)
   }
@@ -196,12 +217,15 @@ export function assertJupiterTransactionSafe({
   }
 
   if (expectedReceive) {
-    // The wallet must actually receive what was promised: a correct spend
-    // means nothing if the output lands on another account or is shrunk to
-    // dust (minOut set to zero lets a sandwich strip the whole spread).
+    // The wallet (or an explicitly allowed extra owner like the strategy
+    // vault) must actually receive what was promised: a correct spend means
+    // nothing if the output lands on another account or is shrunk to dust
+    // (minOut set to zero lets a sandwich strip the whole spread).
+    const countsTowardReceive = (owner: Address | undefined) =>
+      owner === account || (expectedReceiveOwner !== undefined && owner === expectedReceiveOwner)
     if (expectedReceive.mint === NATIVE_MINT) {
       const wsolInflow = inspection.simulation.tokenBalanceChanges
-        .filter((change) => change.change > 0n && change.owner === account && change.mint === NATIVE_MINT)
+        .filter((change) => change.change > 0n && countsTowardReceive(change.owner) && change.mint === NATIVE_MINT)
         .reduce((total, change) => total + change.change, 0n)
       const nativeInflow = (walletSolChange > 0n ? walletSolChange : 0n) + wsolInflow
       if (nativeInflow < expectedReceive.amount) {
@@ -209,7 +233,9 @@ export function assertJupiterTransactionSafe({
       }
     } else {
       const inflow = inspection.simulation.tokenBalanceChanges
-        .filter((change) => change.change > 0n && change.owner === account && change.mint === expectedReceive.mint)
+        .filter(
+          (change) => change.change > 0n && countsTowardReceive(change.owner) && change.mint === expectedReceive.mint,
+        )
         .reduce((total, change) => total + change.change, 0n)
       if (inflow < expectedReceive.amount) {
         throw new JupiterInspectionError(

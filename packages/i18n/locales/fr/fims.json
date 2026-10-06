@@ -303,6 +303,7 @@
   "swapTontineFeeValue": "min. {{rate}} % des gains",
   "swapToPlaceholder": "Token à acheter",
   "swapUnsafeMint": "Bloqué : le token « {{symbol}} » pointe vers un mint inattendu — la liste des tokens a peut-être été falsifiée.",
+  "swapViaStrategy": "Émis par le vault FiMs : les {{symbol}} arrivent en ~1 minute — le collatéral ne reste pas dans votre wallet.",
   "swapViewTx": "Voir la transaction",
   "swapWatchOnly": "Un compte watch-only ne peut pas signer d’échange.",
   "tabAccount": "Mon compte",

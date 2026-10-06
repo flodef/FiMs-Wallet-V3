@@ -303,9 +303,9 @@ const concat = (parts: Uint8Array[]) => {
   return out
 }
 
-const RO_SIGNER = 3 // AccountRole.READONLY_SIGNER
+const SIGNER = 3 // AccountRole.WRITABLE_SIGNER
 const RO = 0 // AccountRole.READONLY
-const RW = 2 // AccountRole.WRITABLE
+const RW = 1 // AccountRole.WRITABLE
 
 interface RawInstruction {
   programId: string
@@ -324,7 +324,7 @@ async function protocolIx(
 ): Promise<Instruction> {
   return {
     accounts: [
-      { address: caller, role: RO_SIGNER },
+      { address: caller, role: SIGNER },
       { address: await statePda(), role: RO },
       { address: await vaultPda(), role: RO },
       ...inner.accounts.map((a) => ({
@@ -390,7 +390,7 @@ export async function issueSharesIx(
 ): Promise<Instruction> {
   return {
     accounts: [
-      { address: caller, role: RO_SIGNER },
+      { address: caller, role: SIGNER },
       { address: await statePda(), role: RO },
       { address: await vaultPda(), role: RW },
       { address: depositPda, role: RW },

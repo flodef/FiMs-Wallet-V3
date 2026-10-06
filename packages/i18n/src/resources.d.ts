@@ -362,6 +362,7 @@ export default interface Resources {
     swapTontineFee: 'Tontine contribution'
     swapTontineFeeValue: 'min. {{rate}}% of gains'
     swapUnsafeMint: 'Blocked: the "{{symbol}}" token points to an unexpected mint — the token list may have been tampered with.'
+    swapViaStrategy: 'Issued by the FiMs vault: {{symbol}} arrives within ~1 minute — you never hold the collateral.'
     swapViewTx: 'View transaction'
     swapWatchOnly: 'A watch-only account cannot sign swaps.'
     tabAccount: 'My account'
