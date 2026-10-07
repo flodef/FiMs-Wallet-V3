@@ -51,6 +51,7 @@ import {
 } from '../../services/auth/service.js'
 import { fetchDonationTransaction } from '../../solana-rpc.js'
 import { cronAuthorized, runStrategyPass, strategyHealth } from '../../strategy-delegate.js'
+import { ballotChangeRetryAt } from '../../vote-ballot-rules.js'
 import { BadRequest, ChainUnavailable, CustodialUnavailable, RateLimited } from './api.js'
 
 const notFound = (what: string) => `not found: ${what}`
@@ -237,6 +238,7 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
       return {
         ...vote,
         eligibleWeight: [...weightMap.values()].reduce((sum, w) => sum + w, 0),
+        myBallotUpdatedAt: ballots.find((b) => b.userId === signerUserId)?.updatedAt ?? null,
         myOptionId: ballots.find((b) => b.userId === signerUserId)?.optionId ?? null,
         myWeight: signerUserId === null ? null : weightOf(signerUserId),
         options,
@@ -914,12 +916,26 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               return yield* Effect.fail(
                 new BadRequest({ reason: `option ${payload.optionId} is not part of this vote` }),
               )
+            const existingBallots = yield* withDb((db) =>
+              db
+                .select({ optionId: voteBallots.optionId, updatedAt: voteBallots.updatedAt })
+                .from(voteBallots)
+                .where(and(eq(voteBallots.voteId, path.id), eq(voteBallots.userId, member.id))),
+            )
+            // A decision can be changed once per 24 h — re-selecting the same
+            // option is a no-op, not a change.
+            const retryAt = ballotChangeRetryAt(existingBallots[0] ?? null, payload.optionId)
+            if (retryAt) {
+              return yield* Effect.fail(
+                new BadRequest({ reason: `ballot changeable once per day — retry at ${retryAt.toISOString()}` }),
+              )
+            }
             yield* withDb((db) =>
               db
                 .insert(voteBallots)
                 .values({ optionId: payload.optionId, userId: member.id, voteId: path.id })
                 .onConflictDoUpdate({
-                  set: { optionId: payload.optionId },
+                  set: { optionId: payload.optionId, updatedAt: new Date() },
                   target: [voteBallots.voteId, voteBallots.userId],
                 }),
             )

@@ -308,6 +308,9 @@ export class Vote extends Schema.Class<Vote>('Vote')({
   eligibleWeight: Schema.Number,
   id: Schema.Number,
   kind: VoteKind,
+  // When the signer's ballot was last cast/changed — the UI uses it to show
+  // the 24 h cooldown before the decision can be changed again.
+  myBallotUpdatedAt: Schema.NullOr(Schema.Date),
   myOptionId: Schema.NullOr(Schema.Number),
   // The signer's own voting weight for this vote kind. Null when unsigned.
   myWeight: Schema.NullOr(Schema.Number),

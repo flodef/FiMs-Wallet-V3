@@ -1,0 +1,1 @@
+ALTER TABLE "vote_ballots" ADD COLUMN "updated_at" timestamp DEFAULT now() NOT NULL;

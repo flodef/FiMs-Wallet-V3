@@ -221,6 +221,8 @@ export const voteBallots = pgTable(
     optionId: integer('option_id')
       .notNull()
       .references(() => voteOptions.id, { onDelete: 'cascade' }),
+    // Last change timestamp — a ballot may only be updated once per 24 h.
+    updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
     userId: integer('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
