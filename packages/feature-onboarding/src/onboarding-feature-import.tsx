@@ -1,4 +1,5 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
+import { useAppContext } from '@workspace/context-react/use-app-context'
 import { useWalletGenerateWithAccount } from '@workspace/db-react/use-wallet-generate-with-account'
 import { useTranslation } from '@workspace/i18n'
 import { derivationPaths } from '@workspace/keypair/derivation-paths'
@@ -29,7 +30,8 @@ import {
   useCreateNewWalletFromPrivateKey,
   useImportWalletTransfer,
 } from './data-access/use-create-new-wallet.tsx'
-import { DEMO_MNEMONIC, demoSetState, useDemoState } from './demo/demo-store.tsx'
+import { demoCleanupWallet } from './demo/demo-cleanup.ts'
+import { DEMO_MNEMONIC, demoGetState, demoSetState, useDemoState } from './demo/demo-store.tsx'
 import { OnboardingUiMnemonicWordInput } from './onboarding-ui-mnemonic-word-input.tsx'
 import { OnboardingUiMnemonicSave } from './ui/onboarding-ui-mnemonic-save.tsx'
 import { OnboardingUiMnemonicSelectStrength } from './ui/onboarding-ui-mnemonic-select-strength.tsx'
@@ -45,6 +47,7 @@ type OnboardingImportForm = z.infer<typeof onboardingImportSchema>
 
 export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) {
   const { t } = useTranslation('onboarding')
+  const context = useAppContext()
   const create = useCreateNewWallet()
   const generate = useWalletGenerateWithAccount()
   const navigate = useNavigate()
@@ -190,8 +193,15 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
               name: 'Démo',
               protection: { mode: 'unsecured' },
             })
-            .then(async () => {
-              demoSetState({ stepIndex: 1, walletCreated: true })
+            .then(async (walletId) => {
+              // The user may have quit while the wallet was being created —
+              // drop the orphan instead of leaving a public-mnemonic wallet
+              // (possibly active) in their list.
+              if (!demoGetState().active) {
+                await demoCleanupWallet(context, walletId)
+                return
+              }
+              demoSetState({ stepIndex: 1, walletCreated: true, walletId })
               await nav(to)
             })
             .catch((error: unknown) => toastError(`${error}`))
@@ -202,7 +212,7 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
       clearInterval(interval)
       clearTimeout(timeout)
     }
-  }, [demo.active, demo.walletCreated, getValues, setValue])
+  }, [demo.active, demo.walletCreated, getValues, setValue, context])
 
   return (
     <Form {...form}>

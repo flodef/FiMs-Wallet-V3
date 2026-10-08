@@ -10,6 +10,10 @@ export interface DemoState {
   previousNetworkId: null | string
   stepIndex: number
   walletCreated: boolean
+  // Wallet created by the demo, tracked by id — never matched by public key:
+  // the demo mnemonic can collide with a user-imported seed, and a pubkey
+  // lookup would then pick (and delete!) the user's own wallet on quit.
+  walletId: null | string
 }
 
 const initialState: DemoState = {
@@ -20,6 +24,7 @@ const initialState: DemoState = {
   previousNetworkId: null,
   stepIndex: 0,
   walletCreated: false,
+  walletId: null,
 }
 
 // The tour state survives a page refresh (presenters do reload mid-demo):
@@ -82,6 +87,10 @@ export function demoStart(previous: { accountId: null | string; networkId: null 
 
 export function demoStop() {
   demoSetState(initialState)
+}
+
+export function demoGetState(): DemoState {
+  return state
 }
 
 export function useDemoState(): DemoState {

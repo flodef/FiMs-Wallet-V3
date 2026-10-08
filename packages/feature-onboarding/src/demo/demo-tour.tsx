@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '@workspace/context-react/use-app-context'
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
-import { walletDelete } from '@workspace/db/wallet/wallet-delete'
 import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
 import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useNetworkLive } from '@workspace/db-react/use-network-live'
@@ -21,6 +20,7 @@ import { Button } from '@workspace/ui/components/button'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { demoCleanupStale, demoCleanupWallet } from './demo-cleanup.ts'
 import { DEMO_MNEMONIC, demoSetState, demoStop, useDemoState } from './demo-store.tsx'
 
 interface DemoStep {
@@ -147,23 +147,40 @@ export function DemoTour() {
       return
     }
     deriveFromMnemonicAtIndex({ mnemonic: DEMO_MNEMONIC })
-      .then(({ publicKey }) => setDemoAddress(publicKey))
+      .then(async ({ publicKey }) => {
+        setDemoAddress(publicKey)
+        // Drop 'Démo' wallets left behind by interrupted earlier runs — the
+        // public-mnemonic wallet must never linger in the user's list.
+        await demoCleanupStale(context, publicKey, demo.walletId).catch(() => {})
+      })
       .catch(() => {})
-  }, [demo.active, demoAddress])
+  }, [demo.active, demoAddress, demo.walletId, context])
 
+  // Fires once per demo wallet: the mutation setter identity changes every
+  // render, and without a guard each mutation re-render re-fires it — a flood
+  // of settings transactions that jams the whole write queue (the quit-time
+  // cleanup then never lands, and flood writes keep re-pointing
+  // activeAccountId at the demo account).
+  const activatedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!demo.active || !demo.walletCreated || !demoAddress) {
+    if (!demo.active || !demo.walletCreated || !demo.walletId) {
+      activatedRef.current = null
       return
     }
-    const demoAccount = accounts.find((account) => account.publicKey === demoAddress)
-    if (demoAccount && activeAccountId !== demoAccount.id) {
+    const demoAccount = accounts.find((account) => account.walletId === demo.walletId)
+    if (demoAccount && activeAccountId !== demoAccount.id && activatedRef.current !== demoAccount.id) {
+      activatedRef.current = demoAccount.id
       setActiveAccountId(demoAccount.id).catch(() => {})
     }
-  }, [demo.active, demo.walletCreated, demoAddress, accounts, activeAccountId, setActiveAccountId])
+  }, [demo.active, demo.walletCreated, demo.walletId, accounts, activeAccountId, setActiveAccountId])
 
   async function handleQuit() {
-    const { previousAccountId, previousNetworkId } = demo
+    const { previousAccountId, previousNetworkId, walletId } = demo
     demoStop()
+    // Restore BEFORE cleanup: the cleanup's dangling-pointer check would
+    // otherwise see the demo account id still stored, delete the settings
+    // row, and the restore's get-then-update would land on a deleted row —
+    // a silent no-op leaving no active account at all.
     if (previousAccountId && previousAccountId !== activeAccountId) {
       await setActiveAccountId(previousAccountId).catch(() => {})
     }
@@ -173,26 +190,12 @@ export function DemoTour() {
     // The demo keys are public knowledge — never leave an unsecured wallet
     // holding them behind: anything that lands on that address is public
     // property for bots and curious readers.
-    if (demoAccount) {
-      await walletDelete(context, demoAccount.walletId).catch(async () => {
-        // Deleting the active wallet is refused: the demo tour ends with no
-        // other account only on a fresh install, so purge the rows directly
-        // and clear the dangling active-account pointer.
-        await context.db
-          .transaction('rw', context.db.accounts, context.db.wallets, context.db.settings, async () => {
-            await context.db.accounts.where('walletId').equals(demoAccount.walletId).delete()
-            await context.db.wallets.delete(demoAccount.walletId)
-            const activeSetting = await context.db.settings.get({ key: 'activeAccountId' })
-            if (activeSetting?.value === demoAccount.id) {
-              await context.db.settings.delete(activeSetting.id)
-            }
-          })
-          .catch(() => {})
-      })
+    if (walletId) {
+      await demoCleanupWallet(context, walletId)
     }
-    // Leaving the tour can strand the user on a demo-only page (/fims, tools…)
-    // or, on a fresh install, with no account at all — always navigate so the
-    // root loader re-resolves and lands somewhere valid.
+    // Leaving the tour can strand the user on a demo-only page (/fims,
+    // tools…) or, on a fresh install, with no account at all — always
+    // navigate so the root loader re-resolves and lands somewhere valid.
     void navigate(previousAccountId ? '/portfolio' : '/onboarding', { replace: true })
   }
 
@@ -202,7 +205,10 @@ export function DemoTour() {
 
   const devnet = networks.find((network) => network.type === 'solana:devnet')
   const showAirdrop = demo.walletCreated && !demo.airdropRequested && demoAddress && devnet
-  const demoAccount = demoAddress ? accounts.find((account) => account.publicKey === demoAddress) : undefined
+  // Match by wallet id, not by public key: the demo mnemonic may collide with
+  // a wallet the user imported from the same seed — a pubkey lookup would
+  // pick (and delete, or sign with) THEIR account.
+  const demoAccount = demo.walletId ? accounts.find((account) => account.walletId === demo.walletId) : undefined
   const showMemberRegistration = demo.walletCreated && !demo.memberRegistered && demoAccount
 
   return (
