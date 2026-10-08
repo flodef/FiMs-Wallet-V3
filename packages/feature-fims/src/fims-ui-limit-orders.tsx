@@ -22,15 +22,7 @@ import { getFimsPlatformFeeBps } from './fims-fee-config.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
-export function FimsUiLimitOrders({
-  account,
-  debtBlocked = false,
-  outputTokens,
-}: {
-  account: Account
-  debtBlocked?: boolean
-  outputTokens: FimsToken[]
-}) {
+export function FimsUiLimitOrders({ account, outputTokens }: { account: Account; outputTokens: FimsToken[] }) {
   const { t } = useTranslation('fims')
   const network = useNetworkActive()
   const balances = useGetTokenBalances({ address: account.publicKey, network })
@@ -140,15 +132,7 @@ export function FimsUiLimitOrders({
 
         <div className="flex justify-end">
           <Button
-            disabled={
-              !canSign ||
-              !inputToken ||
-              !outputToken ||
-              !sellAmount ||
-              !receiveAmount ||
-              createOrder.isPending ||
-              debtBlocked
-            }
+            disabled={!canSign || !inputToken || !outputToken || !sellAmount || !receiveAmount || createOrder.isPending}
             onClick={handleCreate}
           >
             {createOrder.isPending ? <UiLoader className="size-4" /> : null}

@@ -122,7 +122,8 @@ export function DemoTour() {
         path: '/explorer',
         title: t(($) => $.demoStepExplorerTitle),
       },
-      { description: t(($) => $.demoStepToolsDescription), path: '/tools', title: t(($) => $.demoStepToolsTitle) },
+      // No /tools step: that section is admin-only and the tour is a
+      // newcomer's walkthrough — the demo account is never an admin.
       {
         description: t(($) => $.demoStepSettingsDescription),
         path: '/settings',
@@ -189,6 +190,10 @@ export function DemoTour() {
           .catch(() => {})
       })
     }
+    // Leaving the tour can strand the user on a demo-only page (/fims, tools…)
+    // or, on a fresh install, with no account at all — always navigate so the
+    // root loader re-resolves and lands somewhere valid.
+    void navigate(previousAccountId ? '/portfolio' : '/onboarding', { replace: true })
   }
 
   if (!demo.active || !step) {

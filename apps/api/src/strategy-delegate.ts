@@ -16,6 +16,7 @@
 // The hot key lives in STRATEGY_DELEGATE_KEYPAIR (same format as
 // CUSTODIAL_KEYPAIR). It can only drive whitelisted CPIs — the program's
 // post-conditions do the safety work, not this service.
+import { timingSafeEqual } from 'node:crypto'
 import {
   type Address,
   address,
@@ -33,7 +34,7 @@ import {
   signTransactionMessageWithSigners,
   type TransactionSigner,
 } from '@solana/kit'
-import { findAssociatedTokenPda, getCreateAssociatedTokenIdempotentInstruction } from '@solana-program/token'
+import { fetchMint, findAssociatedTokenPda, getCreateAssociatedTokenIdempotentInstruction } from '@solana-program/token'
 import { eq } from 'drizzle-orm'
 import { strategyOps } from './db/schema.js'
 import type { Db } from './db/service.js'
@@ -41,6 +42,22 @@ import { createBackendSigner } from './signer.js'
 
 export const STRATEGY_PROGRAM_ID = address('AtmC4gPAEZ1r4fD698mDaCpGEC5WZN5f4z55zscsdVmS')
 const TOKEN_PROGRAM_ID = address('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+const TOKEN_2022_PROGRAM_ID = address('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb')
+
+// mint → owning token program (legacy SPL or Token-2022, e.g. FLiP), cached
+// per process — ATA derivations and the token_program metas depend on it.
+const tokenProgramCache = new Map<string, Address>()
+export async function mintTokenProgram(rpc: ReturnType<typeof createSolanaRpc>, mint: Address): Promise<Address> {
+  const cached = tokenProgramCache.get(mint)
+  if (cached) return cached
+  const info = await fetchMint(rpc, mint)
+  const program = info.programAddress
+  if (program !== TOKEN_PROGRAM_ID && program !== TOKEN_2022_PROGRAM_ID) {
+    throw new Error(`mint ${mint} lives under unexpected program ${program}`)
+  }
+  tokenProgramCache.set(mint, program)
+  return program
+}
 
 const JUPITER_API = () => process.env['JUPITER_API'] ?? 'https://lite-api.jup.ag'
 const KAMINO_KTX_API = () => process.env['KAMINO_KTX_API'] ?? 'https://api.kamino.finance/ktx'
@@ -164,6 +181,7 @@ export interface MintPairParsed {
   from: Address
   to: Address
   maxDeviationBps: number
+  dailyCap: bigint
 }
 
 export interface StrategyStateParsed {
@@ -212,7 +230,8 @@ export function parseStrategyState(data: Uint8Array): StrategyStateParsed {
     const from = encodeBase58(r.pubkey()) as Address
     const to = encodeBase58(r.pubkey()) as Address
     const maxDeviationBps = r.u16()
-    return { from, maxDeviationBps, to }
+    const dailyCap = r.u64()
+    return { dailyCap, from, maxDeviationBps, to }
   })
   return { admin, delegate, memberWhitelist, mintPairs, paused, strategies, treasury }
 }
@@ -237,6 +256,26 @@ export function parseMemberDeposit(data: Uint8Array): MemberDepositParsed {
 // ---------------------------------------------------------------------------
 
 const te = new TextEncoder()
+
+// Mirrors the on-chain find_position layout — if the Fluid vaults program is
+// upgraded and the position account shape drifts, status reports unhealthy
+// BEFORE the delegate burns retries on instructions that would now revert.
+const POSITION_LEN = 71
+const POSITION_MINT_OFF = 14
+
+export async function positionPda(strategy: StrategyConfigParsed): Promise<Address> {
+  const vaultId = new Uint8Array(2)
+  // vault_id is u64 on-chain truncated to u16 in the PDA seeds.
+  new DataView(vaultId.buffer).setUint16(0, Number(strategy.vaultId) & 0xffff, true)
+  const positionId = new Uint8Array(4)
+  new DataView(positionId.buffer).setUint32(0, strategy.positionId, true)
+  return (
+    await getProgramDerivedAddress({
+      programAddress: strategy.vaultsProgram,
+      seeds: [te.encode('position'), vaultId, positionId],
+    })
+  )[0]
+}
 
 export async function statePda(): Promise<Address> {
   return (await getProgramDerivedAddress({ programAddress: STRATEGY_PROGRAM_ID, seeds: [te.encode('state')] }))[0]
@@ -279,12 +318,12 @@ export function addressToBytes(addr: Address): Uint8Array {
   return Uint8Array.from(digits.reverse())
 }
 
-export async function vaultAta(mint: Address): Promise<Address> {
-  return (await findAssociatedTokenPda({ mint, owner: await vaultPda(), tokenProgram: TOKEN_PROGRAM_ID }))[0]
+export async function vaultAta(mint: Address, tokenProgram: Address): Promise<Address> {
+  return (await findAssociatedTokenPda({ mint, owner: await vaultPda(), tokenProgram }))[0]
 }
 
-export async function memberAta(member: Address, mint: Address): Promise<Address> {
-  return (await findAssociatedTokenPda({ mint, owner: member, tokenProgram: TOKEN_PROGRAM_ID }))[0]
+export async function memberAta(member: Address, mint: Address, tokenProgram: Address): Promise<Address> {
+  return (await findAssociatedTokenPda({ mint, owner: member, tokenProgram }))[0]
 }
 
 const u8 = (n: number) => Uint8Array.of(n)
@@ -387,6 +426,7 @@ export async function issueSharesIx(
   depositPda: Address,
   strategy: StrategyConfigParsed,
   amount: bigint,
+  tokenProgram: Address,
 ): Promise<Instruction> {
   return {
     accounts: [
@@ -394,9 +434,9 @@ export async function issueSharesIx(
       { address: await statePda(), role: RO },
       { address: await vaultPda(), role: RW },
       { address: depositPda, role: RW },
-      { address: await vaultAta(strategy.shareMint), role: RW },
-      { address: await memberAta(deposit.member, strategy.shareMint), role: RW },
-      { address: TOKEN_PROGRAM_ID, role: RO },
+      { address: await vaultAta(strategy.shareMint, tokenProgram), role: RW },
+      { address: await memberAta(deposit.member, strategy.shareMint, tokenProgram), role: RW },
+      { address: tokenProgram, role: RO },
     ],
     data: concat([await anchorDisc('issue_shares'), u64(amount)]),
     programAddress: STRATEGY_PROGRAM_ID,
@@ -630,15 +670,16 @@ export async function runStrategyPass(db: Db): Promise<DelegatePassReport> {
     }
     try {
       // 1. Issue shares 1:1 — creates the member's share ATA if missing.
+      const shareTokenProgram = await mintTokenProgram(rpc, strategy.shareMint)
       entry.issueSignature = await sendDelegateTx([
         getCreateAssociatedTokenIdempotentInstruction({
-          ata: await memberAta(deposit.member, strategy.shareMint),
+          ata: await memberAta(deposit.member, strategy.shareMint, shareTokenProgram),
           mint: strategy.shareMint,
           owner: deposit.member,
           payer: signer,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenProgram: shareTokenProgram,
         }),
-        await issueSharesIx(signer.address, deposit, deposit.pda, strategy, deposit.pending),
+        await issueSharesIx(signer.address, deposit, deposit.pda, strategy, deposit.pending, shareTokenProgram),
       ])
       await recordOp(db, deposit, 'issued', undefined, entry.issueSignature)
     } catch (error) {
@@ -699,22 +740,25 @@ async function placeCollateral(
 ): Promise<Signature[]> {
   const signatures: Signature[] = []
   const vault = await vaultPda()
+  const rpc = createSolanaRpc(rpcUrl())
 
   // Ensure the vault ATAs the ops need exist — idempotent, delegate-paid.
+  const borrowTokenProgram = await mintTokenProgram(rpc, strategy.borrowMint)
+  const stableTokenProgram = await mintTokenProgram(rpc, strategy.stableMint)
   await sendDelegateTx([
     getCreateAssociatedTokenIdempotentInstruction({
-      ata: await vaultAta(strategy.borrowMint),
+      ata: await vaultAta(strategy.borrowMint, borrowTokenProgram),
       mint: strategy.borrowMint,
       owner: vault,
       payer: signer,
-      tokenProgram: TOKEN_PROGRAM_ID,
+      tokenProgram: borrowTokenProgram,
     }),
     getCreateAssociatedTokenIdempotentInstruction({
-      ata: await vaultAta(strategy.stableMint),
+      ata: await vaultAta(strategy.stableMint, stableTokenProgram),
       mint: strategy.stableMint,
       owner: vault,
       payer: signer,
-      tokenProgram: TOKEN_PROGRAM_ID,
+      tokenProgram: stableTokenProgram,
     }),
   ])
 
@@ -733,7 +777,7 @@ async function placeCollateral(
   )
 
   // Supply whatever stable arrived into Kamino.
-  const stableBalance = await tokenBalance(await vaultAta(strategy.stableMint))
+  const stableBalance = await tokenBalance(await vaultAta(strategy.stableMint, stableTokenProgram))
   const kamino = await kaminoDepositInstruction(vault, stableBalance, await mintDecimals(strategy.stableMint))
   signatures.push(
     await sendDelegateTx([await kaminoFlowIx(signer.address, strategyIndex, 'supply', stableBalance, kamino)]),
@@ -812,6 +856,29 @@ export async function strategyHealth(db: Db): Promise<StrategyHealth> {
       if (!row || ageSec > alertAgeSecs()) staleDeposits++
     }
     if (staleDeposits > 0) issues.push(`${staleDeposits} deposit(s) pending longer than ${alertAgeSecs()}s`)
+
+    // Position-account health: right owner, expected minimum size, and the
+    // position NFT mint still where the program reads it. An upstream
+    // upgrade that changed the layout turns delegate ops into reverts —
+    // surface it here instead.
+    for (const strategy of state.strategies) {
+      const pda = await positionPda(strategy)
+      const position = await rpc.getAccountInfo(pda, { encoding: 'base64' }).send()
+      if (!position.value) {
+        issues.push(`strategy ${strategy.positionId}: position account missing`)
+        continue
+      }
+      if (position.value.owner !== strategy.vaultsProgram) {
+        issues.push(`strategy ${strategy.positionId}: position owner changed`)
+        continue
+      }
+      const data = Buffer.from(position.value.data[0], 'base64')
+      if (data.length < POSITION_LEN) {
+        issues.push(`strategy ${strategy.positionId}: position shrank to ${data.length}B`)
+      } else if (encodeBase58(data.subarray(POSITION_MINT_OFF, POSITION_MINT_OFF + 32)) !== strategy.positionNftMint) {
+        issues.push(`strategy ${strategy.positionId}: position mint field drifted`)
+      }
+    }
   } catch (error) {
     issues.push(`chain read failed: ${error instanceof Error ? error.message : error}`)
   }
@@ -834,6 +901,8 @@ export async function strategyHealth(db: Db): Promise<StrategyHealth> {
  *  wallet signature; these are operator-only automation hooks. */
 export function cronAuthorized(header: string | null): boolean {
   const secret = process.env['STRATEGY_DELEGATE_SECRET']
-  if (!secret) return false
-  return header === secret
+  if (!secret || !header) return false
+  const a = Buffer.from(header)
+  const b = Buffer.from(secret)
+  return a.length === b.length && timingSafeEqual(a, b)
 }

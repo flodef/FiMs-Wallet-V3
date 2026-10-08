@@ -65,6 +65,9 @@ export const FIMS_JUPITER_SPEND_REFERRAL_CODE = '2MJD7MJF'
 // FiMs referral for Coinbase signup — the code is embedded in the URL.
 export const FIMS_COINBASE_REFERRAL_URL = 'https://coinbase.com/join/TVFNWB5'
 
+// FiMs referral for Nexo signup — listed LAST in the guided withdrawal picker.
+export const FIMS_NEXO_REFERRAL_URL = 'https://nexo.com/ref/wgbxwj7bli?src=web-link'
+
 // Decimals for the pinned mints above, used to display swap output amounts.
 export const FIMS_MINT_DECIMALS: Readonly<Record<string, number>> = {
   cbBTC: 8,

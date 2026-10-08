@@ -138,5 +138,27 @@ it("should throw an error with an invalid key", async () => {
 
 - The `transactions` table is the single source of truth (spreadsheet is legacy input only).
 - Every `type='donation'` row MUST carry `donation_target`: `'tontine'` means the gifted token physically sits in the tontine wallet; `'association'` (or another organism name) means an external donation.
-- Reconciliation invariant: for each token, `SUM(amount) WHERE donation_target='tontine'` must equal the on-chain balance of the tontine wallet `Fe1RpesrtYMJdjwbNXtpVCDNpnFvk6jSic3sJd2aCBng`. Verified: FSOL 37.395675, FiMs 1218.722, FLiP 1240.42.
-- The API rejects donation creation without `donationTarget` (400).
+- `donation_amount` is a gift ON TOP of `amount` on an outflow row (`amount < 0`): extra token units sent to `donation_target`, priced at the row's implied rate `|movement + cost| / |amount|` (`|movement + cost|` = gross value before fee). Lets one row carry e.g. a withdrawal + tontine share + operating fee. Pure donations keep it NULL; rejected on `donation`/`payment`/`tontine` rows.
+- Reconciliation invariant: for each token, `SUM(COALESCE(donation_amount, amount)) WHERE donation_target='tontine'` must equal the on-chain balance of the tontine wallet `Fe1RpesrtYMJdjwbNXtpVCDNpnFvk6jSic3sJd2aCBng`. Verified after the 2026-10-08 reconciliation: FSOL 2.52, FiMs 84.4, FLiP 0.
+- The API rejects donation creation without `donationTarget` (400), and `donationAmount` without `donationTarget` / not positive / on an inflow or `donation`/`payment`/`tontine` row (400).
+
+## Tontine carve on member operations
+
+- While a member's tontine debt (`computeFimsDebt` > 0) remains, `tontineRate` of every outgoing amount is carved to the pot `FIMS_TONTINE_ADDRESS`, deducted from the sent amount (never on top), capped at the remaining debt in units — and raised to the debt when the send exceeds `position − debt` (exit rule: cashing out the last euros settles the debt in full). See `computeFimsTontineCarve`.
+- The operating fee is charged in kind on the sent mint (`computeFimsSendSplit`) — a second carved recipient to `FIMS_TREASURY_ADDRESS`. No SOL is required from the sender.
+- Plain sends carry carve+fee as extra recipients in the same tx (`getSendExtraRecipients` in `fims-modals.tsx`); swaps ride `swap-instructions` with the pot transfer appended (`useFimsSwap`, `useFimsStrategySwap`) — swaps are conversions in place, so the exit rule does not apply to them; send-convert (`useFimsSwapTo`) signs the carve as a separate first transaction.
+- Sends to the treasury or the pot are exempt (debt settlement / donation), as are Solana Pay requests and trigger/limit orders (exact-amount or keeper-settled — the carve cannot ride along).
+
+## On-chain strategy program (`solana-programs`)
+
+- The vault is delegate-driven but post-conditioned: every whitelisted CPI is verified AFTER the call (position accounting, vault-ATA deltas, ATA health, undeclared-account integrity). Keep those checks — never weaken them.
+- SPL Token **and** Token-2022 are supported (FLiP is T22). ATA derivations take the mint's actual token program — `require_ata_owned` resolves it from the account's own `owner` field; mint-side (`share_mint.owner`) when the ATA doesn't exist yet. Client builders resolve the program via `mintTokenProgram` — never hardcode the legacy program for FLiP paths.
+- Rolling 24h windows use hourly buckets keyed `hour % 24`; `window_start_hour` is the oldest still-counted hour. Clearing expires only hours `[ws, now-24]` — clearing more degrades the cap to per-hour. (`elapsed < 24` must yield `stale = 0` — a negative `i64` cast to `usize` wraps and hangs the program on-CU.)
+- Each `MintPair` carries `daily_cap` (input units / 24h) bounding delegate swap volume — the bounded-loss defense for unbounded pairs; `max_deviation_bps` stays for near-equivalents.
+- `MAX_MINT_PAIRS = 8` — larger pushes `StrategyState::SPACE` past the 10,240-byte CPI-init limit and `initialize` can never create the account.
+- Every dangerous change is timelocked 48h via `schedule_config`/`apply_config`: whitelists, strategies, caps, mint pairs, **treasury and delegate** (no instant `set_delegate` — a compromised delegate is handled by `guardian_pause` first, then the scheduled rotation applies while frozen).
+- Build for mainnet/localnet with `cargo-build-sbf --arch v3` — the default v0 ELF is rejected by the Agave 4.1 runtime.
+- `initialize` is upgrade-authority-gated: deploy upgradeable, initialize BEFORE transferring the upgrade authority (target: the Squads multisig).
+- The delegate tip is mandatory on `deposit`: `MIN_TIP = 0.0005 SOL` (funds ~100 keeper tx, self-financing), `MAX_TIP = 0.01 SOL` (fat-finger bound). No priority fees — the cron retries dropped transactions.
+- `/fims/strategy/status` also watches position-account health (owner, size, embedded NFT mint) — an upstream Fluid upgrade that drifts the layout shows up as unhealthy there.
+

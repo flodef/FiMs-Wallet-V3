@@ -1,6 +1,8 @@
 import { type Address, assertIsAddress } from '@solana/kit'
 import type { Network } from '@workspace/db/network/network'
 import { useTranslation } from '@workspace/i18n'
+import { bigIntToDecimal } from '@workspace/solana-client/big-int-to-decimal'
+import { NATIVE_MINT } from '@workspace/solana-client/constants'
 import type { GetTransactionSigner } from '@workspace/solana-client/transaction-signer'
 import { useSimulatePreparedTransaction } from '@workspace/solana-client-react/use-simulate-prepared-transaction'
 import { UiError } from '@workspace/ui/components/ui-error'
@@ -11,13 +13,20 @@ import { usePortfolioTokenMint } from './data-access/use-portfolio-token-mint.ts
 import { type PortfolioPreparedTransaction, usePortfolioTxPrepare } from './data-access/use-portfolio-tx-prepare.tsx'
 import { usePortfolioTxSend } from './data-access/use-portfolio-tx-send.tsx'
 import type { SolanaPayRequestState } from './data-access/use-solana-pay-request.tsx'
-import type { SendBlockContext, SendFeeContext, SendOverrideContext, SendSolFee } from './portfolio-modals.tsx'
+import type {
+  SendBlockContext,
+  SendExtraRecipient,
+  SendFeeContext,
+  SendOverrideContext,
+  SendSolFee,
+} from './portfolio-modals.tsx'
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
 import { PortfolioUiSendConfirm } from './ui/portfolio-ui-send-confirm.tsx'
 
 export function PortfolioFeatureModalConfirm({
   address,
   getSendBlock,
+  getSendExtraRecipients,
   getSendFee,
   getTransactionSigner,
   network,
@@ -27,7 +36,12 @@ export function PortfolioFeatureModalConfirm({
   // Returns a user-facing message when this send must be blocked
   // (e.g. FiMs debt guard, configured send cap), or null/undefined to allow it.
   getSendBlock?: ((send: SendBlockContext) => null | string) | undefined
-  // Optional SOL-denominated service fee appended to the send transaction.
+  // Extra token recipients carved out of the sent amount (e.g. the FiMs
+  // tontine share): the destination receives the remainder of the entered
+  // amount. Skipped for Solana Pay requests, which expect an exact amount.
+  getSendExtraRecipients?: ((send: SendFeeContext) => SendExtraRecipient[] | null | undefined) | undefined
+  // Optional SOL-denominated service fee appended to the send transaction,
+  // computed on the amount actually delivered to the destination.
   getSendFee?: ((send: SendFeeContext) => SendSolFee | null | undefined) | undefined
   getTransactionSigner: GetTransactionSigner
   network: Network
@@ -41,13 +55,30 @@ export function PortfolioFeatureModalConfirm({
   const navigate = useNavigate()
   // Solana Pay request fields carried from the pay/scan entry points.
   const payRequest = (useLocation().state as SolanaPayRequestState | null)?.payRequest
+  const enteredAmount = amount && mint ? getAmountForMint({ amount, mint }) : undefined
+  const extraRecipients =
+    !payRequest && amount && destination && mint && getSendExtraRecipients
+      ? getSendExtraRecipients({ amount, destination: destination as Address, mint })
+      : undefined
+  const extraTotal = extraRecipients?.reduce((sum, r) => sum + r.amount, 0n) ?? 0n
+  // Carved extras are always deducted — a fallback to the entered amount when
+  // they reach it would double-spend (dest + carve on the same balance).
+  const netAmount = enteredAmount != null ? enteredAmount - extraTotal : undefined
   const recipients =
-    amount && destination && mint
-      ? [{ amount: getAmountForMint({ amount, mint }), destination: destination as Address }]
+    netAmount != null && destination
+      ? [
+          // A carve can consume the whole send (exit rule) — no zero recipient.
+          ...(netAmount > 0n ? [{ amount: netAmount, destination: destination as Address }] : []),
+          ...(extraRecipients ?? []),
+        ]
       : undefined
   const sendFee =
-    amount && destination && mint && getSendFee
-      ? getSendFee({ amount, destination: destination as Address, mint })
+    amount && destination && mint && netAmount != null && getSendFee
+      ? getSendFee({
+          amount: bigIntToDecimal(netAmount, mint.mint === NATIVE_MINT ? 9 : mint.decimals).toString(),
+          destination: destination as Address,
+          mint,
+        })
       : undefined
   const solFee = sendFee ? { amount: sendFee.lamports, destination: sendFee.destination } : undefined
   const confirmMutation = usePortfolioTxSend({ network })

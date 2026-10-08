@@ -1,4 +1,4 @@
-import type { Address } from '@solana/kit'
+import type { Address, TransactionSigner } from '@solana/kit'
 import {
   AccountRole,
   address,
@@ -19,6 +19,7 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionWithSigners,
 } from '@solana/kit'
+import { fetchMint } from '@solana-program/token'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
@@ -26,10 +27,14 @@ import { useAccountGetTransactionSigner } from '@workspace/db-react/use-account-
 import { useAccountSecretKey } from '@workspace/db-react/use-account-secret-key'
 import { createKeyPairSignerFromJson } from '@workspace/keypair/create-key-pair-signer-from-json'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
+import { createTransferInstructionsSol } from '@workspace/solana-client/create-transfer-instructions-sol'
+import { createTransferInstructionsSpl } from '@workspace/solana-client/create-transfer-instructions-spl'
 import { inspectWireTransaction } from '@workspace/solana-client/inspect-wire-transaction'
+import type { SolanaClient } from '@workspace/solana-client/solana-client'
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { useCallback } from 'react'
 import { z } from 'zod'
+import { FIMS_TONTINE_ADDRESS } from '../fims-constants.ts'
 import { getFimsPlatformFeeBps } from '../fims-fee-config.ts'
 import { ensureTreasuryFeeAccount } from './ensure-treasury-fee-account.ts'
 import {
@@ -134,19 +139,104 @@ export function useJupiterQuote({
   })
 }
 
+// Carve the tontine share of an outgoing amount into the same transaction:
+// transferChecked of the sent mint to the pot, whose ATA is created on first
+// use. Works for Token-2022 mints too (the mint's program is fetched).
+async function buildTontineCarveInstructions(
+  client: SolanaClient,
+  { amount, mint, transactionSigner }: { amount: bigint; mint: Address; transactionSigner: TransactionSigner },
+): Promise<Instruction[]> {
+  // Native SOL has no ATA to carve from — a plain lamports transfer does it.
+  if (mint === NATIVE_MINT) {
+    return createTransferInstructionsSol({
+      recipients: [{ amount, destination: FIMS_TONTINE_ADDRESS as Address }],
+      source: transactionSigner,
+    })
+  }
+  const mintInfo = await fetchMint(client.rpc, mint)
+  return createTransferInstructionsSpl({
+    decimals: mintInfo.data.decimals,
+    mint,
+    recipients: [{ amount, destination: FIMS_TONTINE_ADDRESS as Address }],
+    tokenProgram: mintInfo.programAddress,
+    transactionSigner,
+  })
+}
+
 export function useFimsSwap({ account, network }: { account: Account; network: Network }) {
   const client = useSolanaClient({ network })
   const getTransactionSigner = useAccountGetTransactionSigner({ account })
   const signAndSendBase64Transaction = useSignAndSendTransaction({ account, network })
 
   return useMutation({
-    mutationFn: async ({ feeMint, quote }: { feeMint?: Address; quote: JupiterQuote }): Promise<Signature> => {
+    mutationFn: async ({
+      feeMint,
+      quote,
+      tontineAmount,
+    }: {
+      feeMint?: Address
+      quote: JupiterQuote
+      // Units of the INPUT mint diverted to the tontine inside the same tx
+      // (the quote is already computed on the reduced input).
+      tontineAmount?: bigint
+    }): Promise<Signature> => {
       // When the quote carries platformFeeBps, /swap requires feeAccount: an
       // initialized ATA of the fee mint owned by the treasury, created lazily
       // on first use (user pays the one-time rent).
       const feeAccount = feeMint
         ? await ensureTreasuryFeeAccount(client, { mint: feeMint, transactionSigner: await getTransactionSigner() })
         : undefined
+      // ExactOut quotes flip the meaning of otherAmountThreshold: it is the
+      // max input, not the min output. Assert the right side either way.
+      const isExactOut = quote.swapMode === 'ExactOut'
+      const expectedSpend = {
+        amount: BigInt(isExactOut ? quote.otherAmountThreshold : quote.inAmount),
+        mint: quote.inputMint as Address,
+      }
+      const expectedReceive = {
+        amount: BigInt(isExactOut ? quote.outAmount : quote.otherAmountThreshold),
+        mint: quote.outputMint as Address,
+      }
+      const extraSpends = tontineAmount ? [{ amount: tontineAmount, mint: quote.inputMint as Address }] : undefined
+
+      if (tontineAmount && tontineAmount > 0n) {
+        // The tontine transfer must ride the same transaction — /swap returns
+        // a sealed wire transaction, so the carve path composes the tx from
+        // /swap-instructions and appends the pot transfer itself.
+        const res = await fetch(`${JUPITER_API}/swap/v1/swap-instructions`, {
+          body: JSON.stringify({
+            dynamicComputeUnitLimit: true,
+            feeAccount,
+            prioritizationFeeLamports: 'auto',
+            quoteResponse: quote,
+            userPublicKey: account.publicKey,
+            wrapAndUnwrapSol: true,
+          }),
+          headers: { 'content-type': 'application/json' },
+          method: 'POST',
+        })
+        if (!res.ok) {
+          throw new Error(`Jupiter swap-instructions failed: ${res.status}`)
+        }
+        const body = swapInstructionsSchema.parse(await res.json())
+        const transactionSigner = await getTransactionSigner()
+        const instructions = raiseComputeUnitLimit(
+          jupiterInstructions(body).concat(
+            await buildTontineCarveInstructions(client, {
+              amount: tontineAmount,
+              mint: quote.inputMint as Address,
+              transactionSigner,
+            }),
+          ),
+        )
+        const wire = await compileSwapWire(client, {
+          instructions,
+          lookupTableAddresses: body.addressLookupTableAddresses,
+          payer: address(account.publicKey),
+        })
+        return signAndSendBase64Transaction(wire, expectedSpend, expectedReceive, extraSpends)
+      }
+
       const res = await fetch(`${JUPITER_API}/swap/v1/swap`, {
         body: JSON.stringify({
           dynamicComputeUnitLimit: true,
@@ -163,23 +253,7 @@ export function useFimsSwap({ account, network }: { account: Account; network: N
         throw new Error(`Jupiter swap failed: ${res.status}`)
       }
       const { swapTransaction } = z.object({ swapTransaction: z.string() }).parse(await res.json())
-      // ExactOut quotes flip the meaning of otherAmountThreshold: it is the
-      // max input, not the min output. Assert the right side either way.
-      const isExactOut = quote.swapMode === 'ExactOut'
-      return signAndSendBase64Transaction(
-        swapTransaction,
-        {
-          amount: BigInt(isExactOut ? quote.otherAmountThreshold : quote.inAmount),
-          mint: quote.inputMint as Address,
-        },
-        // The wallet must receive at least the quote's min-out of the mint
-        // the user selected: a spoofed output mint or a minOut of zero is
-        // rejected by the inspection, not signed.
-        {
-          amount: BigInt(isExactOut ? quote.outAmount : quote.otherAmountThreshold),
-          mint: quote.outputMint as Address,
-        },
-      )
+      return signAndSendBase64Transaction(swapTransaction, expectedSpend, expectedReceive, extraSpends)
     },
   })
 }
@@ -189,20 +263,53 @@ export function useFimsSwap({ account, network }: { account: Account; network: N
 // transaction containing the swap plus the transfer — and the ATA creation
 // for the destination when needed — so the user signs once.
 export function useFimsSwapTo({ account, network }: { account: Account; network: Network }) {
+  const client = useSolanaClient({ network })
+  const getTransactionSigner = useAccountGetTransactionSigner({ account })
   const signAndSendBase64Transaction = useSignAndSendTransaction({ account, network })
 
   return useMutation({
     mutationFn: async ({
       destinationTokenAccount,
+      feeMint,
       quote,
+      tontineAmount,
     }: {
       destinationTokenAccount: Address
+      // Fee mint of a quote carrying platformFeeBps — Jupiter requires the
+      // treasury ATA, created lazily on first use (member pays the rent).
+      feeMint?: Address
       quote: JupiterQuote
+      // Units of the INPUT mint diverted to the tontine before the swap
+      // (the quote is already computed on the reduced input).
+      tontineAmount?: bigint
     }): Promise<Signature> => {
+      const feeAccount = feeMint
+        ? await ensureTreasuryFeeAccount(client, { mint: feeMint, transactionSigner: await getTransactionSigner() })
+        : undefined
+      if (tontineAmount && tontineAmount > 0n) {
+        // The carve is its own transaction: /swap-instructions does not
+        // guarantee destinationTokenAccount routing, so the pot transfer is
+        // signed separately and sent first — the member signs twice.
+        const transactionSigner = await getTransactionSigner()
+        const instructions = await buildTontineCarveInstructions(client, {
+          amount: tontineAmount,
+          mint: quote.inputMint as Address,
+          transactionSigner,
+        })
+        const wire = await compileSwapWire(client, {
+          instructions,
+          payer: address(account.publicKey),
+        })
+        await signAndSendBase64Transaction(wire, {
+          amount: tontineAmount,
+          mint: quote.inputMint as Address,
+        })
+      }
       const res = await fetch(`${JUPITER_API}/swap/v1/swap`, {
         body: JSON.stringify({
           destinationTokenAccount,
           dynamicComputeUnitLimit: true,
+          feeAccount,
           prioritizationFeeLamports: 'auto',
           quoteResponse: quote,
           userPublicKey: account.publicKey,
@@ -367,9 +474,9 @@ const swapInstructionsSchema = z.object({
 type SwapInstruction = z.infer<typeof swapInstructionsSchema>['swapInstruction']
 
 const COMPUTE_BUDGET_PROGRAM = 'ComputeBudget111111111111111111111111111111'
-// The deposit ix is appended after Jupiter's own instructions but
-// dynamicComputeUnitLimit only sizes theirs — raise the cap so the vault
-// transfer + ATA creation + PDA init cannot run the transaction dry.
+// Extra instructions appended after Jupiter's own (strategy deposit, tontine
+// carve) are not covered by dynamicComputeUnitLimit — raise the cap so the
+// added transfers + ATA creations cannot run the transaction dry.
 const STRATEGY_DEPOSIT_EXTRA_CU = 150_000
 
 // ComputeBudget::SetComputeUnitLimit carries a u32 at byte 1.
@@ -390,6 +497,45 @@ function raiseComputeUnitLimit(ixs: Instruction[]): Instruction[] {
     view.setUint32(1, view.getUint32(1, true) + STRATEGY_DEPOSIT_EXTRA_CU, true)
     return { ...ix, data }
   })
+}
+
+// Jupiter's instruction list, in its documented order, mapped to kit
+// instructions — ready for appending our own (deposit, tontine carve).
+function jupiterInstructions(body: z.infer<typeof swapInstructionsSchema>): Instruction[] {
+  return [
+    ...(body.computeBudgetInstructions ?? []),
+    ...(body.setupInstructions ?? []),
+    body.swapInstruction,
+    ...(body.cleanupInstruction ? [body.cleanupInstruction] : []),
+    ...(body.otherInstructions ?? []),
+  ].map(toKitIx)
+}
+
+// Compile the composed instruction list into a base64 wire transaction:
+// fresh blockhash, the member as fee payer, ALTs from the Jupiter response.
+async function compileSwapWire(
+  client: SolanaClient,
+  {
+    instructions,
+    lookupTableAddresses,
+    payer,
+  }: { instructions: Instruction[]; lookupTableAddresses?: string[] | undefined; payer: Address },
+): Promise<string> {
+  const { value: latestBlockhash } = await client.rpc.getLatestBlockhash().send()
+  const lookupTables = lookupTableAddresses?.length
+    ? await fetchAddressesForLookupTables(
+        lookupTableAddresses.map((a) => address(a)),
+        client.rpc,
+      )
+    : undefined
+  const message = pipe(
+    createTransactionMessage({ version: 0 }),
+    (tx) => setTransactionMessageFeePayer(payer, tx),
+    (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+    (tx) => appendTransactionMessageInstructions(instructions, tx),
+    (tx) => (lookupTables ? compressTransactionMessageUsingAddressLookupTables(tx, lookupTables) : tx),
+  )
+  return getBase64EncodedWireTransaction(compileTransaction(message))
 }
 
 function toKitIx(ix: SwapInstruction): Instruction {
@@ -425,16 +571,21 @@ export function useFimsStrategySwap({ account, network }: { account: Account; ne
       quote,
       state,
       strategyIndex,
+      tontineAmount,
     }: {
       feeMint?: Address
       quote: JupiterQuote
       state: FimsStrategyState
       strategyIndex: number
+      // Units of the INPUT mint diverted to the tontine inside the same tx
+      // (the quote is already computed on the reduced input).
+      tontineAmount?: bigint
     }): Promise<Signature> => {
       const strategy = state.strategies[strategyIndex]
       if (!strategy) throw new Error(`unknown strategy index ${strategyIndex}`)
+      const transactionSigner = await getTransactionSigner()
       const feeAccount = feeMint
-        ? await ensureTreasuryFeeAccount(client, { mint: feeMint, transactionSigner: await getTransactionSigner() })
+        ? await ensureTreasuryFeeAccount(client, { mint: feeMint, transactionSigner })
         : undefined
       const res = await fetch(`${JUPITER_API}/swap/v1/swap-instructions`, {
         body: JSON.stringify({
@@ -451,41 +602,31 @@ export function useFimsStrategySwap({ account, network }: { account: Account; ne
         throw new Error(`Jupiter swap-instructions failed: ${res.status}`)
       }
       const body = swapInstructionsSchema.parse(await res.json())
-      const instructions = raiseComputeUnitLimit(
-        [
-          ...(body.computeBudgetInstructions ?? []),
-          ...(body.setupInstructions ?? []),
-          body.swapInstruction,
-          ...(body.cleanupInstruction ? [body.cleanupInstruction] : []),
-          ...(body.otherInstructions ?? []),
-        ].map(toKitIx),
-      )
+      const instructions = raiseComputeUnitLimit(jupiterInstructions(body))
       // Deposit the quoted amount — the program clamps to what actually
       // arrived so slippage cannot revert the whole transaction.
       instructions.push(
-        await buildDepositIx({
+        await buildDepositIx(client.rpc, {
           amount: BigInt(quote.outAmount),
           member: account.publicKey as Address,
           state,
           strategyIndex,
         }),
       )
-
-      const { value: latestBlockhash } = await client.rpc.getLatestBlockhash().send()
-      const lookupTables = body.addressLookupTableAddresses?.length
-        ? await fetchAddressesForLookupTables(
-            body.addressLookupTableAddresses.map((a) => address(a)),
-            client.rpc,
-          )
-        : undefined
-      const message = pipe(
-        createTransactionMessage({ version: 0 }),
-        (tx) => setTransactionMessageFeePayer(address(account.publicKey), tx),
-        (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-        (tx) => appendTransactionMessageInstructions(instructions, tx),
-        (tx) => (lookupTables ? compressTransactionMessageUsingAddressLookupTables(tx, lookupTables) : tx),
-      )
-      const wire = getBase64EncodedWireTransaction(compileTransaction(message))
+      if (tontineAmount && tontineAmount > 0n) {
+        instructions.push(
+          ...(await buildTontineCarveInstructions(client, {
+            amount: tontineAmount,
+            mint: quote.inputMint as Address,
+            transactionSigner,
+          })),
+        )
+      }
+      const wire = await compileSwapWire(client, {
+        instructions,
+        lookupTableAddresses: body.addressLookupTableAddresses,
+        payer: address(account.publicKey),
+      })
 
       // The wallet spends the input mint; the collateral lands in the vault
       // via the deposit ix, so the min-out is asserted on wallet+vault
@@ -502,6 +643,9 @@ export function useFimsStrategySwap({ account, network }: { account: Account; ne
           },
           // Tip + share ATA rent + member_deposit PDA rent paid by the member.
           { amount: FIMS_STRATEGY_NATIVE_OVERHEAD_LAMPORTS, mint: NATIVE_MINT },
+          // The tontine carve is an extra input-mint outflow on top of the
+          // swap input.
+          ...(tontineAmount ? [{ amount: tontineAmount, mint: quote.inputMint as Address }] : []),
         ],
         await vaultPda(),
       )

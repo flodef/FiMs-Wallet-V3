@@ -1,15 +1,17 @@
+import type { Address } from '@solana/kit'
 import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useSetting } from '@workspace/db-react/use-setting'
 import PortfolioModals, {
   type SendBlockContext,
+  type SendExtraRecipient,
   type SendFeeContext,
   type SendOverrideContext,
-  type SendSolFee,
 } from '@workspace/feature-portfolio/portfolio-modals'
 import type { DestinationAccount } from '@workspace/feature-portfolio/ui/portfolio-ui-send-destination'
 import { useTranslation } from '@workspace/i18n'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
+import { uiAmountToBigInt } from '@workspace/solana-client/ui-amount-to-big-int'
 import { useGetTokenMetadataJupiter } from '@workspace/solana-client-react/use-get-token-metadata-jupiter'
 import type { UiGroupedComboboxInputGroup } from '@workspace/ui/components/ui-grouped-combobox-input'
 import { useMemo } from 'react'
@@ -18,21 +20,21 @@ import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useWithdrawalTargets } from './data-access/use-withdrawal-targets.tsx'
 import { FIMS_DEMO_ADDRESS, FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS } from './fims-constants.ts'
+import { computeFimsSendSplit } from './fims-debt.ts'
 import { FimsFeatureSendConvert } from './fims-feature-send-convert.tsx'
+import { FimsFeatureSendDestination } from './fims-feature-send-destination.tsx'
 import { getFimsFeeRate, getFimsTontineRate } from './fims-fee-config.ts'
-
-const SOL_LAMPORTS = 1_000_000_000
 
 // Wraps the portfolio send/receive modals and injects the member's FiMs address
 // book as an extra destination group.
 export default function FimsModals() {
   const { t } = useTranslation('fims')
-  const { format } = useFimsCurrency()
+  const { format, rates } = useFimsCurrency()
   const account = useAccountActive()
   const network = useNetworkActive()
   const { member } = useFimsMember(account.publicKey, account)
   const entries = useFimsAddressBook(member?.id, account)
-  const { debt, isLoading: debtLoading } = useFimsDebt(member, account)
+  const { debt, isLoading: debtLoading, position } = useFimsDebt(member, account)
   const [sendCapSetting] = useSetting('sendCapEur')
   const tokens = useFimsTokens()
   const withdrawalTargets = useWithdrawalTargets()
@@ -66,10 +68,11 @@ export default function FimsModals() {
     return result
   }, [entries.data, withdrawalTargets, t])
 
-  // Outgoing send guards. Sends to the treasury always stay open — that is how
-  // a debt gets settled on-chain and it is not an "external" withdrawal.
+  // Outgoing send guards. The tontine share is carved out of every send while
+  // a debt remains — no blocking anymore, the carve below collects it.
   // 0. Demo guard: the demo account's keys are public — it must never send.
-  // 1. Debt guard: outgoing sends are blocked while the member owes FiMs.
+  // 1. Debt-loading guard: while the member's debt is unknown we cannot size
+  //    the carve — fail closed rather than skip the collection.
   // 2. Send cap: optional EUR limit (Settings → Send limit). The token's EUR
   //    price comes from the FiMs token list; unpriced tokens are not capped —
   //    this is a convenience guard, not a custody policy.
@@ -77,12 +80,11 @@ export default function FimsModals() {
   const getSendBlock = useMemo(() => {
     const cap = Number.parseFloat(sendCapSetting ?? '')
     const hasCap = Number.isFinite(cap) && cap > 0
-    const hasDebt = typeof debt === 'number' && debt > 0
     // While a member's debt position is still loading we cannot prove the send
     // is allowed — fail closed rather than open a bypass window on slow
     // networks. Non-members never trigger this (their queries stay disabled).
     const checkingDebt = Boolean(member) && debtLoading
-    if (!isDemo && !hasDebt && !hasCap && !checkingDebt) {
+    if (!isDemo && !hasCap && !checkingDebt) {
       return undefined
     }
     return (send: SendBlockContext): null | string => {
@@ -95,9 +97,6 @@ export default function FimsModals() {
       if (checkingDebt) {
         return t(($) => $.debtCheckPending)
       }
-      if (hasDebt) {
-        return t(($) => $.debtSendBlocked, { amount: format(debt), rate: getFimsTontineRate() * 100 })
-      }
       if (hasCap) {
         const price = tokens.data?.find((token) => token.address === send.mint)?.value
         const eur = price ? Number.parseFloat(send.amount) * price : Number.NaN
@@ -107,29 +106,45 @@ export default function FimsModals() {
       }
       return null
     }
-  }, [debt, debtLoading, isDemo, member, sendCapSetting, tokens.data, t, format])
+  }, [debtLoading, isDemo, member, sendCapSetting, tokens.data, t, format])
 
-  // Operating fee on plain sends: getFimsFeeRate() of the sent value, charged
-  // in SOL to the treasury. Mainnet only — devnet/localnet sends stay free.
+  // Split of a plain send: the operating fee AND the tontine share (while the
+  // member still owes it, capped at the debt — and beyond it when the send
+  // exceeds position − debt) are deducted from the entered amount as extra
+  // recipients in the sent mint itself — in-kind, so no SOL is ever required.
   // Sends to the treasury or the tontine are exempt: a debt settlement or a
-  // donation is not a paid operation. Unpriced tokens carry no fee.
-  const getSendFee = useMemo(() => {
-    if (network.type !== 'solana:mainnet' || !solUsdPrice || solUsdPrice <= 0) {
+  // donation is not a paid operation. Mainnet only.
+  const getSendExtraRecipients = useMemo(() => {
+    if (network.type !== 'solana:mainnet') {
       return undefined
     }
-    return (send: SendFeeContext): SendSolFee | null => {
+    return (send: SendFeeContext): SendExtraRecipient[] | null => {
       if (send.destination === FIMS_TREASURY_ADDRESS || send.destination === FIMS_TONTINE_ADDRESS) {
         return null
       }
+      const decimals = send.mint.mint === NATIVE_MINT ? 9 : send.mint.decimals
+      const fimsToken = tokens.data?.find((token) => token.address === send.mint.mint)
       const usdPrice = send.mint.mint === NATIVE_MINT ? solUsdPrice : send.mint.metadata?.usdPrice
-      const amount = Number.parseFloat(send.amount)
-      if (!usdPrice || usdPrice <= 0 || !Number.isFinite(amount) || amount <= 0) {
-        return null
+      const priceEur = fimsToken?.value ?? (usdPrice && usdPrice > 0 && rates.usd > 0 ? usdPrice / rates.usd : null)
+      const split = computeFimsSendSplit({
+        amount: uiAmountToBigInt(send.amount, decimals),
+        debt: member ? debt : null,
+        decimals,
+        feeRate: getFimsFeeRate(),
+        positionEur: member ? position : null,
+        priceEur,
+        tontineRate: getFimsTontineRate(),
+      })
+      const extras: SendExtraRecipient[] = []
+      if (split.tontine > 0n) {
+        extras.push({ amount: split.tontine, destination: FIMS_TONTINE_ADDRESS as Address })
       }
-      const lamports = BigInt(Math.ceil((amount * usdPrice * getFimsFeeRate() * SOL_LAMPORTS) / solUsdPrice))
-      return lamports > 0n ? { destination: FIMS_TREASURY_ADDRESS as SendSolFee['destination'], lamports } : null
+      if (split.fee > 0n) {
+        extras.push({ amount: split.fee, destination: FIMS_TREASURY_ADDRESS as Address })
+      }
+      return extras.length ? extras : null
     }
-  }, [network.type, solUsdPrice])
+  }, [debt, member, network.type, position, rates.usd, solUsdPrice, tokens.data])
 
   // Sends to a configured off-ramp (exchange / Jupiter Spend) whose outgoing
   // token is not accepted get routed to the auto-conversion confirm screen:
@@ -156,7 +171,10 @@ export default function FimsModals() {
     <PortfolioModals
       extraDestinationGroups={groups}
       getSendBlock={getSendBlock}
-      getSendFee={getSendFee}
+      getSendExtraRecipients={getSendExtraRecipients}
+      renderSendDestination={({ address, network }) => (
+        <FimsFeatureSendDestination address={address} extraGroups={groups} network={network} />
+      )}
       renderSendOverride={renderSendOverride}
     />
   )

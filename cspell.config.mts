@@ -99,6 +99,10 @@ const config: CSpellSettings = {
     'dklen',
     'dyor',
     'ellipsify',
+    'dups',
+    'feeable',
+    'footgun',
+    'untipped',
     'jupsol',
     'topup',
     'EURC',
@@ -164,6 +168,7 @@ const config: CSpellSettings = {
     'démo',
     'dispo',
     'français',
+    'Rejouable',
     // Spanish
     'agregador',
     'autenticador',
@@ -178,6 +183,9 @@ const config: CSpellSettings = {
     'rebalancear',
     'rebalanceo',
     'redirecciona',
+    'Anótala',
+    'pégala',
+    'Rejugable',
   ],
 }
 

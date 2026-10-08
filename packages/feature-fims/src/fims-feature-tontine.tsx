@@ -73,7 +73,7 @@ export function FimsFeatureTontine({ account }: { account: Account }) {
                     <TableCell>
                       <FimsTxTypeLabel transaction={tx} />
                     </TableCell>
-                    <TableCell className="text-right">{tx.amount ?? '—'}</TableCell>
+                    <TableCell className="text-right">{tx.donationAmount ?? tx.amount ?? '—'}</TableCell>
                     <TableCell className="text-right">{format(tx.cost)}</TableCell>
                   </TableRow>
                 ))}

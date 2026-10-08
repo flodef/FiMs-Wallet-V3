@@ -32,6 +32,9 @@ declare_id!("AtmC4gPAEZ1r4fD698mDaCpGEC5WZN5f4z55zscsdVmS");
 // SPL Token program and Associated Token Account program — hardcoded so the
 // delegate can never point derivations at a look-alike.
 pub const TOKEN_PROGRAM_ID: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+// Token-2022 mints (e.g. FLiP) derive their ATAs under this program — the
+// vault supports both, resolved per account via its program owner.
+pub const TOKEN_2022_PROGRAM_ID: Pubkey = pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 pub const ATA_PROGRAM_ID: Pubkey = pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 pub const SYSTEM_PROGRAM_ID: Pubkey = pubkey!("11111111111111111111111111111111");
 
@@ -40,9 +43,14 @@ const HOUR_SECS: i64 = 3_600;
 const MAX_ALLOWED_PROGRAMS: usize = 16;
 const MAX_MEMBERS: usize = 64;
 const MAX_STRATEGIES: usize = 4;
-// Member-side delegate tip is capped so a fat-fingered deposit cannot
-// silently send more than this to the operator key.
-const MAX_TIP_LAMPORTS: u64 = 10_000_000; // 0.01 SOL
+// 8 pairs keeps StrategyState::SPACE under the 10,240-byte CPI-init limit —
+// account creation via inner instruction cannot realloc more than that.
+const MAX_MINT_PAIRS: usize = 8;
+// The delegate tip is the keeper's only revenue: the minimum makes it
+// mandatory (no free-riding a placement pass), the maximum bounds a
+// fat-fingered client at ~€2 so a deposit can never silently drain more.
+const MIN_TIP_LAMPORTS: u64 = 500_000; // 0.0005 SOL — expected tip
+const MAX_TIP_LAMPORTS: u64 = 10_000_000; // 0.01 SOL — fat-finger bound
 
 // SPL Token account layout offsets (165 bytes).
 const TA_OWNER: usize = 32;
@@ -91,7 +99,7 @@ pub mod fims_strategy {
 
         validate_whitelists(&args.allowed_programs, &args.member_whitelist)?;
         require!(args.strategies.len() <= MAX_STRATEGIES, StrategyError::BadConfig);
-        require!(args.allowed_mint_pairs.len() <= 16, StrategyError::BadConfig);
+        validate_mint_pairs(&args.allowed_mint_pairs)?;
 
         let state = &mut ctx.accounts.state;
         state.admin = args.admin;
@@ -108,6 +116,7 @@ pub mod fims_strategy {
         state.daily_token_cap = args.daily_token_cap;
         state.spent_sol_hourly = [0; 24];
         state.spent_token_hourly = [0; 24];
+        state.spent_swap_hourly = vec![0; 24 * MAX_MINT_PAIRS];
         state.window_start_hour = 0;
         state.pending = None;
         state.proposed_admin = None;
@@ -121,10 +130,10 @@ pub mod fims_strategy {
 
     /// Member deposit: moves `amount` of the strategy's collateral mint
     /// (JUPSOL…) from the member ATA to the vault ATA and records it in the
-    /// member's `member_deposit` PDA. `tip_lamports` optionally pays the
-    /// delegate for the upcoming strategy transactions in the same atomic
-    /// transaction — capped at MAX_TIP_LAMPORTS so a bad client cannot
-    /// silently drain the member. Deposit itself is permissionless: the
+    /// member's `member_deposit` PDA. `tip_lamports` pays the delegate for
+    /// the upcoming strategy transactions in the same atomic transaction —
+    /// mandatory (MIN_TIP, no free-riding the keeper) and capped at
+    /// MAX_TIP_LAMPORTS so a bad client cannot silently drain the member. Deposit itself is permissionless: the
     /// member only sends funds, there is nothing to steal.
     pub fn deposit(ctx: Context<Deposit>, strategy_index: u8, amount: u64, tip_lamports: u64) -> Result<()> {
         let state = &ctx.accounts.state;
@@ -138,19 +147,38 @@ pub mod fims_strategy {
         // revert the whole transaction — pending records what actually moved.
         let amount = amount.min(token_amount(&ctx.accounts.member_ata.to_account_info())?);
         require!(amount > 0, StrategyError::BadConfig);
+        require!(tip_lamports >= MIN_TIP_LAMPORTS, StrategyError::TipTooSmall);
         require!(tip_lamports <= MAX_TIP_LAMPORTS, StrategyError::TipTooLarge);
-        require!(
-            ctx.accounts.member_ata.key() == ata_address(ctx.accounts.member.key(), strategy.collateral_mint),
-            StrategyError::WrongAccount
-        );
-        require!(
-            ctx.accounts.vault_ata.key() == ata_address(ctx.accounts.vault.key(), strategy.collateral_mint),
-            StrategyError::WrongAccount
-        );
+        // The collateral ATA may live under SPL Token or Token-2022 — the
+        // account's own program owner selects the derivation.
+        let member_ata_program = require_ata_owned(
+            &ctx.accounts.member_ata.to_account_info(),
+            ctx.accounts.member.key(),
+            strategy.collateral_mint,
+        )?;
+        let vault_ata_program = require_ata_owned(
+            &ctx.accounts.vault_ata.to_account_info(),
+            ctx.accounts.vault.key(),
+            strategy.collateral_mint,
+        )?;
+        // Same mint => same program: a legacy member ATA and a T22 vault ATA
+        // for the same mint would live at different derivations and the
+        // transfer could never be reconciled.
+        require!(vault_ata_program == member_ata_program, StrategyError::WrongAccount);
+        require!(ctx.accounts.token_program.key() == member_ata_program, StrategyError::WrongAccount);
         require!(ctx.accounts.delegate.key() == state.delegate, StrategyError::WrongAccount);
         require!(ctx.accounts.share_mint.key() == strategy.share_mint, StrategyError::WrongAccount);
+        // The share mint's program owner IS its token program — covers T22
+        // share tokens (FLiP) without any config field.
+        let share_token_program = *ctx.accounts.share_mint.owner;
         require!(
-            ctx.accounts.member_share_ata.key() == ata_address(ctx.accounts.member.key(), strategy.share_mint),
+            share_token_program == TOKEN_PROGRAM_ID || share_token_program == TOKEN_2022_PROGRAM_ID,
+            StrategyError::WrongAccount
+        );
+        require!(ctx.accounts.share_token_program.key() == share_token_program, StrategyError::WrongAccount);
+        require!(
+            ctx.accounts.member_share_ata.key()
+                == ata_address(ctx.accounts.member.key(), strategy.share_mint, &share_token_program),
             StrategyError::WrongAccount
         );
 
@@ -163,6 +191,7 @@ pub mod fims_strategy {
                 ctx.accounts.member_share_ata.key(),
                 ctx.accounts.member.key(),
                 strategy.share_mint,
+                &share_token_program,
             ),
             &[
                 ctx.accounts.member.to_account_info(),
@@ -170,14 +199,14 @@ pub mod fims_strategy {
                 ctx.accounts.member.to_account_info(),
                 ctx.accounts.share_mint.to_account_info(),
                 ctx.accounts.system_program.to_account_info(),
-                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.share_token_program.to_account_info(),
             ],
         )?;
 
         // Member is a real signer — a plain invoke (no PDA seeds) moves the
         // collateral into the vault.
         invoke(
-            &spl_transfer_ix(ctx.accounts.member_ata.key(), ctx.accounts.vault_ata.key(), ctx.accounts.member.key(), amount),
+            &spl_transfer_ix(&member_ata_program, ctx.accounts.member_ata.key(), ctx.accounts.vault_ata.key(), ctx.accounts.member.key(), amount),
             &[
                 ctx.accounts.member_ata.to_account_info(),
                 ctx.accounts.vault_ata.to_account_info(),
@@ -185,16 +214,14 @@ pub mod fims_strategy {
                 ctx.accounts.token_program.to_account_info(),
             ],
         )?;
-        if tip_lamports > 0 {
-            invoke(
-                &system_instruction::transfer(&ctx.accounts.member.key(), &ctx.accounts.delegate.key(), tip_lamports),
-                &[
-                    ctx.accounts.member.to_account_info(),
-                    ctx.accounts.delegate.to_account_info(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-            )?;
-        }
+        invoke(
+            &system_instruction::transfer(&ctx.accounts.member.key(), &ctx.accounts.delegate.key(), tip_lamports),
+            &[
+                ctx.accounts.member.to_account_info(),
+                ctx.accounts.delegate.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+        )?;
 
         let deposit = &mut ctx.accounts.member_deposit;
         deposit.member = ctx.accounts.member.key();
@@ -294,6 +321,8 @@ pub mod fims_strategy {
         let state = &ctx.accounts.state;
         require!(!state.paused, StrategyError::Paused);
         require!(amount > 0, StrategyError::BadConfig);
+        // `amount as i64` wraps above i64::MAX — reject before the delta math.
+        require!(amount <= i64::MAX as u64, StrategyError::BadConfig);
         let strategy = state
             .strategies
             .get(strategy_index as usize)
@@ -330,7 +359,7 @@ pub mod fims_strategy {
         min_out: u64,
         data: Vec<u8>,
     ) -> Result<()> {
-        let state = &ctx.accounts.state;
+        let state = &mut ctx.accounts.state;
         require!(!state.paused, StrategyError::Paused);
         require!(
             state
@@ -340,16 +369,27 @@ pub mod fims_strategy {
             StrategyError::MintPairNotAllowed
         );
         require!(amount > 0 && min_out > 0, StrategyError::BadConfig);
+        // `amount as i64` wraps above i64::MAX — reject before the delta math.
+        require!(amount <= i64::MAX as u64, StrategyError::BadConfig);
         // For pairs flagged near-equivalent (USDT↔USDG) the delegate cannot
         // set a floor below `amount * (1 - max_deviation_bps)` — a compromised
         // key could otherwise drain value via deliberately bad fills.
-        let pair = state.allowed_mint_pairs.iter().find(|p| p.from == in_mint && p.to == out_mint).unwrap();
+        let pair_index = state
+            .allowed_mint_pairs
+            .iter()
+            .position(|p| p.from == in_mint && p.to == out_mint)
+            .unwrap();
+        let pair = &state.allowed_mint_pairs[pair_index];
         if pair.max_deviation_bps > 0 {
             let floor = (amount as u128)
                 .saturating_mul(10_000 - pair.max_deviation_bps as u128)
                 / 10_000;
             require!(min_out as u128 >= floor, StrategyError::MinOutTooLow);
         }
+        // Per-pair rolling cap: a compromised delegate can burn at most
+        // daily_cap input units a day through bad fills before the guardian
+        // pauses — bounded loss without any oracle dependency.
+        let daily_cap = pair.daily_cap;
         let vault_key = ctx.accounts.vault.key();
         let in_ata = find_ata(ctx.remaining_accounts, vault_key, in_mint)?;
         let out_ata = find_ata(ctx.remaining_accounts, vault_key, out_mint)?;
@@ -361,6 +401,7 @@ pub mod fims_strategy {
             &[in_ata.key(), out_ata.key()],
         );
 
+        spend_window(state, amount, daily_cap, daily_cap, WindowKind::Swap(pair_index))?;
         cpi_whitelisted(state, ctx.remaining_accounts, data, vault_key, state.vault_bump)?;
 
         // Input must leave by exactly `amount` — a swap whose output goes to
@@ -408,8 +449,8 @@ pub mod fims_strategy {
         let state = &mut ctx.accounts.state;
         require!(!state.paused, StrategyError::Paused);
         let vault_key = ctx.accounts.vault.key();
-        let expected_source = ata_address(vault_key, mint);
-        require!(ctx.accounts.source.key() == expected_source, StrategyError::WrongAccount);
+        let token_program = require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, mint)?;
+        require!(ctx.accounts.token_program.key() == token_program, StrategyError::WrongAccount);
         require!(
             is_member_ata(state, &ctx.accounts.destination.key(), mint),
             StrategyError::NotWhitelisted
@@ -418,7 +459,7 @@ pub mod fims_strategy {
 
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
         invoke_signed(
-            &spl_transfer_ix(ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
+            &spl_transfer_ix(&token_program, ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
             &[
                 ctx.accounts.source.to_account_info(),
                 ctx.accounts.destination.to_account_info(),
@@ -449,12 +490,10 @@ pub mod fims_strategy {
         require!(amount > 0, StrategyError::BadConfig);
         require!(amount <= deposit.pending, StrategyError::InsufficientDeposit);
         let vault_key = ctx.accounts.vault.key();
+        let token_program = require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, strategy.share_mint)?;
+        require!(ctx.accounts.token_program.key() == token_program, StrategyError::WrongAccount);
         require!(
-            ctx.accounts.source.key() == ata_address(vault_key, strategy.share_mint),
-            StrategyError::WrongAccount
-        );
-        require!(
-            ctx.accounts.destination.key() == ata_address(deposit.member, strategy.share_mint),
+            ctx.accounts.destination.key() == ata_address(deposit.member, strategy.share_mint, &token_program),
             StrategyError::WrongAccount
         );
         assert_healthy_ata(&ctx.accounts.source.to_account_info(), vault_key)?;
@@ -462,7 +501,7 @@ pub mod fims_strategy {
         deposit.pending -= amount;
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
         invoke_signed(
-            &spl_transfer_ix(ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
+            &spl_transfer_ix(&token_program, ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
             &[
                 ctx.accounts.source.to_account_info(),
                 ctx.accounts.destination.to_account_info(),
@@ -488,14 +527,14 @@ pub mod fims_strategy {
         require!(!state.paused, StrategyError::Paused);
         let vault_key = ctx.accounts.vault.key();
         let treasury = state.treasury;
-        let expected_source = ata_address(vault_key, mint);
-        let expected_dest = ata_address(treasury, mint);
-        require!(ctx.accounts.source.key() == expected_source, StrategyError::WrongAccount);
+        let token_program = require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, mint)?;
+        require!(ctx.accounts.token_program.key() == token_program, StrategyError::WrongAccount);
+        let expected_dest = ata_address(treasury, mint, &token_program);
         require!(ctx.accounts.destination.key() == expected_dest, StrategyError::WrongAccount);
 
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
         invoke_signed(
-            &spl_transfer_ix(ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
+            &spl_transfer_ix(&token_program, ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
             &[
                 ctx.accounts.source.to_account_info(),
                 ctx.accounts.destination.to_account_info(),
@@ -530,13 +569,11 @@ pub mod fims_strategy {
         Ok(())
     }
 
-    /// Delegate rotation is immediate on purpose: it is the incident-response
-    /// path when the operator key is suspected compromised.
-    pub fn set_delegate(ctx: Context<AdminOnly>, delegate: Pubkey) -> Result<()> {
-        ctx.accounts.state.delegate = delegate;
-        emit!(DelegateChanged { delegate });
-        Ok(())
-    }
+    /// Delegate rotation goes through the 48h timelock like every dangerous
+    /// change: an instant swap would let a compromised admin hand the vault
+    /// to their own key without a reaction window. For a compromised delegate
+    /// the incident path is guardian_pause first, then the scheduled rotation
+    /// applies while the vault is frozen.
 
     /// All dangerous configuration changes go through a 48h timelock so
     /// members have time to exit before new rules apply.
@@ -547,6 +584,7 @@ pub mod fims_strategy {
             ConfigChange::Strategies { strategies } => {
                 require!(strategies.len() <= MAX_STRATEGIES, StrategyError::BadConfig);
             }
+            ConfigChange::MintPairs { pairs } => validate_mint_pairs(pairs)?,
             _ => {}
         }
         let state = &mut ctx.accounts.state;
@@ -569,6 +607,10 @@ pub mod fims_strategy {
             ConfigChange::AllowedPrograms { programs } => state.allowed_programs = programs,
             ConfigChange::MemberWhitelist { members } => state.member_whitelist = members,
             ConfigChange::Treasury { treasury } => state.treasury = treasury,
+            ConfigChange::Delegate { delegate } => {
+                state.delegate = delegate;
+                emit!(DelegateChanged { delegate });
+            }
             ConfigChange::Caps { daily_lamports, tx_lamports, daily_token } => {
                 state.daily_cap_lamports = daily_lamports;
                 state.tx_cap_lamports = tx_lamports;
@@ -603,6 +645,22 @@ pub mod fims_strategy {
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+/// Mint-pair sanity: bounded size, no self-pair, deviation ≤ 100% (bps is
+/// u16 — an over-10_000 value would underflow the floor math), and no
+/// duplicate from→to (dups would stack the per-pair daily caps).
+fn validate_mint_pairs(pairs: &[MintPair]) -> Result<()> {
+    require!(pairs.len() <= MAX_MINT_PAIRS, StrategyError::BadConfig);
+    for (i, p) in pairs.iter().enumerate() {
+        require!(p.from != p.to, StrategyError::BadConfig);
+        require!(p.max_deviation_bps <= 10_000, StrategyError::BadConfig);
+        require!(
+            !pairs[..i].iter().any(|q| q.from == p.from && q.to == p.to),
+            StrategyError::BadConfig
+        );
+    }
+    Ok(())
+}
 
 fn validate_whitelists(programs: &[Pubkey], members: &[Pubkey]) -> Result<()> {
     require!(programs.len() <= MAX_ALLOWED_PROGRAMS, StrategyError::WhitelistTooLarge);
@@ -663,25 +721,37 @@ fn cpi_whitelisted(
     Ok(())
 }
 
-/// ATA address of `owner` for `mint` under the canonical SPL Token program.
-fn ata_address(owner: Pubkey, mint: Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
-        &[owner.as_ref(), TOKEN_PROGRAM_ID.as_ref(), mint.as_ref()],
-        &ATA_PROGRAM_ID,
-    )
-    .0
+/// ATA address of `owner` for `mint` under a given token program — SPL Token
+/// or Token-2022, selected by the caller.
+fn ata_address(owner: Pubkey, mint: Pubkey, token_program: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[owner.as_ref(), token_program.as_ref(), mint.as_ref()], &ATA_PROGRAM_ID).0
+}
+
+/// Proves `info` is the canonical ATA of `owner` for `mint` and returns its
+/// token program. The account's own program owner selects the derivation —
+/// a Token-2022 ATA can only exist under Token-2022, so checking `info.owner`
+/// against the matched program makes a look-alike impossible.
+fn require_ata_owned(info: &AccountInfo, owner: Pubkey, mint: Pubkey) -> Result<Pubkey> {
+    let token_program = *info.owner;
+    require!(
+        token_program == TOKEN_PROGRAM_ID || token_program == TOKEN_2022_PROGRAM_ID,
+        StrategyError::WrongAccount
+    );
+    require!(info.key() == ata_address(owner, mint, &token_program), StrategyError::WrongAccount);
+    Ok(token_program)
 }
 
 /// Find the vault's ATA for `mint` inside the remaining accounts and return
 /// its raw data — the delegate proves the account belongs to the vault by
 /// construction, not by index.
 fn find_ata<'info>(remaining: &'info [AccountInfo<'info>], vault: Pubkey, mint: Pubkey) -> Result<AccountInfo<'info>> {
-    let expected = ata_address(vault, mint);
-    remaining
-        .iter()
-        .find(|info| info.key() == expected)
-        .cloned()
-        .ok_or_else(|| StrategyError::MissingAccounts.into())
+    for token_program in [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID] {
+        let expected = ata_address(vault, mint, &token_program);
+        if let Some(info) = remaining.iter().find(|info| info.key() == expected) {
+            return Ok(info.clone())
+        }
+    }
+    Err(StrategyError::MissingAccounts.into())
 }
 
 /// Fluid position PDA: seeds `["position", vault_id u16, position_id u32]`
@@ -733,7 +803,7 @@ fn position_field(position: &AccountInfo, offset: usize) -> Result<u64> {
 
 /// SPL token balance if `info` is a token account owned by `vault`, else None.
 fn vault_ata_amount(info: &AccountInfo, vault: &Pubkey) -> Option<u64> {
-    if info.owner != &TOKEN_PROGRAM_ID {
+    if info.owner != &TOKEN_PROGRAM_ID && info.owner != &TOKEN_2022_PROGRAM_ID {
         return None
     }
     let data = info.try_borrow_data().ok()?;
@@ -775,6 +845,14 @@ fn assert_undeclared_atas_intact(
         require!(token_amount(info)? >= *amt, StrategyError::UndeclaredOutflow);
         assert_healthy_ata(info, vault)?;
     }
+    // Vault ATAs CREATED during the CPI are not in `before` — a whitelisted
+    // program could otherwise leave one behind with a delegate or close
+    // authority set, a deferred drain the snapshot would never see.
+    for (i, info) in remaining.iter().enumerate() {
+        if before.iter().all(|(j, _)| *j != i) && vault_ata_amount(info, &vault).is_some() {
+            assert_healthy_ata(info, vault)?;
+        }
+    }
     Ok(())
 }
 
@@ -794,7 +872,10 @@ fn assert_declared(actual: i128, declared: i64, abs_floor: u64, err: StrategyErr
 /// Raw balance of an SPL token account. Fails if the account is not a real
 /// token account (wrong owner program or too small).
 fn token_amount(ata: &AccountInfo) -> Result<u64> {
-    require!(ata.owner == &TOKEN_PROGRAM_ID, StrategyError::WrongAccount);
+    require!(
+        ata.owner == &TOKEN_PROGRAM_ID || ata.owner == &TOKEN_2022_PROGRAM_ID,
+        StrategyError::WrongAccount
+    );
     let data = ata.try_borrow_data()?;
     require!(data.len() >= 165, StrategyError::WrongAccount);
     Ok(u64::from_le_bytes(data[TA_AMOUNT..TA_AMOUNT + 8].try_into().unwrap()))
@@ -830,6 +911,10 @@ fn assert_delta_exact(ata: &AccountInfo, before: u64, expected: i64, err: Strate
 /// A healthy vault ATA: owned by the vault PDA, no delegate, no close
 /// authority — checked after every CPI so nothing can hijack the account.
 fn assert_healthy_ata(ata: &AccountInfo, vault: Pubkey) -> Result<()> {
+    require!(
+        ata.owner == &TOKEN_PROGRAM_ID || ata.owner == &TOKEN_2022_PROGRAM_ID,
+        StrategyError::WrongAccount
+    );
     let data = ata.try_borrow_data()?;
     require!(data.len() >= 165, StrategyError::WrongAccount);
     require!(Pubkey::try_from(&data[TA_OWNER..TA_OWNER + 32]).map_err(|_| StrategyError::WrongAccount)? == vault, StrategyError::WrongAccount);
@@ -841,18 +926,19 @@ fn assert_healthy_ata(ata: &AccountInfo, vault: Pubkey) -> Result<()> {
 
 /// Whether `destination` is the ATA of a whitelisted member for `mint`.
 fn is_member_ata(state: &StrategyState, destination: &Pubkey, mint: Pubkey) -> bool {
-    state
-        .member_whitelist
-        .iter()
-        .any(|member| ata_address(*member, mint) == *destination)
+    state.member_whitelist.iter().any(|member| {
+        [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]
+            .iter()
+            .any(|token_program| ata_address(*member, mint, token_program) == *destination)
+    })
 }
 
-fn spl_transfer_ix(source: Pubkey, destination: Pubkey, authority: Pubkey, amount: u64) -> Instruction {
+fn spl_transfer_ix(token_program: &Pubkey, source: Pubkey, destination: Pubkey, authority: Pubkey, amount: u64) -> Instruction {
     let mut data = Vec::with_capacity(9);
-    data.push(3u8); // Transfer
+    data.push(3u8); // Transfer — same discriminator on SPL Token and Token-2022.
     data.extend_from_slice(&amount.to_le_bytes());
     Instruction {
-        program_id: TOKEN_PROGRAM_ID,
+        program_id: *token_program,
         accounts: vec![
             AccountMeta::new(source, false),
             AccountMeta::new(destination, false),
@@ -865,7 +951,7 @@ fn spl_transfer_ix(source: Pubkey, destination: Pubkey, authority: Pubkey, amoun
 /// ATA program `CreateIdempotent` — creates the account if missing, no-ops
 /// otherwise. Lets `deposit` guarantee the member's share ATA exists in the
 /// same transaction, so the delegate never has to fund member rent.
-fn create_ata_ix(payer: Pubkey, ata: Pubkey, owner: Pubkey, mint: Pubkey) -> Instruction {
+fn create_ata_ix(payer: Pubkey, ata: Pubkey, owner: Pubkey, mint: Pubkey, token_program: &Pubkey) -> Instruction {
     Instruction {
         program_id: ATA_PROGRAM_ID,
         accounts: vec![
@@ -874,7 +960,7 @@ fn create_ata_ix(payer: Pubkey, ata: Pubkey, owner: Pubkey, mint: Pubkey) -> Ins
             AccountMeta::new_readonly(owner, false),
             AccountMeta::new_readonly(mint, false),
             AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
-            AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
+            AccountMeta::new_readonly(*token_program, false),
         ],
         data: vec![1u8], // CreateIdempotent
     }
@@ -884,42 +970,58 @@ fn create_ata_ix(payer: Pubkey, ata: Pubkey, owner: Pubkey, mint: Pubkey) -> Ins
 fn spend_allowance(state: &mut StrategyState, amount: u64) -> Result<()> {
     let tx_cap = state.tx_cap_lamports;
     let window_cap = state.daily_cap_lamports;
-    spend_window(state, amount, tx_cap, window_cap, true)
+    spend_window(state, amount, tx_cap, window_cap, WindowKind::Sol)
 }
 
 fn spend_token_allowance(state: &mut StrategyState, amount: u64) -> Result<()> {
     let cap = state.daily_token_cap;
-    spend_window(state, amount, cap, cap, false)
+    spend_window(state, amount, cap, cap, WindowKind::Token)
 }
 
-fn spend_window(
-    state: &mut StrategyState,
-    amount: u64,
-    tx_cap: u64,
-    window_cap: u64,
-    sol_window: bool,
-) -> Result<()> {
+enum WindowKind {
+    Sol,
+    Token,
+    /// Per-mint-pair swap allowance — bounds the daily input volume a
+    /// compromised delegate can route through deliberately bad fills.
+    Swap(usize),
+}
+
+fn spend_window(state: &mut StrategyState, amount: u64, tx_cap: u64, window_cap: u64, window: WindowKind) -> Result<()> {
     require!(amount <= tx_cap, StrategyError::TxCapExceeded);
     let now = Clock::get()?.unix_timestamp;
     let hour = now.div_euclid(HOUR_SECS);
-    // Clear buckets older than 24h.
+    // Expire buckets whose hour fell out of the rolling 24h window — hours
+    // [window_start_hour, hour-24]. window_start_hour is the oldest hour that
+    // may still hold counted spend; clearing only the stale range keeps the
+    // last 23h intact (clearing elapsed buckets instead would wipe recent
+    // spend and degrade the cap to a per-hour limit).
     if state.window_start_hour == 0 {
         state.window_start_hour = hour;
     }
     let elapsed = hour.saturating_sub(state.window_start_hour);
-    if elapsed > 0 {
-        let to_clear = elapsed.min(24) as usize;
-        for i in 0..to_clear {
+    // elapsed < 24 → nothing is stale. max(0) BEFORE the usize cast —
+    // a negative i64 would wrap to ~2^64 and loop forever.
+    let stale = elapsed.saturating_sub(23).max(0).min(24) as usize;
+    if stale > 0 {
+        for i in 0..stale {
             let idx = ((state.window_start_hour + i as i64) % 24) as usize;
             state.spent_sol_hourly[idx] = 0;
             state.spent_token_hourly[idx] = 0;
+            for pair in 0..MAX_MINT_PAIRS {
+                state.spent_swap_hourly[pair * 24 + idx] = 0;
+            }
         }
-        state.window_start_hour = hour;
+        state.window_start_hour = state.window_start_hour.saturating_add(stale as i64);
     }
-    let buckets = if sol_window { &mut state.spent_sol_hourly } else { &mut state.spent_token_hourly };
+    let buckets: &mut [u64] = match window {
+        WindowKind::Sol => &mut state.spent_sol_hourly,
+        WindowKind::Token => &mut state.spent_token_hourly,
+        WindowKind::Swap(pair) => &mut state.spent_swap_hourly[pair * 24..(pair + 1) * 24],
+    };
     let spent: u64 = buckets.iter().fold(0u64, |a, b| a.saturating_add(*b));
     require!(spent.saturating_add(amount) <= window_cap, StrategyError::DailyCapExceeded);
-    buckets[(hour % 24) as usize] = buckets[(hour % 24) as usize].saturating_add(amount);
+    let idx = (hour % 24) as usize;
+    buckets[idx] = buckets[idx].saturating_add(amount);
     Ok(())
 }
 
@@ -976,6 +1078,10 @@ pub struct MintPair {
     /// `min_out >= amount * (1 - max_deviation_bps/10000)` so a compromised
     /// delegate cannot route a deliberately bad fill. 0 = no bound.
     pub max_deviation_bps: u16,
+    /// Maximum input units swappable per rolling 24h on this pair. Bounds
+    /// what a compromised delegate can burn through deliberately bad fills
+    /// before the guardian pauses — 0 disables the pair.
+    pub daily_cap: u64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
@@ -989,6 +1095,7 @@ pub enum ConfigChange {
     AllowedPrograms { programs: Vec<Pubkey> },
     MemberWhitelist { members: Vec<Pubkey> },
     Treasury { treasury: Pubkey },
+    Delegate { delegate: Pubkey },
     Caps { daily_lamports: u64, tx_lamports: u64, daily_token: u64 },
     Strategies { strategies: Vec<StrategyConfig> },
     MintPairs { pairs: Vec<MintPair> },
@@ -1018,6 +1125,9 @@ pub struct StrategyState {
     /// separately so a SOL payout can never eat the token budget.
     pub spent_sol_hourly: [u64; 24],
     pub spent_token_hourly: [u64; 24],
+    /// Per-mint-pair swap input spend, indexed `pair_index * 24 + hour % 24`.
+    /// A Vec (heap) keeps the 3KB of buckets off the 4KB BPF stack.
+    pub spent_swap_hourly: Vec<u64>,
     pub window_start_hour: i64,
     pub pending: Option<PendingConfig>,
     pub proposed_admin: Option<Pubkey>,
@@ -1033,11 +1143,12 @@ impl StrategyState {
         + 4 + 32 * MAX_ALLOWED_PROGRAMS
         + 4 + 32 * MAX_MEMBERS
         + 4 + (8 + 4 + 32 * 4 + 32 + 32 + 32 + 8) * MAX_STRATEGIES
-        + 4 + 66 * 16
+        + 4 + 74 * MAX_MINT_PAIRS
         + 8 + 8 + 8
         + 8 * 48
+        + 4 + 8 * 24 * MAX_MINT_PAIRS
         + 8
-        + 1 + 8 + 4 + 4 + 32 * MAX_ALLOWED_PROGRAMS // pending worst-case
+        + 1 + 8 + 1 + 4 + 32 * MAX_MEMBERS // pending worst-case = MemberWhitelist variant
         + 1 + 32
         + 1 + 1
         + 64; // headroom
@@ -1054,7 +1165,7 @@ pub struct Initialize<'info> {
         seeds = [b"state"],
         bump,
     )]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
     /// CHECK: the strategy vault PDA that owns positions and token accounts.
     #[account(seeds = [b"vault"], bump)]
     pub vault: UncheckedAccount<'info>,
@@ -1072,8 +1183,8 @@ pub struct Initialize<'info> {
 pub struct ProtocolOp<'info> {
     #[account(constraint = caller.key() == state.delegate @ StrategyError::NotDelegate)]
     pub caller: Signer<'info>,
-    #[account(seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    #[account(mut, seeds = [b"state"], bump = state.bump)]
+    pub state: Box<Account<'info, StrategyState>>,
     /// CHECK: validated by seeds; becomes the forced signer in the CPI.
     #[account(seeds = [b"vault"], bump = state.vault_bump)]
     pub vault: UncheckedAccount<'info>,
@@ -1084,7 +1195,7 @@ pub struct Payout<'info> {
     #[account(constraint = caller.key() == state.delegate @ StrategyError::NotDelegate)]
     pub caller: Signer<'info>,
     #[account(mut, seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
     /// CHECK: validated by seeds.
     #[account(mut, seeds = [b"vault"], bump = state.vault_bump)]
     pub vault: UncheckedAccount<'info>,
@@ -1099,7 +1210,7 @@ pub struct PayoutToken<'info> {
     #[account(constraint = caller.key() == state.delegate @ StrategyError::NotDelegate)]
     pub caller: Signer<'info>,
     #[account(mut, seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
     /// CHECK: validated by seeds.
     #[account(mut, seeds = [b"vault"], bump = state.vault_bump)]
     pub vault: UncheckedAccount<'info>,
@@ -1109,8 +1220,8 @@ pub struct PayoutToken<'info> {
     /// CHECK: must be a member's ATA for `mint` — enforced in the handler.
     #[account(mut)]
     pub destination: UncheckedAccount<'info>,
-    /// CHECK: SPL Token program — pinned to the canonical id.
-    #[account(address = TOKEN_PROGRAM_ID)]
+    /// CHECK: SPL Token or Token-2022 program — verified against `source` in
+    /// the handler (the mint's owner decides which).
     pub token_program: UncheckedAccount<'info>,
 }
 
@@ -1119,7 +1230,7 @@ pub struct Sweep<'info> {
     #[account(constraint = caller.key() == state.delegate @ StrategyError::NotDelegate)]
     pub caller: Signer<'info>,
     #[account(seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
     /// CHECK: validated by seeds.
     #[account(mut, seeds = [b"vault"], bump = state.vault_bump)]
     pub vault: UncheckedAccount<'info>,
@@ -1129,8 +1240,7 @@ pub struct Sweep<'info> {
     /// CHECK: must be the treasury ATA for `mint`.
     #[account(mut)]
     pub destination: UncheckedAccount<'info>,
-    /// CHECK: SPL Token program — pinned to the canonical id.
-    #[account(address = TOKEN_PROGRAM_ID)]
+    /// CHECK: SPL Token or Token-2022 program — verified against `source`.
     pub token_program: UncheckedAccount<'info>,
 }
 
@@ -1139,7 +1249,7 @@ pub struct GuardianOnly<'info> {
     #[account(constraint = caller.key() == state.guardian @ StrategyError::NotGuardian)]
     pub caller: Signer<'info>,
     #[account(mut, seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
 }
 
 #[derive(Accounts)]
@@ -1147,14 +1257,14 @@ pub struct AdminOnly<'info> {
     #[account(constraint = caller.key() == state.admin @ StrategyError::NotAdmin)]
     pub caller: Signer<'info>,
     #[account(mut, seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
 }
 
 #[derive(Accounts)]
 pub struct AcceptAdmin<'info> {
     pub caller: Signer<'info>,
     #[account(mut, seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
 }
 
 /// Member-facing deposit: the member signs, collateral moves member ATA →
@@ -1165,7 +1275,7 @@ pub struct Deposit<'info> {
     #[account(mut)]
     pub member: Signer<'info>,
     #[account(seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
     /// CHECK: mint binding is verified against the strategy inside the handler.
     #[account(mut)]
     pub member_ata: UncheckedAccount<'info>,
@@ -1191,10 +1301,13 @@ pub struct Deposit<'info> {
         seeds = [b"deposit", member.key().as_ref(), &[strategy_index]],
         bump,
     )]
-    pub member_deposit: Account<'info, MemberDeposit>,
-    /// CHECK: pinned to the canonical SPL Token program id.
-    #[account(address = TOKEN_PROGRAM_ID)]
+    pub member_deposit: Box<Account<'info, MemberDeposit>>,
+    /// CHECK: token program of the collateral ATA — SPL Token or Token-2022,
+    /// verified against `member_ata` in the handler.
     pub token_program: UncheckedAccount<'info>,
+    /// CHECK: token program of the share mint — must equal `share_mint.owner`
+    /// (verified in the handler); required to create the member's share ATA.
+    pub share_token_program: UncheckedAccount<'info>,
     /// CHECK: pinned to the system program id.
     #[account(address = SYSTEM_PROGRAM_ID)]
     pub system_program: UncheckedAccount<'info>,
@@ -1210,7 +1323,7 @@ pub struct IssueShares<'info> {
     #[account(constraint = caller.key() == state.delegate @ StrategyError::NotDelegate)]
     pub caller: Signer<'info>,
     #[account(seeds = [b"state"], bump = state.bump)]
-    pub state: Account<'info, StrategyState>,
+    pub state: Box<Account<'info, StrategyState>>,
     /// CHECK: PDA authority over the vault ATAs.
     #[account(mut, seeds = [b"vault"], bump = state.vault_bump)]
     pub vault: UncheckedAccount<'info>,
@@ -1219,15 +1332,14 @@ pub struct IssueShares<'info> {
         seeds = [b"deposit", member_deposit.member.as_ref(), &[member_deposit.strategy]],
         bump = member_deposit.bump,
     )]
-    pub member_deposit: Account<'info, MemberDeposit>,
+    pub member_deposit: Box<Account<'info, MemberDeposit>>,
     /// CHECK: must be the vault ATA for the strategy share mint (checked).
     #[account(mut)]
     pub source: UncheckedAccount<'info>,
     /// CHECK: must be the depositor ATA for the strategy share mint (checked).
     #[account(mut)]
     pub destination: UncheckedAccount<'info>,
-    /// CHECK: pinned to the canonical SPL Token program id.
-    #[account(address = TOKEN_PROGRAM_ID)]
+    /// CHECK: SPL Token or Token-2022 — verified against `source`.
     pub token_program: UncheckedAccount<'info>,
 }
 
@@ -1387,6 +1499,8 @@ pub enum StrategyError {
     BadConfig,
     #[msg("tip exceeds the per-deposit delegate tip cap")]
     TipTooLarge,
+    #[msg("tip below the required minimum — deposits fund the keeper")]
+    TipTooSmall,
     #[msg("payout exceeds the member's recorded deposit")]
     InsufficientDeposit,
     #[msg("min_out below the pair's deviation bound")]

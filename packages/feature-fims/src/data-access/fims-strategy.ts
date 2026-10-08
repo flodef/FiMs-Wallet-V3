@@ -15,21 +15,24 @@ import {
   type Instruction,
   type Rpc,
 } from '@solana/kit'
-import { findAssociatedTokenPda } from '@solana-program/token'
+import { fetchMint, findAssociatedTokenPda } from '@solana-program/token'
 
 export const FIMS_STRATEGY_PROGRAM_ID = address('AtmC4gPAEZ1r4fD698mDaCpGEC5WZN5f4z55zscsdVmS')
 const TOKEN_PROGRAM_ID = address('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+const TOKEN_2022_PROGRAM_ID = address('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb')
 const ATA_PROGRAM_ID = address('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
 const SYSTEM_PROGRAM_ID = address('11111111111111111111111111111111')
 
-// Member-side delegate tip, same default the program documents (0.0001 SOL,
-// capped on-chain at 0.01 SOL). Covers the keeper's share-issuance and
-// placement transactions; the member funds their own ATA rent inside deposit.
-export const FIMS_STRATEGY_TIP_LAMPORTS = 100_000n
+// Member-side delegate tip, capped on-chain at 0.01 SOL. One tip covers
+// ~100 keeper transactions (issue_shares + jl_operate + swap + kamino_flow ≈
+// ~0.00002 SOL per deposit) — the surplus pays the untipped housekeeping
+// (payouts, sweeps, vault ATA rents) so the delegate self-finances forever
+// and slowly accumulates.
+export const FIMS_STRATEGY_TIP_LAMPORTS = 500_000n
 
 // Extra lamports the deposit leg legitimately spends on top of the swap:
-// the delegate tip, the member share ATA rent, the member_deposit PDA rent
-// and margin for the collateral ATA the Jupiter setup may create.
+// the delegate tip (0.0005 SOL), the member share ATA rent, the member_deposit
+// PDA rent and margin for the collateral ATA the Jupiter setup may create.
 export const FIMS_STRATEGY_NATIVE_OVERHEAD_LAMPORTS = 7_000_000n
 
 export interface FimsStrategyConfig {
@@ -142,8 +145,18 @@ async function memberDepositPda(member: Address, strategyIndex: number): Promise
   )[0]
 }
 
-async function ataOf(owner: Address, mint: Address): Promise<Address> {
-  return (await findAssociatedTokenPda({ mint, owner, tokenProgram: TOKEN_PROGRAM_ID }))[0]
+async function ataOf(owner: Address, mint: Address, tokenProgram: Address): Promise<Address> {
+  return (await findAssociatedTokenPda({ mint, owner, tokenProgram }))[0]
+}
+
+// mint → owning token program — legacy SPL or Token-2022 (FLiP): the on-chain
+// derivation of every ATA depends on it.
+async function mintTokenProgram(rpc: Rpc<GetAccountInfoApi>, mint: Address): Promise<Address> {
+  const program = (await fetchMint(rpc, mint)).programAddress
+  if (program !== TOKEN_PROGRAM_ID && program !== TOKEN_2022_PROGRAM_ID) {
+    throw new Error(`mint ${mint} lives under unexpected program ${program}`)
+  }
+  return program
 }
 
 const WRITABLE_SIGNER = AccountRole.WRITABLE_SIGNER
@@ -163,21 +176,28 @@ async function anchorDisc(name: string): Promise<Uint8Array> {
 /** deposit(strategy_index, amount, tip_lamports) — member moves collateral
  *  to the vault, creates their share ATA, tips the delegate and records the
  *  pending amount the keeper must pay back 1:1 in share tokens. */
-export async function buildDepositIx({
-  amount,
-  member,
-  state,
-  strategyIndex,
-  tip = FIMS_STRATEGY_TIP_LAMPORTS,
-}: {
-  amount: bigint
-  member: Address
-  state: FimsStrategyState
-  strategyIndex: number
-  tip?: bigint
-}): Promise<Instruction> {
+export async function buildDepositIx(
+  rpc: Rpc<GetAccountInfoApi>,
+  {
+    amount,
+    member,
+    state,
+    strategyIndex,
+    tip = FIMS_STRATEGY_TIP_LAMPORTS,
+  }: {
+    amount: bigint
+    member: Address
+    state: FimsStrategyState
+    strategyIndex: number
+    tip?: bigint
+  },
+): Promise<Instruction> {
   const strategy = state.strategies[strategyIndex]
   if (!strategy) throw new Error(`unknown strategy index ${strategyIndex}`)
+  // Each mint resolves its own token program — a Token-2022 share mint
+  // (FLiP) derives every ATA under the 2022 program.
+  const collateralTokenProgram = await mintTokenProgram(rpc, strategy.collateralMint)
+  const shareTokenProgram = await mintTokenProgram(rpc, strategy.shareMint)
   const data = new Uint8Array(8 + 1 + 8 + 8)
   data.set(await anchorDisc('deposit'), 0)
   data[8] = strategyIndex
@@ -188,14 +208,15 @@ export async function buildDepositIx({
     accounts: [
       { address: member, role: WRITABLE_SIGNER },
       { address: await statePda(), role: READONLY },
-      { address: await ataOf(member, strategy.collateralMint), role: WRITABLE },
+      { address: await ataOf(member, strategy.collateralMint, collateralTokenProgram), role: WRITABLE },
       { address: await vaultPda(), role: WRITABLE },
-      { address: await ataOf(await vaultPda(), strategy.collateralMint), role: WRITABLE },
+      { address: await ataOf(await vaultPda(), strategy.collateralMint, collateralTokenProgram), role: WRITABLE },
       { address: state.delegate, role: WRITABLE },
       { address: strategy.shareMint, role: READONLY },
-      { address: await ataOf(member, strategy.shareMint), role: WRITABLE },
+      { address: await ataOf(member, strategy.shareMint, shareTokenProgram), role: WRITABLE },
       { address: await memberDepositPda(member, strategyIndex), role: WRITABLE },
-      { address: TOKEN_PROGRAM_ID, role: READONLY },
+      { address: collateralTokenProgram, role: READONLY },
+      { address: shareTokenProgram, role: READONLY },
       { address: SYSTEM_PROGRAM_ID, role: READONLY },
       { address: ATA_PROGRAM_ID, role: READONLY },
     ],

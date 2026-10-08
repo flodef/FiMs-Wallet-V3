@@ -12,6 +12,7 @@ import { UiNotFound } from '@workspace/ui/components/ui-not-found'
 import { lazy } from 'react'
 import { createHashRouter, Navigate, Outlet, type RouteObject } from 'react-router'
 import { rootRouteLoader } from './data-access/root-route-loader.tsx'
+import { AdminOnlyRoute } from './ui/admin-only-route.tsx'
 import { ShellUiLayout } from './ui/shell-ui-layout.tsx'
 
 const DevRoutes = lazy(() => import('@workspace/feature-dev/dev-routes'))
@@ -73,7 +74,14 @@ function getAppRoutes(): RouteObject[] {
         { element: <FimsRoutes />, path: 'fims/*' },
         { element: <PortfolioRoutes />, path: 'portfolio/*' },
         { element: <SettingsRoutes />, path: 'settings/*' },
-        { element: <ToolsRoutes />, path: 'tools/*' },
+        {
+          element: (
+            <AdminOnlyRoute>
+              <ToolsRoutes />
+            </AdminOnlyRoute>
+          ),
+          path: 'tools/*',
+        },
         { element: <UiNotFound />, path: '*' },
       ],
       element: <ShellUiLayout />,

@@ -122,7 +122,12 @@ async function main() {
   // InitializeArgs: admin, delegate, guardian, treasury, allowed_programs,
   // member_whitelist, strategies, allowed_mint_pairs, daily_cap, tx_cap,
   // daily_token_cap
-  const mintPair = Buffer.concat([mintA.publicKey.toBuffer(), mintB.publicKey.toBuffer(), Buffer.from([244, 1])])
+  const mintPair = Buffer.concat([
+    mintA.publicKey.toBuffer(),
+    mintB.publicKey.toBuffer(),
+    Buffer.from([244, 1]),
+    u64(1_000_000_000n),
+  ])
   // A dummy strategy: collateral=mintA (stands in for JUPSOL), share=mintB
   // (stands in for FSOL). Fluid/Kamino program/pubkeys are never touched by
   // deposit/issue_shares, so placeholders are fine on localnet.
@@ -147,7 +152,7 @@ async function main() {
     borshVec([]),
     borshVec([member.publicKey.toBuffer(), payer.publicKey.toBuffer()]),
     borshVec([strategy]), // strategy 0: mintA collateral → mintB shares
-    borshVec([mintPair]), // allowed_mint_pairs: A→B, 5% deviation bound
+    borshVec([mintPair]), // allowed_mint_pairs: A→B, 5% deviation bound + daily cap
     u64(2_000_000_000n), // daily cap 2 SOL
     u64(500_000_000n), // per-tx cap 0.5 SOL
     u64(400_000_000n), // daily token cap 400 tokens (6 dec)
@@ -349,7 +354,7 @@ async function main() {
     [Buffer.from('deposit'), member2.publicKey.toBuffer(), Buffer.from([0])],
     PROGRAM_ID,
   )[0]
-  const depositIx = (amount: bigint, tip: bigint) =>
+  const depositIx = (amount: bigint, tip: bigint, shareProgram = TOKEN_PROGRAM) =>
     new TransactionInstruction({
       data: Buffer.concat([disc('deposit'), Buffer.from([0]), u64(amount), u64(tip)]),
       keys: [
@@ -362,25 +367,32 @@ async function main() {
         { isSigner: false, isWritable: false, pubkey: mintB.publicKey }, // share_mint
         { isSigner: false, isWritable: true, pubkey: member2AtaB }, // member share ATA (created by deposit)
         { isSigner: false, isWritable: true, pubkey: member2DepositPda },
-        { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
+        { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM }, // collateral token_program
+        { isSigner: false, isWritable: false, pubkey: shareProgram }, // share_token_program
         { isSigner: false, isWritable: false, pubkey: SystemProgram.programId },
         { isSigner: false, isWritable: false, pubkey: ATA_PROGRAM },
       ],
       programId: PROGRAM_ID,
     })
-  await send([depositIx(200_000_000n, 100_000n)], [member2], 'member2 deposit 200 mintA + 0.0001 tip')
+  await send([depositIx(200_000_000n, 500_000n)], [member2], 'member2 deposit 200 mintA + 0.0005 tip')
   const depAcct = await conn.getAccountInfo(member2DepositPda)
   const pending = depAcct ? depAcct.data.readBigUInt64LE(41) : 0n
   console.log(`  member_deposit.pending = ${pending} (expect 200000000)`)
 
-  const issueIx = (caller: PublicKey, source: PublicKey, dest: PublicKey, amount: bigint) =>
+  const issueIx = (
+    caller: PublicKey,
+    source: PublicKey,
+    dest: PublicKey,
+    amount: bigint,
+    depositPda = member2DepositPda,
+  ) =>
     new TransactionInstruction({
       data: Buffer.concat([disc('issue_shares'), u64(amount)]),
       keys: [
         { isSigner: true, isWritable: false, pubkey: caller },
         { isSigner: false, isWritable: false, pubkey: statePda },
         { isSigner: false, isWritable: true, pubkey: vaultPda },
-        { isSigner: false, isWritable: true, pubkey: member2DepositPda },
+        { isSigner: false, isWritable: true, pubkey: depositPda },
         { isSigner: false, isWritable: true, pubkey: source },
         { isSigner: false, isWritable: true, pubkey: dest },
         { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
@@ -425,6 +437,7 @@ async function main() {
     'issue_shares replay (pending=0)',
   )
   await trySend([depositIx(1_000_000n, 20_000_000n)], [member2], 'deposit with tip over cap')
+  await trySend([depositIx(1_000_000n, 100_000n)], [member2], 'deposit with tip under min (free-riding)')
 
   // 6. allowed_programs invariant: generic transfer programs must be refused --
   // through them a CPI has no protocol-side witness, so the post-conditions
@@ -576,6 +589,64 @@ async function main() {
   await trySend([roguePayout], [attacker], 'attacker payout')
   await trySend([payoutIx(attacker.publicKey, 10_000_000n)], [payer], 'payout → non-whitelisted')
   await trySend([payoutIx(member.publicKey, 600_000_000n)], [payer], 'payout over per-tx cap')
+
+  // ---- adversarial regressions (external-audit pass) -------------------------
+  // The instant set_delegate path is gone — rotation is a timelocked config
+  // change (variant index 3). Scheduling overwrites the earlier pending
+  // MemberWhitelist change, which also proves a pending entry is replaceable.
+  await trySend(
+    [
+      new TransactionInstruction({
+        data: Buffer.concat([disc('set_delegate'), attacker.publicKey.toBuffer()]),
+        keys: stateKeys(payer.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [payer],
+    'instant set_delegate removed',
+  )
+  const delegateCfg = Buffer.concat([Buffer.from([3]), attacker.publicKey.toBuffer()])
+  await send(
+    [
+      new TransactionInstruction({
+        data: Buffer.concat([disc('schedule_config'), delegateCfg]),
+        keys: stateKeys(payer.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [payer],
+    'schedule_config (Delegate rotation)',
+  )
+  await trySend(
+    [
+      new TransactionInstruction({
+        data: disc('apply_config'),
+        keys: stateKeys(payer.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [payer],
+    'apply_config delegate before timelock',
+  )
+  // A deposit built by a hostile client pointing share_token_program at the
+  // system program must be rejected — the program is resolved from the mint.
+  await trySend(
+    [depositIx(1_000_000n, 500_000n, SystemProgram.programId)],
+    [member2],
+    'deposit wrong share_token_program',
+  )
+  // issue_shares against a member_deposit PDA that was never initialized.
+  const attackerDepositPda = PublicKey.findProgramAddressSync(
+    [Buffer.from('deposit'), attacker.publicKey.toBuffer(), Buffer.from([0])],
+    PROGRAM_ID,
+  )[0]
+  await trySend(
+    [issueIx(payer.publicKey, vaultAtaB, attackerAtaB, 1_000_000n, attackerDepositPda)],
+    [payer],
+    'issue_shares → uninitialized deposit PDA',
+  )
+  // The vault itself is not a payout destination.
+  await trySend([payoutIx(vaultPda, 10_000_000n)], [payer], 'payout → vault itself')
 
   const vaultSol = await conn.getBalance(vaultPda)
   const vaultTok = await conn.getTokenAccountBalance(vaultAtaA)

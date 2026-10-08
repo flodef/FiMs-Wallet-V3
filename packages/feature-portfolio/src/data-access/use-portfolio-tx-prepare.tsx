@@ -5,6 +5,7 @@ import type { Network } from '@workspace/db/network/network'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
 import { createMemoInstruction } from '@workspace/solana-client/create-memo-instruction'
 import { getBalance } from '@workspace/solana-client/get-balance'
+import { getUnsafeSendDestinationType } from '@workspace/solana-client/is-unsafe-send-destination'
 import { prepareTransactionSol } from '@workspace/solana-client/prepare-transaction-sol'
 import { prepareTransactionSpl } from '@workspace/solana-client/prepare-transaction-spl'
 import type { PreparedTransaction } from '@workspace/solana-client/send-prepared-transaction'
@@ -63,6 +64,18 @@ function portfolioTxPrepareQueryOptions({
     queryFn: async (): Promise<PortfolioPreparedTransaction> => {
       if (!input) {
         throw new Error('No transaction input')
+      }
+
+      // Burn guard: a destination that is itself a token mint or token
+      // account can never sign for the ATA we would create for it — the funds
+      // would be locked forever. Reject here too so even a UI bypass cannot
+      // build the transaction.
+      const destinations = [...input.recipients, ...(input.solFee ? [input.solFee] : [])]
+      for (const { destination } of destinations) {
+        const unsafe = await getUnsafeSendDestinationType(client, destination)
+        if (unsafe) {
+          throw new Error(`Destination is not a wallet (${unsafe}): ${destination}`)
+        }
       }
 
       const transactionSigner = await getTransactionSigner()

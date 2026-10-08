@@ -42,6 +42,7 @@ export class Transaction extends Schema.Class<Transaction>('Transaction')({
   cost: Schema.Number,
   createdAt: Schema.Date,
   date: Schema.Date,
+  donationAmount: Schema.NullOr(Schema.Number),
   donationTarget: Schema.NullOr(Schema.String),
   id: Schema.Number,
   movement: Schema.Number,
@@ -258,6 +259,7 @@ const CreateTransactionBody = Schema.Struct({
   amount: Schema.optional(Schema.Number),
   cost: Schema.optional(Schema.Number),
   date: Schema.Date,
+  donationAmount: Schema.optional(Schema.Number),
   donationTarget: Schema.optional(Schema.String),
   movement: Schema.Number,
   signature: Schema.optional(Schema.String),
@@ -273,6 +275,7 @@ const UpdateTransactionBody = Schema.Struct({
   amount: Schema.optional(Schema.Number),
   cost: Schema.optional(Schema.Number),
   date: Schema.optional(Schema.Date),
+  donationAmount: Schema.optional(Schema.Number),
   donationTarget: Schema.optional(Schema.String),
   movement: Schema.optional(Schema.Number),
   signature: Schema.optional(Schema.String),
@@ -598,6 +601,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addSuccess(Transaction)
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })
+      .addError(BadRequest, { status: 400 })
       .addError(NotFound, { status: 404 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),

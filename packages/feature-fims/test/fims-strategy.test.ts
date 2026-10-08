@@ -1,5 +1,19 @@
 import { address, getAddressDecoder } from '@solana/kit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// buildDepositIx resolves each mint's token program on-chain — the PoC mints
+// are all legacy SPL, so fetchMint always reports the canonical program.
+vi.mock('@solana-program/token', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@solana-program/token')>()
+  return {
+    ...actual,
+    fetchMint: vi.fn(async () => ({ programAddress: address('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') })),
+  }
+})
+
+// The mocked fetchMint never touches the rpc handle.
+const rpc = {} as never
+
 import {
   buildDepositIx,
   FIMS_STRATEGY_PROGRAM_ID,
@@ -101,7 +115,7 @@ describe('build-deposit-ix', () => {
       ).slice(0, 8)
 
       // ACT
-      const ix = await buildDepositIx({ amount, member: MEMBER, state: state(), strategyIndex: 0 })
+      const ix = await buildDepositIx(rpc, { amount, member: MEMBER, state: state(), strategyIndex: 0 })
 
       // ASSERT
       expect(ix.data?.length).toBe(25) // disc(8) + u8 + u64 + u64
@@ -111,23 +125,24 @@ describe('build-deposit-ix', () => {
       expect(new DataView(data.buffer, data.byteOffset + 9).getBigUint64(0, true)).toBe(amount)
     })
 
-    it('should build the 12 accounts matching the Rust Deposit context', async () => {
+    it('should build the 13 accounts matching the Rust Deposit context', async () => {
       // ARRANGE
-      expect.assertions(8)
+      expect.assertions(9)
       const s = state()
 
       // ACT
-      const ix = await buildDepositIx({ amount: 1n, member: MEMBER, state: s, strategyIndex: 0 })
+      const ix = await buildDepositIx(rpc, { amount: 1n, member: MEMBER, state: s, strategyIndex: 0 })
 
       // ASSERT — member, state, member ATA, vault, vault ATA, delegate,
-      // share mint, member share ATA, member_deposit PDA, token/system/ATA
-      expect(ix.accounts).toHaveLength(12)
+      // share mint, member share ATA, member_deposit PDA, token programs, system/ATA
+      expect(ix.accounts).toHaveLength(13)
       expect(ix.accounts?.[0]).toMatchObject({ address: MEMBER, role: 3 })
       expect(ix.accounts?.[1]).toMatchObject({ address: await statePda(), role: 0 })
       expect(ix.accounts?.[3]).toMatchObject({ address: await vaultPda(), role: 1 })
       expect(ix.accounts?.[5]).toMatchObject({ address: s.delegate, role: 1 })
       expect(ix.accounts?.[6]).toMatchObject({ address: s.strategies[0]?.shareMint, role: 0 })
       expect(ix.accounts?.[9]?.address).toBe('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+      expect(ix.accounts?.[10]?.address).toBe('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
       expect(ix.programAddress).toBe(FIMS_STRATEGY_PROGRAM_ID)
     })
 
@@ -137,9 +152,9 @@ describe('build-deposit-ix', () => {
       const other = address('So11111111111111111111111111111111111111112')
 
       // ACT
-      const ixA = await buildDepositIx({ amount: 1n, member: MEMBER, state: state(), strategyIndex: 0 })
-      const ixB = await buildDepositIx({ amount: 1n, member: other, state: state(), strategyIndex: 0 })
-      const ixC = await buildDepositIx({ amount: 1n, member: MEMBER, state: state(2), strategyIndex: 1 })
+      const ixA = await buildDepositIx(rpc, { amount: 1n, member: MEMBER, state: state(), strategyIndex: 0 })
+      const ixB = await buildDepositIx(rpc, { amount: 1n, member: other, state: state(), strategyIndex: 0 })
+      const ixC = await buildDepositIx(rpc, { amount: 1n, member: MEMBER, state: state(2), strategyIndex: 1 })
 
       // ASSERT
       expect(ixA.accounts?.[8]?.address).not.toBe(ixB.accounts?.[8]?.address)
@@ -152,8 +167,8 @@ describe('build-deposit-ix', () => {
       const tip = 42_000n
 
       // ACT
-      const ix = await buildDepositIx({ amount: 1n, member: MEMBER, state: state(), strategyIndex: 0, tip })
-      const ixDefault = await buildDepositIx({ amount: 1n, member: MEMBER, state: state(), strategyIndex: 0 })
+      const ix = await buildDepositIx(rpc, { amount: 1n, member: MEMBER, state: state(), strategyIndex: 0, tip })
+      const ixDefault = await buildDepositIx(rpc, { amount: 1n, member: MEMBER, state: state(), strategyIndex: 0 })
 
       // ASSERT
       const data = ix.data ?? new Uint8Array()
@@ -178,9 +193,9 @@ describe('build-deposit-ix', () => {
       expect.assertions(1)
 
       // ACT & ASSERT
-      await expect(buildDepositIx({ amount: 1n, member: MEMBER, state: state(), strategyIndex: 7 })).rejects.toThrow(
-        'unknown strategy index',
-      )
+      await expect(
+        buildDepositIx(rpc, { amount: 1n, member: MEMBER, state: state(), strategyIndex: 7 }),
+      ).rejects.toThrow('unknown strategy index')
     })
 
     it('should reject a malformed member address', async () => {
@@ -189,7 +204,7 @@ describe('build-deposit-ix', () => {
 
       // ACT & ASSERT
       await expect(
-        buildDepositIx({ amount: 1n, member: '!!!not-base58!!!' as never, state: state(), strategyIndex: 0 }),
+        buildDepositIx(rpc, { amount: 1n, member: '!!!not-base58!!!' as never, state: state(), strategyIndex: 0 }),
       ).rejects.toThrow()
     })
   })

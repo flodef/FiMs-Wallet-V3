@@ -217,7 +217,9 @@ export function FimsFeatureMember({ account }: { account: Account }) {
                     <TableCell>{tx.token ?? '—'}</TableCell>
                     <TableCell>
                       <FimsTxTypeLabel transaction={tx} />
-                      {tx.donationTarget ? ` → ${tx.donationTarget}` : ''}
+                      {tx.donationTarget
+                        ? ` → ${tx.donationTarget}${tx.donationAmount != null ? ` (${tx.donationAmount} ${tx.token ?? ''})` : ''}`
+                        : ''}
                     </TableCell>
                     <TableCell className="text-right">{tx.amount ?? '—'}</TableCell>
                     <TableCell className="text-right">{format(tx.cost)}</TableCell>

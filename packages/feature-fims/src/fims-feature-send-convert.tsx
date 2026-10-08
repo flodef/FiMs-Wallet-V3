@@ -16,9 +16,14 @@ import { UiWarning } from '@workspace/ui/components/ui-warning'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { useNavigate } from 'react-router'
+import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
+import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
+import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useFimsSwapTo, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import type { WithdrawalTarget } from './data-access/use-withdrawal-targets.tsx'
 import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT, FIMS_MINT_DECIMALS } from './fims-constants.ts'
+import { computeFimsTontineCarve } from './fims-debt.ts'
+import { getFimsPlatformFeeBps, getFimsTontineRate } from './fims-fee-config.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
 
 // Confirmation screen shown when the picked destination does not accept the
@@ -46,7 +51,33 @@ export function FimsFeatureSendConvert({
   const outputSymbol = target.acceptedSymbols[0]
   const outputMint = outputSymbol ? (FIMS_KNOWN_MINTS[outputSymbol] as Address) : undefined
   const inputAmount = mint.mint === NATIVE_MINT ? uiAmountToBigInt(amount, 9) : uiAmountToBigInt(amount, mint.decimals)
-  const quote = useJupiterQuote({ amount: inputAmount, inputMint: mint.mint, outputMint })
+  // Tontine carve: while the member owes the tontine, tontineRate of the sent
+  // units goes to the pot in a first transaction — the swap converts what
+  // remains and delivers it to the destination.
+  const { rates } = useFimsCurrency()
+  const fimsTokens = useFimsTokens()
+  const { member } = useFimsMember(account.publicKey, account)
+  const { debt, position } = useFimsDebt(member, account)
+  const priceEur = (() => {
+    const fimsPrice = fimsTokens.data?.find((token) => token.address === mint.mint)?.value
+    if (fimsPrice) return fimsPrice
+    const usd = mint.mint === NATIVE_MINT ? undefined : mint.metadata?.usdPrice
+    return usd && usd > 0 && rates.usd > 0 ? usd / rates.usd : null
+  })()
+  const tontineAmount = computeFimsTontineCarve({
+    amount: inputAmount,
+    debt,
+    decimals: mint.mint === NATIVE_MINT ? 9 : mint.decimals,
+    positionEur: position,
+    priceEur,
+    tontineRate: getFimsTontineRate(),
+  })
+  const quote = useJupiterQuote({
+    amount: inputAmount - tontineAmount,
+    inputMint: mint.mint,
+    outputMint,
+    platformFeeBps: getFimsPlatformFeeBps(),
+  })
   const swapTo = useFimsSwapTo({ account, network })
   const impactPct = quote.data?.priceImpactPct ? Number(quote.data.priceImpactPct) : 0
   const impactBlocked = impactPct > FIMS_MAX_PRICE_IMPACT
@@ -66,7 +97,12 @@ export function FimsFeatureSendConvert({
         owner: destination,
         tokenProgram: TOKEN_PROGRAM_ADDRESS,
       })
-      return swapTo.mutateAsync({ destinationTokenAccount, quote: quote.data })
+      return swapTo.mutateAsync({
+        destinationTokenAccount,
+        feeMint: outputMint,
+        quote: quote.data,
+        tontineAmount,
+      })
     },
     onError: (error) => {
       reportGasTopupError(error)
@@ -109,6 +145,15 @@ export function FimsFeatureSendConvert({
             <div className="text-muted-foreground">
               {t(($) => $.swapPriceImpact)}: {(impactPct * 100).toFixed(2)}%
             </div>
+            {tontineAmount > 0n ? (
+              <div className="text-muted-foreground">
+                {t(($) => $.swapTontineFee)}:{' '}
+                {t(($) => $.swapTontineCarveValue, {
+                  amount: bigIntToDecimal(tontineAmount, mint.mint === NATIVE_MINT ? 9 : mint.decimals).toString(),
+                  symbol: mint.metadata?.symbol ?? '',
+                })}
+              </div>
+            ) : null}
           </div>
         ) : null}
         {impactBlocked ? <UiWarning>{t(($) => $.swapPriceImpactBlocked)}</UiWarning> : null}

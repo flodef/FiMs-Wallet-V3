@@ -98,6 +98,13 @@
       "tag": "0013_ballot_updated_at",
       "version": "7",
       "when": 1791392962150
+    },
+    {
+      "breakpoints": true,
+      "idx": 14,
+      "tag": "0014_donation_amount",
+      "version": "7",
+      "when": 1791397456018
     }
   ],
   "version": "7"

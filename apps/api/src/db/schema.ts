@@ -86,6 +86,13 @@ export const transactions = pgTable(
     cost: numeric('cost', { mode: 'number' }).notNull().default(0),
     createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
     date: timestamp('date', { mode: 'date' }).notNull(),
+    // Token units gifted to donation_target ON TOP of `amount` (same token):
+    // an extra outflow from the member's position toward the target, priced
+    // at the row's implied rate |movement + cost| / |amount|. Lets one row
+    // carry e.g. a withdrawal + its tontine share + an operating fee (cost).
+    // Outflow rows only (amount < 0). Pure donations keep it NULL — their
+    // whole amount is already the gift.
+    donationAmount: numeric('donation_amount', { mode: 'number' }),
     donationTarget: text('donation_target'),
     id: serial('id').primaryKey(),
     movement: numeric('movement', { mode: 'number' }).notNull().default(0),

@@ -29,8 +29,8 @@ const strategyBytes = () =>
     u64le(1_000_000n),
   )
 
-// MintPair: from | to | max_deviation_bps u16
-const pairBytes = () => concat(PK(13), PK(14), Uint8Array.of(50, 0))
+// MintPair: from | to | max_deviation_bps u16 | daily_cap u64
+const pairBytes = () => concat(PK(13), PK(14), Uint8Array.of(50, 0), u64le(7_500_000n))
 
 const DISC = Uint8Array.of(0, 0, 0, 0, 0, 0, 0, 0) // 8-byte anchor discriminator
 
@@ -52,7 +52,7 @@ describe('parseStrategyState', () => {
   describe('expected behavior', () => {
     it('should decode all fields the keeper needs', () => {
       // ARRANGE
-      expect.assertions(6)
+      expect.assertions(7)
       const data = stateBytes()
 
       // ACT
@@ -70,6 +70,7 @@ describe('parseStrategyState', () => {
         vaultId: 52n,
       })
       expect(state.mintPairs[0]?.maxDeviationBps).toBe(50)
+      expect(state.mintPairs[0]?.dailyCap).toBe(7_500_000n)
     })
   })
 })
@@ -103,7 +104,14 @@ describe('issueSharesIx', () => {
       const strategy = { shareMint: encodeBase58(PK(15)) } as never
 
       // ACT
-      const ix = await issueSharesIx(encodeBase58(PK(2)) as never, deposit, depositPda, strategy, 200_000_000n)
+      const ix = await issueSharesIx(
+        encodeBase58(PK(2)) as never,
+        deposit,
+        depositPda,
+        strategy,
+        200_000_000n,
+        'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
+      )
 
       // ASSERT — caller, state, vault, memberDeposit, source, destination, token
       expect(ix.accounts?.length).toBe(7)
@@ -129,7 +137,14 @@ describe('issueSharesIx', () => {
 
       // ACT & ASSERT
       await expect(
-        issueSharesIx(encodeBase58(PK(2)) as never, deposit as never, 'x' as never, { shareMint: 'y' } as never, 1n),
+        issueSharesIx(
+          encodeBase58(PK(2)) as never,
+          deposit as never,
+          'x' as never,
+          { shareMint: 'y' } as never,
+          1n,
+          'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
+        ),
       ).rejects.toThrow()
     })
   })
@@ -143,8 +158,8 @@ describe('vaultAta', () => {
       const mint = encodeBase58(PK(15)) as never
 
       // ACT
-      const a = await vaultAta(mint)
-      const b = await vaultAta(mint)
+      const a = await vaultAta(mint, 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never)
+      const b = await vaultAta(mint, 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never)
 
       // ASSERT
       expect(a).toBe(b)

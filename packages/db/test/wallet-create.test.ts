@@ -1,3 +1,4 @@
+import { VAULT_PIN_CREATE_MIN_LENGTH } from '@workspace/vault/encrypted-value-schema'
 import type { PromiseExtended } from 'dexie'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { walletCreate } from '../src/wallet/wallet-create.ts'
@@ -177,7 +178,9 @@ describe('wallet-create', () => {
       const input = testWalletCreateInput({ protection: { mode: 'pin', pin: '123' } })
 
       // ACT & ASSERT
-      await expect(walletCreate(ctx, input)).rejects.toThrow('PIN must be at least 8 digits')
+      await expect(walletCreate(ctx, input)).rejects.toThrow(
+        `PIN must be at least ${VAULT_PIN_CREATE_MIN_LENGTH} digits`,
+      )
     })
 
     it('should throw an error when creating a wallet fails', async () => {

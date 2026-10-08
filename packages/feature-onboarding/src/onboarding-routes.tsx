@@ -9,7 +9,7 @@ export default function OnboardingRoutes({ redirectTo }: { redirectTo: string })
   return useRoutes([
     {
       children: [
-        { element: <OnboardingFeatureIndex />, index: true },
+        { element: <OnboardingFeatureIndex redirectTo={redirectTo} />, index: true },
         { element: <OnboardingFeatureGenerate redirectTo={redirectTo} />, path: 'generate' },
         { element: <OnboardingFeatureImport redirectTo={redirectTo} />, path: 'import' },
         { element: <OnboardingFeatureComplete />, path: 'complete' },

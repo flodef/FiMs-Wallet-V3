@@ -167,6 +167,8 @@ const ownerAddressOfTransaction = (id: number) =>
 // external associations and ~1% tips attached to a member's own operation
 // never reach the pot); an investment ballot weighs the member's latest
 // invested amount (same weighting rule as the legacy spreadsheet).
+// Embedded gifts (donation_amount on an outflow row) contribute their EUR
+// share at the row's implied rate: donation_amount × |movement + cost|/|amount|.
 const loadVoteWeights = Effect.gen(function* () {
   const investedRows = (yield* withDb((db) =>
     db.execute(
@@ -175,7 +177,14 @@ const loadVoteWeights = Effect.gen(function* () {
   )).rows as { invested: number; user_id: number }[]
   const tontineRows = (yield* withDb((db) =>
     db.execute(
-      sql`SELECT user_id, SUM(movement)::float AS weight FROM transactions WHERE donation_target = 'tontine' AND movement > 0 GROUP BY user_id`,
+      sql`SELECT user_id, SUM(
+            CASE WHEN donation_amount IS NOT NULL AND amount IS NOT NULL AND amount <> 0
+            THEN ABS(movement + cost) * donation_amount / ABS(amount)
+            ELSE GREATEST(movement, 0) END
+          )::float AS weight
+          FROM transactions
+          WHERE donation_target = 'tontine' AND (movement > 0 OR donation_amount IS NOT NULL)
+          GROUP BY user_id`,
     ),
   )).rows as { user_id: number; weight: number }[]
   const invested = new Map(investedRows.map((r) => [r.user_id, Number(r.invested)]))
@@ -544,6 +553,21 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             // organism. Reject rather than guess.
             if (type === 'donation' && !payload.donationTarget)
               return yield* Effect.fail(new BadRequest({ reason: 'donationTarget is required for a donation' }))
+            // donationAmount is an extra gift outflow on top of `amount`
+            // (e.g. a withdrawal also carrying its tontine share): it needs a
+            // target, stays positive, and only makes sense on outflow rows.
+            if (payload.donationAmount != null) {
+              if (type === 'donation' || type === 'payment' || type === 'tontine')
+                return yield* Effect.fail(new BadRequest({ reason: `donationAmount is redundant on a ${type} row` }))
+              if (!payload.donationTarget)
+                return yield* Effect.fail(
+                  new BadRequest({ reason: 'donationTarget is required when donationAmount is set' }),
+                )
+              if (payload.donationAmount <= 0 || payload.amount == null || payload.amount >= 0)
+                return yield* Effect.fail(
+                  new BadRequest({ reason: 'donationAmount requires a positive value on an outflow (amount < 0)' }),
+                )
+            }
             const rows = yield* withDb((db) =>
               db
                 .insert(transactions)
@@ -562,6 +586,27 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const signer = yield* verifyWalletRequest(request)
             yield* requireAdmin(signer)
             yield* ownerAddressOfTransaction(path.id)
+            // Same embedded-gift rule as createTransaction, checked against the
+            // merged row (existing + patch) so a partial update cannot leave an
+            // incoherent donation_amount/donation_target pair.
+            if (payload.donationAmount !== undefined || payload.donationTarget !== undefined) {
+              const existing = yield* withDb((db) => db.select().from(transactions).where(eq(transactions.id, path.id)))
+              const merged = { ...existing[0], ...payload }
+              if (merged.donationAmount != null) {
+                if (merged.type === 'donation' || merged.type === 'payment' || merged.type === 'tontine')
+                  return yield* Effect.fail(
+                    new BadRequest({ reason: `donationAmount is redundant on a ${merged.type} row` }),
+                  )
+                if (!merged.donationTarget)
+                  return yield* Effect.fail(
+                    new BadRequest({ reason: 'donationTarget is required when donationAmount is set' }),
+                  )
+                if (merged.donationAmount <= 0 || merged.amount == null || merged.amount >= 0)
+                  return yield* Effect.fail(
+                    new BadRequest({ reason: 'donationAmount requires a positive value on an outflow (amount < 0)' }),
+                  )
+              }
+            }
             const rows = yield* withDb((db) =>
               db.update(transactions).set(payload).where(eq(transactions.id, path.id)).returning(),
             )

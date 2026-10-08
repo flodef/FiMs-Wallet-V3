@@ -1,11 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import type { Address } from '@solana/kit'
 import { tryCatch } from '@workspace/core/try-catch'
 import type { Account } from '@workspace/db/account/account'
 import type { BookmarkAccount } from '@workspace/db/bookmark-account/bookmark-account'
+import type { Network } from '@workspace/db/network/network'
 import { solanaAddressSchema } from '@workspace/db/solana/solana-address-schema'
 import { useBookmarkAccountLive } from '@workspace/db-react/use-bookmark-account-live'
 import { useWalletLive } from '@workspace/db-react/use-wallet-live'
 import { useTranslation } from '@workspace/i18n'
+import { getUnsafeSendDestinationType } from '@workspace/solana-client/is-unsafe-send-destination'
+import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Field, FieldGroup, FieldLabel, FieldSet } from '@workspace/ui/components/field'
@@ -63,16 +67,19 @@ export function PortfolioUiSendDestination({
   extraGroups = [],
   isLoading,
   mint,
+  network,
   sourceAddress,
   submit,
 }: {
   extraGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
   isLoading: boolean
   mint: TokenBalance
+  network: Network
   sourceAddress: string
   submit: (input: { destination: string }) => Promise<void>
 }) {
   const { t } = useTranslation('portfolio')
+  const client = useSolanaClient({ network })
   const bookmarkAccountsLive = useBookmarkAccountLive()
   const destinationId = useId()
   const wallets = useWalletLive()
@@ -137,6 +144,22 @@ export function PortfolioUiSendDestination({
 
   async function handleSubmit(data: PortfolioUiSendMintInput) {
     if (!data.destination) {
+      return
+    }
+    // Guard rail: a mint or token account is NOT a wallet — an ATA created for
+    // it belongs to an address nobody controls, so the funds would be burned.
+    // Block with an explicit message instead of building the transaction.
+    const { data: unsafe, error } = await tryCatch(getUnsafeSendDestinationType(client, data.destination as Address))
+    if (error) {
+      form.setError('destination', { message: t(($) => $.sendInputDestinationCheckFailed), type: 'manual' })
+      return
+    }
+    if (unsafe === 'token-mint' || unsafe === 'token-account' || unsafe === 'token-unknown') {
+      form.setError('destination', { message: t(($) => $.sendInputDestinationIsTokenAccount), type: 'manual' })
+      return
+    }
+    if (unsafe) {
+      form.setError('destination', { message: t(($) => $.sendInputDestinationIsProgramAccount), type: 'manual' })
       return
     }
     const { error: submitError } = await tryCatch(submit({ destination: data.destination }))

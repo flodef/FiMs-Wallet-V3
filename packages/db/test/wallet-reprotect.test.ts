@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto'
+import { VAULT_PIN_CREATE_MIN_LENGTH } from '@workspace/vault/encrypted-value-schema'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { accountCreate } from '../src/account/account-create.ts'
 import { accountReadSecretKey } from '../src/account/account-read-secret-key.ts'
@@ -189,7 +190,7 @@ describe('wallet-reprotect', () => {
 
       // ACT & ASSERT
       await expect(walletReprotect(ctx, { protection: { mode: 'pin', pin: '123' }, walletId })).rejects.toThrow(
-        'PIN must be at least 8 digits',
+        `PIN must be at least ${VAULT_PIN_CREATE_MIN_LENGTH} digits`,
       )
     })
   })

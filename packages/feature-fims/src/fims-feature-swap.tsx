@@ -20,6 +20,7 @@ import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsDebt } from './data-access/use-fims-debt.tsx'
 import { useFimsStrategyState, useFimsStrategySwap, useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT } from './fims-constants.ts'
+import { computeFimsTontineCarve } from './fims-debt.ts'
 import { getFimsPlatformFeeBps, getFimsTontineRate } from './fims-fee-config.ts'
 import { fimsSwappableMints, isSolGasMint } from './fims-gas.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
@@ -31,10 +32,10 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const network = useNetworkActive()
   const balances = useGetTokenBalances({ address: account.publicKey, network })
   const fimsTokens = useFimsTokens()
-  const { format } = useFimsCurrency()
+  const { format, rates } = useFimsCurrency()
   const { member } = useFimsMember(account.publicKey, account)
   const { debt } = useFimsDebt(member, account)
-  const debtBlocked = debt != null && debt > 0
+  const debtOwed = debt != null && debt > 0
 
   const [inputMint, setInputMint] = useState<string>('')
   const [outputMint, setOutputMint] = useState<string>('')
@@ -67,6 +68,27 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
     }
   }, [amountText, inputToken])
 
+  // Tontine carve: while the member owes the tontine, tontineRate of the
+  // sent units is diverted to the pot — the quote below runs on what
+  // remains. EUR price: FiMs token list first, Jupiter USD price as a
+  // fallback for non-listed mints.
+  const inputPriceEur = useMemo(() => {
+    const fimsPrice = fimsTokens.data?.find((token) => token.address === inputMint)?.value
+    if (fimsPrice) return fimsPrice
+    const usd = inputToken?.metadata?.usdPrice
+    return usd && usd > 0 && rates.usd > 0 ? usd / rates.usd : null
+  }, [fimsTokens.data, inputMint, inputToken, rates.usd])
+  // Swaps convert in place — the value stays in the position, so only the
+  // rate share applies (the position − debt exit rule is for actual sends).
+  const tontineAmount = computeFimsTontineCarve({
+    amount,
+    debt,
+    decimals: inputToken?.decimals ?? 9,
+    priceEur: inputPriceEur,
+    tontineRate: getFimsTontineRate(),
+  })
+  const swapAmount = amount - tontineAmount
+
   // Share tokens (FSOL, FLiP…) are issued by the strategy vault, not bought
   // on a market: the quote targets the strategy's collateral mint and the
   // transaction ends with a program `deposit`. Shares arrive ~1 min later
@@ -79,7 +101,12 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const strategyRoute = strategyIndex >= 0 ? (strategyState.data?.strategies[strategyIndex] ?? null) : null
   const quoteMint = strategyRoute ? strategyRoute.collateralMint : outputMint
 
-  const quote = useJupiterQuote({ amount, inputMint, outputMint: quoteMint, platformFeeBps: getFimsPlatformFeeBps() })
+  const quote = useJupiterQuote({
+    amount: swapAmount,
+    inputMint,
+    outputMint: quoteMint,
+    platformFeeBps: getFimsPlatformFeeBps(),
+  })
   const swap = useFimsSwap({ account, network })
   const strategySwap = useFimsStrategySwap({ account, network })
   const [signature, setSignature] = useState<string>('')
@@ -106,8 +133,9 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
             quote: quote.data,
             state: strategyState.data as FimsStrategyState,
             strategyIndex,
+            tontineAmount,
           })
-        : await swap.mutateAsync({ feeMint: outputMint as Address, quote: quote.data })
+        : await swap.mutateAsync({ feeMint: outputMint as Address, quote: quote.data, tontineAmount })
       setSignature(sig)
     } catch (error) {
       reportGasTopupError(error)
@@ -117,10 +145,10 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
 
   return (
     <div className="space-y-4">
-      {debtBlocked ? (
+      {debtOwed ? (
         <UiCard title={t(($) => $.debtBlockedTitle)}>
           <p className="text-muted-foreground text-sm">
-            {t(($) => $.debtBlockedBody, { amount: format(debt), rate: getFimsTontineRate() * 100 })}
+            {t(($) => $.debtCarveBody, { amount: format(debt), rate: getFimsTontineRate() * 100 })}
           </p>
         </UiCard>
       ) : null}
@@ -228,7 +256,13 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
                 {t(($) => $.swapPlatformFee)}: {(getFimsPlatformFeeBps() / 100).toFixed(2)}%
               </div>
               <div>
-                {t(($) => $.swapTontineFee)}: {t(($) => $.swapTontineFeeValue, { rate: getFimsTontineRate() * 100 })}
+                {t(($) => $.swapTontineFee)}:{' '}
+                {tontineAmount > 0n && inputToken
+                  ? t(($) => $.swapTontineCarveValue, {
+                      amount: formatTokenUnits(tontineAmount, inputToken.decimals),
+                      symbol: inputToken.metadata?.symbol ?? '',
+                    })
+                  : t(($) => $.swapTontineFeeValue, { rate: getFimsTontineRate() * 100 })}
               </div>
               <div>{t(($) => $.swapSlippage)}: 0.5%</div>
               <div>{t(($) => $.swapNetworkFeeEstimate)}: ≈ 0.00005 SOL</div>
@@ -251,9 +285,7 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
 
           <div className="flex justify-end">
             <Button
-              disabled={
-                !canSign || !quote.data || swap.isPending || strategySwap.isPending || debtBlocked || swapBlocked
-              }
+              disabled={!canSign || !quote.data || swap.isPending || strategySwap.isPending || swapBlocked}
               onClick={handleSwap}
             >
               {swap.isPending || strategySwap.isPending ? <UiLoader className="size-4" /> : null}
@@ -267,7 +299,9 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
         </div>
       </UiCard>
 
-      <FimsUiLimitOrders account={account} debtBlocked={debtBlocked} outputTokens={outputTokens} />
+      {/* Limit orders are the documented exception — the keeper settles them
+          later and cannot carry the carve (same as Solana Pay). */}
+      <FimsUiLimitOrders account={account} outputTokens={outputTokens} />
     </div>
   )
 }

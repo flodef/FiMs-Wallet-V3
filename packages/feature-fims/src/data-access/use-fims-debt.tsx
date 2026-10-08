@@ -1,8 +1,8 @@
 import type { Account } from '@workspace/db/account/account'
 import { useMemo } from 'react'
 import type { FimsUser } from '../fims-api.ts'
+import { computeFimsDebt } from '../fims-debt.ts'
 import { getFimsTontineRate } from '../fims-fee-config.ts'
-import { getFimsTransactionType } from '../fims-transaction-type.ts'
 import { useFimsTransactions, useFimsUserHistoric } from './use-fims.tsx'
 
 // Legacy spreadsheet rule: a member owes the tontine rate (min 10%) of their
@@ -17,13 +17,16 @@ export function useFimsDebt(member: FimsUser | null, account?: Account) {
     if (!member) return null
     const latest = historic.data?.at(-1)
     if (latest?.total == null) return null
-    const pnl = latest.total - latest.invested
-    if (pnl <= 0) return 0
-    const donated = (transactions.data ?? [])
-      .filter((tx) => ['donation', 'tontine'].includes(getFimsTransactionType(tx)))
-      .reduce((sum, tx) => sum + (tx.movement ?? 0), 0)
-    return Math.max(0, pnl * getFimsTontineRate() - donated)
+    return computeFimsDebt(latest.total, transactions.data ?? [], getFimsTontineRate())
   }, [member, historic.data, transactions.data])
 
-  return { debt, isLoading: historic.isLoading || transactions.isLoading }
+  // Current total position value (EUR) — drives the exit rule of the tontine
+  // carve: a member cannot withdraw past position − debt.
+  const position = useMemo(() => {
+    if (!member) return null
+    const latest = historic.data?.at(-1)
+    return latest?.total ?? null
+  }, [member, historic.data])
+
+  return { debt, isLoading: historic.isLoading || transactions.isLoading, position }
 }

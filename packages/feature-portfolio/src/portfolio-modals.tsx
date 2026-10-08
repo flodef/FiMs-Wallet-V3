@@ -1,4 +1,5 @@
 import type { Address } from '@solana/kit'
+import type { Network } from '@workspace/db/network/network'
 import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useAccountGetTransactionSigner } from '@workspace/db-react/use-account-get-transaction-signer'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
@@ -45,17 +46,31 @@ export interface SendSolFee {
   lamports: bigint
 }
 
+// Extra token recipient carved OUT of the sent amount (e.g. the FiMs tontine
+// share): it is part of the same transaction but the destination receives the
+// remainder, so the member's total spend stays the entered amount.
+export interface SendExtraRecipient {
+  amount: bigint
+  destination: Address
+}
+
 export default function PortfolioModals({
   extraDestinationGroups,
   getSendBlock,
+  getSendExtraRecipients,
   getSendFee,
+  renderSendDestination,
   renderSendOverride,
 }: {
   extraDestinationGroups?: UiGroupedComboboxInputGroup<DestinationAccount>[] | undefined
   getSendBlock?: ((send: SendBlockContext) => null | string) | undefined
+  getSendExtraRecipients?: ((send: SendFeeContext) => SendExtraRecipient[] | null | undefined) | undefined
   getSendFee?: ((send: SendFeeContext) => SendSolFee | null | undefined) | undefined
   // When a send needs special handling (e.g. auto-conversion for a restricted
   // destination), return the replacement confirmation view; null = normal send.
+  // When set, replaces the destination step of the send flow entirely —
+  // used by FiMs for its guided exchange picker.
+  renderSendDestination?: ((props: { address: Address; network: Network }) => React.ReactNode) | undefined
   renderSendOverride?: ((send: SendOverrideContext) => React.ReactNode) | undefined
 }) {
   const { t } = useTranslation('ui')
@@ -75,6 +90,7 @@ export default function PortfolioModals({
         <PortfolioFeatureModalConfirm
           address={account.publicKey}
           getSendBlock={getSendBlock}
+          getSendExtraRecipients={getSendExtraRecipients}
           getSendFee={getSendFee}
           getTransactionSigner={getTransactionSigner}
           network={network}
@@ -98,7 +114,9 @@ export default function PortfolioModals({
     { element: <PortfolioFeatureModalReceive account={account} />, path: 'receive' },
     { element: <PortfolioFeatureModalSelectTokens account={account} network={network} />, path: 'send' },
     {
-      element: (
+      element: renderSendDestination ? (
+        renderSendDestination({ address: account.publicKey as Address, network })
+      ) : (
         <PortfolioFeatureModalSelectDestination
           address={account.publicKey}
           extraGroups={extraDestinationGroups}

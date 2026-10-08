@@ -32,6 +32,11 @@ export interface FimsTransaction {
   cost: number
   createdAt: string
   date: string
+  // Token units gifted to donationTarget inside this row (same token as
+  // `amount`): a withdrawal/conversion can carry its tontine share inline
+  // instead of a separate donation row. Its EUR share is movement ×
+  // donationAmount/|amount|. Pure donations keep it null.
+  donationAmount: null | number
   donationTarget: null | string
   id: number
   movement: number

@@ -1,5 +1,5 @@
 import type { Address, TransactionSigner } from '@solana/kit'
-import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
+import { fetchMint } from '@solana-program/token'
 import { createGetOrCreateAtaInstruction } from '@workspace/solana-client/create-get-or-create-ata-instruction'
 import { sendPreparedTransaction } from '@workspace/solana-client/send-prepared-transaction'
 import type { SolanaClient } from '@workspace/solana-client/solana-client'
@@ -14,10 +14,13 @@ export async function ensureTreasuryFeeAccount(
   { mint, transactionSigner }: { mint: Address; transactionSigner: TransactionSigner },
 ): Promise<Address> {
   const owner = FIMS_TREASURY_ADDRESS as Address
+  // The fee mint decides the token program — a Token-2022 mint (e.g. FLiP)
+  // derives its ATA under the 2022 program, not the legacy one.
+  const mintInfo = await fetchMint(client.rpc, mint)
   const [ata, createInstruction] = await createGetOrCreateAtaInstruction({
     mint,
     owner,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    tokenProgram: mintInfo.programAddress,
     transactionSigner,
   })
   const accountInfo = await client.rpc.getAccountInfo(ata, { encoding: 'base64' }).send()

@@ -37,6 +37,7 @@ export function PortfolioFeatureModalSelectDestination({
         extraGroups={extraGroups}
         isLoading={false}
         mint={mint}
+        network={network}
         sourceAddress={address}
         submit={async (input) =>
           await navigate(`/modals/send/${token}/${input.destination}`, { state: { from: location.pathname } })

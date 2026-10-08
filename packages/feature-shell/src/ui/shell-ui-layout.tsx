@@ -1,5 +1,7 @@
+import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useSetting } from '@workspace/db-react/use-setting'
+import { envAdminAddresses } from '@workspace/env/env'
 import { FimsFeatureGasTopup } from '@workspace/feature-fims/fims-feature-gas-topup'
 import { FimsFeatureRentReclaim } from '@workspace/feature-fims/fims-feature-rent-reclaim'
 import { FimsFeatureSolExcess } from '@workspace/feature-fims/fims-feature-sol-excess'
@@ -12,6 +14,7 @@ import { useMemo } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { ShellUiBetaBanner } from './shell-ui-beta-banner.tsx'
 import { ShellUiCommandMenu } from './shell-ui-command-menu.tsx'
+import { ShellUiHelpDemo } from './shell-ui-help-demo.tsx'
 import { ShellUiMenu } from './shell-ui-menu.tsx'
 import { ShellUiMenuActions } from './shell-ui-menu-actions.tsx'
 
@@ -22,15 +25,18 @@ export interface ShellLayoutLink {
 }
 
 export function ShellUiLayout() {
+  const activeAccount = useAccountActive()
   const activeNetwork = useNetworkActive()
   const [wallpaper] = useSetting('themeWallpaper')
   const { border } = useMemo(() => getColorByName(activeNetwork.color ?? 'green'), [activeNetwork])
   const { t } = useTranslation('shell')
+  const isAdmin = envAdminAddresses().includes(activeAccount.publicKey)
   const links: ShellLayoutLink[] = [
     { icon: 'portfolio', label: t(($) => $.labelPortfolio), to: '/portfolio' },
     { icon: 'handCoins', label: t(($) => $.labelFims), to: '/fims' },
     { icon: 'explorer', label: t(($) => $.labelExplorer), to: '/explorer' },
-    { icon: 'tools', label: t(($) => $.labelTools), to: '/tools' },
+    // Raw protocol tooling is admin-only — not a place for regular users.
+    ...(isAdmin ? [{ icon: 'tools' as const, label: t(($) => $.labelTools), to: '/tools' }] : []),
     { icon: 'settings', label: t(($) => $.labelSettings), to: '/settings' },
   ]
 
@@ -64,7 +70,8 @@ export function ShellUiLayout() {
         })}
       >
         <ShellUiMenu />
-        <div className="pr-2">
+        <div className="flex items-center gap-1 pr-2">
+          <ShellUiHelpDemo />
           <ShellUiMenuActions />
         </div>
       </header>

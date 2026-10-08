@@ -10,6 +10,7 @@ function tx(amount: number, movement: number, token: string): FimsTransaction {
     cost: 0,
     createdAt: '',
     date: '',
+    donationAmount: null,
     donationTarget: null,
     id: 0,
     movement,
@@ -82,6 +83,33 @@ describe('compute-fims-positions', () => {
       expect(result[0]?.units).toBe(0)
       expect(result[0]?.currentValue).toBeNull()
       expect(result[0]?.pnl).toBe(50)
+    })
+
+    it('should keep the embedded donation share invested on an outflow row', () => {
+      // ARRANGE — one withdrawal row selling 30 units (net of a 6€ fee) and
+      // gifting 3 extra units to the tontine; implied rate 3000/30 = 100.
+      expect.assertions(4)
+      const transactions = [
+        tx(100, 10000, 'FSOL'),
+        {
+          ...tx(-30, -2994, 'FSOL'),
+          cost: -6,
+          donationAmount: 3,
+          donationTarget: 'tontine',
+          type: 'withdrawal' as const,
+        },
+      ]
+      const tokens = [token('FSOL', 130)]
+
+      // ACT
+      const result = computeFimsPositions(transactions, tokens)
+
+      // ASSERT — 30 units sold (returned = net movement), 3 gifted units stay
+      // invested at the implied rate (tontine stake): units = 100 - 30 + 3.
+      expect(result[0]?.units).toBeCloseTo(73)
+      expect(result[0]?.invested).toBeCloseTo(10300)
+      expect(result[0]?.returned).toBeCloseTo(2994)
+      expect(result[0]?.currentValue).toBeCloseTo(73 * 130)
     })
 
     it('should ignore cash flows and transactions without token or amount', () => {

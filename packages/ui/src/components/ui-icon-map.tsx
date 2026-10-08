@@ -25,6 +25,7 @@ import {
   LucideImport,
   LucideKeyRound,
   LucideLetterText,
+  LucideLifeBuoy,
   LucideMoreVertical,
   LucideNetwork,
   LucideNotepadText,
@@ -79,6 +80,7 @@ export type UiIconName =
   | 'image'
   | 'import'
   | 'key'
+  | 'help'
   | 'menu'
   | 'mnemonic'
   | 'network'
@@ -121,6 +123,7 @@ const uiIconMap = new Map<UiIconName, UiIconLucide>()
   .set('explorer', LucideGlobe)
   .set('externalLink', LucideExternalLink)
   .set('hammer', LucideHammer)
+  .set('help', LucideLifeBuoy)
   .set('handCoins', LucideHandCoins)
   .set('hardware', LucideHardDrive)
   .set('image', LucideImage)
