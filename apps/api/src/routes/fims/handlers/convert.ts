@@ -5,6 +5,7 @@ import { tokens, transactions } from '../../../db/schema.js'
 import { withDb, withTransaction } from '../../../db/service.js'
 import { getFimsFeeRate } from '../../../fee-config.js'
 import { requireNotDemo, verifyWalletRequest } from '../../../services/auth/service.js'
+import { formatTokenUnits } from '../../../solana-util.js'
 import { BadRequest, type ConvertPositionBody } from '../api.js'
 import { insertFailed, MAX_DAILY_CONVERT_EUR, PRICE_STALE_MS, requireMember } from '../helpers.js'
 
@@ -73,12 +74,24 @@ export const handleConvertPosition = ({ payload }: { payload: Schema.Schema.Type
           insufficient: `amount exceeds position: ${payload.eurAmount} > ${available.toFixed(2)} ${payload.fromToken}`,
         } as const
       }
+      // Exact scaled-integer math (same pattern as wrappedTransfer): EUR,
+      // prices and the fee are scaled to 1e9 fractions so the ledger unit
+      // amounts are deterministic decimals — a float division would write
+      // `0.30000000000000004`-style strings into the numeric column.
+      const SCALE = 1_000_000_000n
+      const eurScaled = BigInt(Math.round(payload.eurAmount * Number(SCALE)))
+      const fromPriceScaled = BigInt(Math.round(fromPrice * Number(SCALE)))
+      const toPriceScaled = BigInt(Math.round(toPrice * Number(SCALE)))
+      const feeScaled = BigInt(Math.round((1 - getFimsFeeRate()) * Number(SCALE)))
+      const debitedScaled = (eurScaled * SCALE) / fromPriceScaled
+      const creditedScaled = (eurScaled * feeScaled * SCALE) / (SCALE * toPriceScaled)
+      if (debitedScaled <= 0n || creditedScaled <= 0n) return { insufficient: 'amount too small' } as const
       const inserted = await tx
         .insert(transactions)
         .values([
           {
             address: signer,
-            amount: `${-payload.eurAmount / fromPrice}`,
+            amount: formatTokenUnits(-debitedScaled, 9),
             date: now,
             movement: -payload.eurAmount,
             requestId: payload.requestId,
@@ -90,7 +103,7 @@ export const handleConvertPosition = ({ payload }: { payload: Schema.Schema.Type
             // Credited side is net of the operating fee — the member's
             // balance drops by the fee, which stays in the treasury.
             address: signer,
-            amount: `${(payload.eurAmount * (1 - getFimsFeeRate())) / toPrice}`,
+            amount: formatTokenUnits(creditedScaled, 9),
             date: now,
             movement: payload.eurAmount * (1 - getFimsFeeRate()),
 
