@@ -36,19 +36,19 @@ export function RequestFeatureDialog() {
         {(() => {
           switch (request.type) {
             case 'connect':
-              return <RequestUiConnect />
+              return <RequestUiConnect origin={request.origin} />
 
             case 'signAndSendTransaction':
-              return <RequestUiSignAndSendTransaction data={request.data} />
+              return <RequestUiSignAndSendTransaction data={request.data} origin={request.origin} />
 
             case 'signIn':
-              return <RequestUiSignIn data={request.data} />
+              return <RequestUiSignIn data={request.data} origin={request.origin} />
 
             case 'signMessage':
-              return <RequestUiSignMessage data={request.data} />
+              return <RequestUiSignMessage data={request.data} origin={request.origin} />
 
             case 'signTransaction':
-              return <RequestUiSignTransaction data={request.data} />
+              return <RequestUiSignTransaction data={request.data} origin={request.origin} />
 
             default:
               throw new Error('Unknown request type')

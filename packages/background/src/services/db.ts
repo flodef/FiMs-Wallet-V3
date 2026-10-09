@@ -12,8 +12,11 @@ import { createProxyService, registerService } from '@webext-core/proxy-service'
 import type { AppContext } from '@workspace/context/app-context'
 import type { Account } from '@workspace/db/account/account'
 import { accountCreate } from '@workspace/db/account/account-create'
+import { accountFindMany } from '@workspace/db/account/account-find-many'
 import { accountFindUnique } from '@workspace/db/account/account-find-unique'
 import { accountReadSecretKey } from '@workspace/db/account/account-read-secret-key'
+import type { Network } from '@workspace/db/network/network'
+import { networkFindUnique } from '@workspace/db/network/network-find-unique'
 import { settingFindUnique } from '@workspace/db/setting/setting-find-unique'
 import { walletCreate } from '@workspace/db/wallet/wallet-create'
 import type { WalletCreateInput } from '@workspace/db/wallet/wallet-create-input'
@@ -37,9 +40,20 @@ function createDbService(ctx: AppContext) {
 
         return account
       },
+      byPublicKey: async (publicKey: string): Promise<Account | undefined> => {
+        const accounts = await accountFindMany(ctx, { publicKey: address(publicKey) })
+        return accounts[0]
+      },
       keyPair: async (): Promise<CryptoKeyPair> => {
         const secretKey = await getDbService().account.secretKey()
 
+        return await createKeyPairFromBytes(new Uint8Array(JSON.parse(secretKey)))
+      },
+      keyPairForAccount: async (accountId: string): Promise<CryptoKeyPair> => {
+        const secretKey = await accountReadSecretKey(ctx, accountId)
+        if (!secretKey) {
+          throw new Error('Account secretKey not found')
+        }
         return await createKeyPairFromBytes(new Uint8Array(JSON.parse(secretKey)))
       },
       secretKey: async (): Promise<string> => {
@@ -70,6 +84,19 @@ function createDbService(ctx: AppContext) {
             },
           ],
         }
+      },
+    },
+    network: {
+      active: async (): Promise<Network> => {
+        const networkId = (await settingFindUnique(ctx, 'activeNetworkId'))?.value
+        if (!networkId) {
+          throw new Error('No active network set')
+        }
+        const network = await networkFindUnique(ctx, networkId)
+        if (!network) {
+          throw new Error('Active network not found')
+        }
+        return network
       },
     },
     wallet: {

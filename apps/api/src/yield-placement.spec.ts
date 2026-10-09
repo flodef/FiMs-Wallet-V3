@@ -1,9 +1,10 @@
 // cspell:ignore unstub AAEC
 
-import { AccountRole } from '@solana/kit'
+import { AccountRole, type Instruction } from '@solana/kit'
+import { findAssociatedTokenPda } from '@solana-program/token'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WrappedProductConfig } from './custodial.js'
-import { yieldInstructions } from './yield-placement.js'
+import { assertSafeYieldInstructions, yieldInstructions } from './yield-placement.js'
 
 const SIGNER = 'GyU9ZpTL3ce8kfS6XSpoiXaiiGb9svJfFEWer33SMmPS' as never
 const CONFIG = {
@@ -13,7 +14,10 @@ const CONFIG = {
   units: 1_000_000n,
 } as WrappedProductConfig
 
-function ixResponse() {
+const JUPITER_LEND = 'jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9'
+const KAMINO_LEND = 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD'
+
+function ixResponse(programId = JUPITER_LEND) {
   return new Response(
     JSON.stringify({
       instructions: [
@@ -24,7 +28,7 @@ function ixResponse() {
             { isSigner: false, isWritable: false, pubkey: 'DK4244TRxk9FAVccJ4cpEYje5j5nFVa9XGygoovxo37k' },
           ],
           data: 'AAEC',
-          programId: 'jup3YeL8QhtSx1e253b2FDvsMNC87fDrgQZivbrndc9',
+          programId,
         },
       ],
     }),
@@ -98,7 +102,7 @@ describe('yieldInstructions', () => {
       vi.stubEnv('FIMS_USD_YIELD', 'kamino')
       vi.stubEnv('FIMS_USD_YIELD_MARKET', 'MarketAddr1111111111111111111111111111111')
       vi.stubEnv('FIMS_USD_YIELD_RESERVE', 'ReserveAddr1111111111111111111111111111')
-      vi.mocked(fetch).mockResolvedValueOnce(ixResponse())
+      vi.mocked(fetch).mockResolvedValueOnce(ixResponse(KAMINO_LEND))
 
       // ACT
       const result = await yieldInstructions('fims-usd', 'deposit', CONFIG, SIGNER, 1_500_000n)
@@ -158,6 +162,157 @@ describe('yieldInstructions', () => {
       // ACT & ASSERT
       await expect(yieldInstructions('fims-eur', 'deposit', CONFIG, SIGNER, 1n)).rejects.toThrow(
         'yield API returned no instructions',
+      )
+    })
+
+    it('should throw when the provider returns a non-allowlisted program', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      vi.stubEnv('FIMS_EURO_YIELD', 'jupiter-earn')
+      vi.mocked(fetch).mockResolvedValueOnce(ixResponse('11111111111111111111111111111111'))
+
+      // ACT & ASSERT
+      await expect(yieldInstructions('fims-eur', 'deposit', CONFIG, SIGNER, 1n)).rejects.toThrow(
+        'non-allowlisted program',
+      )
+    })
+
+    it('should throw when the provider demands an extra signer', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      vi.stubEnv('FIMS_EURO_YIELD', 'jupiter-earn')
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            instructions: [
+              {
+                accounts: [
+                  { isSigner: true, isWritable: true, pubkey: SIGNER },
+                  { isSigner: true, isWritable: false, pubkey: '9LUr1oUuecMEm3zc8XezRPmoyQRXZuRt1bk6mv8t2BD9' },
+                ],
+                data: 'AAEC',
+                programId: JUPITER_LEND,
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+
+      // ACT & ASSERT
+      await expect(yieldInstructions('fims-eur', 'deposit', CONFIG, SIGNER, 1n)).rejects.toThrow('extra signer')
+    })
+  })
+})
+
+describe('assertSafeYieldInstructions', () => {
+  const meta = (pubkey: string, isSigner = false, isWritable = false) => ({
+    address: pubkey as never,
+    role: isSigner
+      ? isWritable
+        ? AccountRole.WRITABLE_SIGNER
+        : AccountRole.READONLY_SIGNER
+      : isWritable
+        ? AccountRole.WRITABLE
+        : AccountRole.READONLY,
+  })
+
+  async function transferChecked(source: string, mint: string, authority: string): Promise<Instruction> {
+    const data = new Uint8Array(10)
+    data[0] = 12
+    return {
+      accounts: [meta(source), meta(mint), meta('9LUr1oUuecMEm3zc8XezRPmoyQRXZuRt1bk6mv8t2BD9'), meta(authority)],
+      data,
+      programAddress: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
+    }
+  }
+
+  describe('expected behavior', () => {
+    it('should accept a TransferChecked sourcing the custody ATA of its mint', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const mint = 'HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr'
+      const [source] = await findAssociatedTokenPda({
+        mint: mint as never,
+        owner: SIGNER,
+        tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
+      })
+      const ix = await transferChecked(source, mint, SIGNER)
+
+      // ACT
+      const result = await assertSafeYieldInstructions('jupiter-earn', [ix], SIGNER)
+
+      // ASSERT
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('unexpected behavior', () => {
+    beforeEach(() => {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('should reject the System program', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const ix: Instruction = {
+        accounts: [],
+        data: new Uint8Array([0]),
+        programAddress: '11111111111111111111111111111111' as never,
+      }
+
+      // ACT & ASSERT
+      await expect(assertSafeYieldInstructions('jupiter-earn', [ix], SIGNER)).rejects.toThrow('non-allowlisted program')
+    })
+
+    it('should reject a SetAuthority token instruction', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const data = new Uint8Array(2)
+      data[0] = 6
+      const ix: Instruction = {
+        accounts: [meta('9LUr1oUuecMEm3zc8XezRPmoyQRXZuRt1bk6mv8t2BD9'), meta(SIGNER)],
+        data,
+        programAddress: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as never,
+      }
+
+      // ACT & ASSERT
+      await expect(assertSafeYieldInstructions('jupiter-earn', [ix], SIGNER)).rejects.toThrow(
+        'forbidden token instruction',
+      )
+    })
+
+    it('should reject a TransferChecked debiting a non-custody source', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const ix = await transferChecked(
+        'DK4244TRxk9FAVccJ4cpEYje5j5nFVa9XGygoovxo37k',
+        'HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr',
+        SIGNER,
+      )
+
+      // ACT & ASSERT
+      await expect(assertSafeYieldInstructions('jupiter-earn', [ix], SIGNER)).rejects.toThrow('non-custody source')
+    })
+
+    it('should reject a TransferChecked signed by another authority', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const mint = 'HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr'
+      const [source] = await findAssociatedTokenPda({
+        mint: mint as never,
+        owner: SIGNER,
+        tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
+      })
+      const ix = await transferChecked(source, mint, '9LUr1oUuecMEm3zc8XezRPmoyQRXZuRt1bk6mv8t2BD9')
+
+      // ACT & ASSERT
+      await expect(assertSafeYieldInstructions('jupiter-earn', [ix], SIGNER)).rejects.toThrow(
+        'malformed TransferChecked metas',
       )
     })
   })

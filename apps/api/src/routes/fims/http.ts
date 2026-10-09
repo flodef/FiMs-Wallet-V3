@@ -1,6 +1,6 @@
 import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
-import { address as solAddress } from '@solana/kit'
-import { and, asc, desc, eq, getTableColumns, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { type Signature, address as solAddress } from '@solana/kit'
+import { and, asc, desc, eq, getTableColumns, ilike, inArray, isNull, like, or, type SQL, sql } from 'drizzle-orm'
 import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.js'
 import {
@@ -9,6 +9,7 @@ import {
   custodialMint,
   custodialRedeem,
   custodialSweep,
+  type FimsWrappedProduct,
   productForBackingMint,
   productForWrappedMint,
   wrappedProductConfig,
@@ -266,6 +267,17 @@ const loadVotesWithResults = (signer: Option.Option<string>) =>
 // Prices feed ledger writes: a price older than the feed cadence is a free
 // option against the treasury, so conversions refuse to use it.
 const PRICE_STALE_MS = 10 * 60 * 1000
+
+// Wrapped-product circuit breakers (see wrappedTransfer): the operator price
+// may not jump more than this fraction away from the last ledger-implied
+// price, and rolling-24h caps bound mint+redeem volume in product units —
+// per member and globally. All overridable via env for ops tuning.
+const wrappedPriceBreaker = () => Number.parseFloat(process.env['FIMS_WRAPPED_PRICE_BREAKER'] ?? '0.1')
+const wrappedDailyCap = (scope: 'global' | 'member') =>
+  Number.parseFloat(
+    process.env[scope === 'member' ? 'FIMS_WRAPPED_MEMBER_DAILY_UNITS' : 'FIMS_WRAPPED_GLOBAL_DAILY_UNITS'] ??
+      (scope === 'member' ? '10000' : '50000'),
+  )
 // Bounds what a stolen member key can bleed through back-and-forth
 // conversions (each round-trip burns the fee). Generous enough to never
 // block a legitimate rebalance.
@@ -1256,7 +1268,8 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
 
 // Shared deposit/redeem pipeline: verify the member's on-chain transfer into
 // custody, then let the custodial mint (deposit) or burn+refund (redeem).
-// The ledger row is written in the BACKING symbol — members only see EURC/USDC.
+// The ledger row is written in the wrapped symbol (EURF/USDF) at the current
+// NAV — circuit breakers below bound what a manipulated index can do.
 function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
   return Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
@@ -1265,7 +1278,12 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
     const memberRows = yield* withDb((db) => db.select().from(users).where(addressLinkedToUser(signer)))
     const member = memberRows[0]
     if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
-    const existing = yield* withDb((db) => db.select().from(transactions).where(eq(transactions.signature, signature)))
+    const existing = yield* withDb((db) =>
+      db
+        .select()
+        .from(transactions)
+        .where(or(eq(transactions.signature, signature), like(transactions.signature, `${signature}:%`))),
+    )
     if (existing.length) {
       return { custodialSignature: '', transactions: existing }
     }
@@ -1276,18 +1294,18 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
     })
     const tx = yield* Effect.tryPromise({
       catch: () => new BadRequest({ reason: 'cannot fetch transaction from the RPC' }),
-      try: () => fetchDonationTransaction(signature, `${custody}`),
+      // Finalized only: minting irreversible wrapped units against a
+      // merely-confirmed member transfer is not worth the reorg risk.
+      try: () => fetchDonationTransaction(signature, `${custody}`, 'finalized'),
     })
-    if (!tx) return yield* Effect.fail(new BadRequest({ reason: 'transaction not found, failed, or not confirmed' }))
-    const match = tx.deltas
+    if (!tx) return yield* Effect.fail(new BadRequest({ reason: 'transaction not found, failed, or not finalized' }))
+    const matches = tx.deltas
       .map((delta) => ({
         delta,
         product: direction === 'deposit' ? productForBackingMint(delta.mint) : productForWrappedMint(delta.mint),
       }))
-      .find((entry) => entry.product != null)
-    const product = match?.product
-    const delta = match?.delta
-    if (!product || !delta)
+      .filter((entry) => entry.product != null)
+    if (!matches.length)
       return yield* Effect.fail(
         new BadRequest({
           reason:
@@ -1302,32 +1320,116 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
     if (payerRows[0]?.id !== member.id)
       return yield* Effect.fail(new BadRequest({ reason: 'transaction sender is not linked to your member account' }))
 
-    const config = wrappedProductConfig(product)
-    if (!config) return yield* Effect.fail(new CustodialUnavailable({ reason: `${product} mint is not configured` }))
-
     // Product units are priced by the operator-maintained index in `tokens`
-    // (EURF tracks the FiMs Token NAV, USDF starts at 1): minted units =
-    // backing / price; redeemed backing = product units * price.
-    const tokenRows = yield* withDb((db) => db.select().from(tokens))
-    const price = tokenRows.find((t) => t.symbol === config.symbol)?.value ?? 0
-    if (price <= 0)
-      return yield* Effect.fail(new CustodialUnavailable({ reason: `${config.symbol} price index is not configured` }))
-    const backingUnits = BigInt(Math.round(delta.amount * (direction === 'deposit' ? 1 : price) * 1e6))
-    const productUnits = BigInt(Math.round((delta.amount / (direction === 'deposit' ? price : 1)) * 1e6))
-    if (productUnits <= 0n || backingUnits <= 0n)
-      return yield* Effect.fail(new BadRequest({ reason: 'amount too small' }))
+    // (EURF tracks the FiMs Token NAV, USDF starts at 1), under three
+    // circuit breakers:
+    //   1. freshness — a stalled feed freezes mint/redeem (like convertPosition);
+    //   2. rate-of-change — the index may not deviate more than
+    //      FIMS_WRAPPED_PRICE_BREAKER (default 10%) from the price implied by
+    //      the member's previous wrapped ledger row, so a manipulated or
+    //      lagging feed cannot reprice a mint instantly;
+    //   3. rolling-24h caps — per member and global, bounding what a stolen
+    //      key or a bad price can move before humans react.
+    // A symmetric operating fee (getFimsFeeRate) prices the spread that would
+    // otherwise make NAV-lag arbitrage free.
+    const prepared: {
+      backingUnits: bigint
+      delta: (typeof matches)[number]['delta']
+      price: number
+      product: FimsWrappedProduct
+      productUnits: bigint
+      symbol: string
+    }[] = []
+    for (const { delta, product } of matches) {
+      const config = wrappedProductConfig(product as FimsWrappedProduct)
+      if (!config) return yield* Effect.fail(new CustodialUnavailable({ reason: `${product} mint is not configured` }))
+      if (delta.decimals !== 6)
+        return yield* Effect.fail(new CustodialUnavailable({ reason: `${product} mint expects 6-decimal tokens` }))
+      const tokenRows = yield* withDb((db) =>
+        db
+          .select({ updatedAt: tokens.updatedAt, value: tokens.value })
+          .from(tokens)
+          .where(eq(tokens.symbol, config.symbol)),
+      )
+      const tokenRow = tokenRows[0]
+      const price = tokenRow?.value ?? 0
+      if (price <= 0 || !tokenRow)
+        return yield* Effect.fail(
+          new CustodialUnavailable({ reason: `${config.symbol} price index is not configured` }),
+        )
+      if (Date.now() - tokenRow.updatedAt.getTime() > PRICE_STALE_MS)
+        return yield* Effect.fail(
+          new CustodialUnavailable({
+            reason: `stale price for ${config.symbol}: ${tokenRow.updatedAt.toISOString()}`,
+          }),
+        )
+      const lastImplied = (
+        (yield* withDb((db) =>
+          db.execute(
+            sql`SELECT ABS(movement / amount)::float AS p FROM transactions WHERE token = ${config.symbol} AND type IN ('deposit', 'withdrawal') AND amount <> 0 ORDER BY date DESC LIMIT 1`,
+          ),
+        )).rows as { p: number }[]
+      )[0]?.p
+      if (lastImplied && Math.abs(price / lastImplied - 1) > wrappedPriceBreaker())
+        return yield* Effect.fail(
+          new CustodialUnavailable({
+            reason: `${config.symbol} price moved ${(Math.abs(price / lastImplied - 1) * 100).toFixed(1)}% — circuit breaker`,
+          }),
+        )
+      // Exact integer math: price and the fee are scaled to 1e9 fractions.
+      const priceScaled = BigInt(Math.round(price * 1e9))
+      const feeScaled = BigInt(Math.round((1 - getFimsFeeRate()) * 1e9))
+      const received = delta.rawAmount
+      const backingUnits =
+        direction === 'deposit' ? received : (received * priceScaled * feeScaled) / 1_000_000_000_000_000_000n
+      const productUnits = direction === 'deposit' ? (received * feeScaled) / priceScaled : received
+      if (productUnits <= 0n || backingUnits <= 0n)
+        return yield* Effect.fail(new BadRequest({ reason: 'amount too small' }))
+      prepared.push({
+        backingUnits,
+        delta,
+        price,
+        product: product as FimsWrappedProduct,
+        productUnits,
+        symbol: config.symbol,
+      })
+    }
 
-    // Atomic replay claim placed AFTER validation but BEFORE the custodial
-    // mint/burn — two concurrent requests for the same tx signature cannot
-    // mint twice. Failed validation leaves no claim, so a member can retry
-    // while their tx is still confirming.
-    const claimed = yield* withDb((db) =>
-      db
-        .insert(usedSignatures)
-        .values({ signature: `wrapped:${signature}` })
-        .onConflictDoNothing()
-        .returning(),
-    )
+    // Cap check + replay claim inside ONE locked transaction: the user row
+    // lock serializes concurrent requests so the 24h sums cannot be raced,
+    // and each claim key is per-(tx, mint) so a tx carrying several backing
+    // legs mints each exactly once.
+    const claimOutcome = yield* withTransaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM users WHERE id = ${member.id} FOR UPDATE`)
+      const symbols = prepared.map((row) => row.symbol)
+      const memberUnits = (
+        await tx.execute(
+          sql`SELECT COALESCE(SUM(ABS(amount)), 0)::float AS units FROM transactions WHERE user_id = ${member.id} AND ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'`,
+        )
+      ).rows as { units: number }[]
+      const globalUnits = (
+        await tx.execute(
+          sql`SELECT COALESCE(SUM(ABS(amount)), 0)::float AS units FROM transactions WHERE ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'`,
+        )
+      ).rows as { units: number }[]
+      const requested = prepared.reduce((sum, row) => sum + Number(row.productUnits) / 1e6, 0)
+      if (Number(memberUnits[0]?.units ?? 0) + requested > wrappedDailyCap('member'))
+        return { limited: 'member daily wrapped limit exceeded' } as const
+      if (Number(globalUnits[0]?.units ?? 0) + requested > wrappedDailyCap('global'))
+        return { limited: 'global daily wrapped limit exceeded' } as const
+      const claimed = await Promise.all(
+        prepared.map((row) =>
+          tx
+            .insert(usedSignatures)
+            .values({ signature: `wrapped:${signature}:${row.delta.mint}` })
+            .onConflictDoNothing()
+            .returning(),
+        ),
+      )
+      return { claimed: prepared.filter((_, i) => (claimed[i]?.length ?? 0) > 0) } as const
+    })
+    if ('limited' in claimOutcome) return yield* Effect.fail(new BadRequest({ reason: claimOutcome.limited }))
+    const claimed = claimOutcome.claimed
     if (!claimed.length) {
       const rows = yield* withDb((db) => db.select().from(transactions).where(eq(transactions.signature, signature)))
       return { custodialSignature: '', transactions: rows }
@@ -1335,28 +1437,38 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
 
     const custodialSignature = yield* Effect.tryPromise({
       catch: (error) => new CustodialUnavailable({ reason: `custodial ${direction} failed: ${error}` }),
-      try: () =>
-        direction === 'deposit'
-          ? custodialMint(product, solAddress(tx.payer), productUnits, backingUnits)
-          : custodialRedeem(product, solAddress(tx.payer), productUnits, backingUnits),
+      try: async () => {
+        let last = '' as Signature
+        for (const row of claimed) {
+          last =
+            direction === 'deposit'
+              ? await custodialMint(row.product, solAddress(tx.payer), row.productUnits, row.backingUnits)
+              : await custodialRedeem(row.product, solAddress(tx.payer), row.productUnits, row.backingUnits)
+        }
+        return last
+      },
     })
 
-    const productAmount = Number(productUnits) / 1e6
-    const movement = price * productAmount
     const rows = yield* withDb((db) =>
       db
         .insert(transactions)
-        .values({
-          address: tx.payer,
-          amount: direction === 'deposit' ? productAmount : -productAmount,
-          cost: movement,
-          date: tx.blockTime ?? new Date(),
-          movement: direction === 'deposit' ? movement : -movement,
-          signature,
-          token: config.symbol,
-          type: direction === 'deposit' ? ('deposit' as const) : ('withdrawal' as const),
-          userId: member.id,
-        })
+        .values(
+          claimed.map((row) => {
+            const productAmount = Number(row.productUnits) / 1e6
+            const movement = row.price * productAmount
+            return {
+              address: tx.payer,
+              amount: direction === 'deposit' ? productAmount : -productAmount,
+              cost: movement,
+              date: tx.blockTime ?? new Date(),
+              movement: direction === 'deposit' ? movement : -movement,
+              signature: `${signature}:${row.delta.mint}`,
+              token: row.symbol,
+              type: direction === 'deposit' ? ('deposit' as const) : ('withdrawal' as const),
+              userId: member.id,
+            }
+          }),
+        )
         .returning(),
     )
     if (!rows.length) return yield* Effect.fail(insertFailed())

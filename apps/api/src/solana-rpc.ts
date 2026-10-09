@@ -10,7 +10,10 @@ const DEFAULT_RPC_URL = 'https://api.mainnet-beta.solana.com'
 export interface DonationDelta {
   // Token units moved (mint = the token's mint address, or 'SOL').
   amount: number
+  // Base units moved — the exact integer behind `amount` (SOL = lamports).
+  decimals: number
   mint: string
+  rawAmount: bigint
 }
 
 export interface VerifiedDonationTx {
@@ -45,13 +48,17 @@ interface ParsedTransaction {
   }
 }
 
-export async function fetchDonationTransaction(signature: string, tontine: string): Promise<VerifiedDonationTx | null> {
+export async function fetchDonationTransaction(
+  signature: string,
+  tontine: string,
+  commitment: 'confirmed' | 'finalized' = 'confirmed',
+): Promise<VerifiedDonationTx | null> {
   const res = await fetch(process.env['SOLANA_RPC_URL'] ?? DEFAULT_RPC_URL, {
     body: JSON.stringify({
       id: 1,
       jsonrpc: '2.0',
       method: 'getTransaction',
-      params: [signature, { commitment: 'confirmed', encoding: 'jsonParsed', maxSupportedTransactionVersion: 1 }],
+      params: [signature, { commitment, encoding: 'jsonParsed', maxSupportedTransactionVersion: 1 }],
     }),
     headers: { 'content-type': 'application/json' },
     method: 'POST',
@@ -78,7 +85,7 @@ export async function fetchDonationTransaction(signature: string, tontine: strin
   if (tontineIndex >= 0) {
     const lamports = (tx.meta.postBalances[tontineIndex] ?? 0) - (tx.meta.preBalances[tontineIndex] ?? 0)
     if (lamports > 0) {
-      deltas.push({ amount: lamports / 1e9, mint: 'SOL' })
+      deltas.push({ amount: lamports / 1e9, decimals: 9, mint: 'SOL', rawAmount: BigInt(lamports) })
     }
   }
 
@@ -102,7 +109,7 @@ export async function fetchDonationTransaction(signature: string, tontine: strin
   for (const [mint, post] of postByMint) {
     const delta = post.amount - (preByMint.get(mint) ?? 0n)
     if (delta > 0n) {
-      deltas.push({ amount: Number(delta) / 10 ** post.decimals, mint })
+      deltas.push({ amount: Number(delta) / 10 ** post.decimals, decimals: post.decimals, mint, rawAmount: delta })
     }
   }
 

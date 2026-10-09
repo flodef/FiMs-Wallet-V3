@@ -1,6 +1,9 @@
 import {
+  address,
   assertIsSendableTransaction,
+  type ClusterUrl,
   createSolanaRpc,
+  getAddressEncoder,
   getBase58Encoder,
   getSignatureFromTransaction,
   getTransactionDecoder,
@@ -9,6 +12,7 @@ import {
   signBytes,
   signTransaction,
 } from '@solana/kit'
+import { SOLANA_CHAINS } from '@solana/wallet-standard-chains'
 import type {
   SolanaSignAndSendTransactionInput,
   SolanaSignAndSendTransactionOutput,
@@ -19,6 +23,12 @@ import type {
   SolanaSignTransactionInput,
   SolanaSignTransactionOutput,
 } from '@solana/wallet-standard-features'
+import {
+  SolanaSignAndSendTransaction,
+  SolanaSignIn,
+  SolanaSignMessage,
+  SolanaSignTransaction,
+} from '@solana/wallet-standard-features'
 import { createSignInMessage } from '@solana/wallet-standard-util'
 import type { ProxyService, ProxyServiceKey } from '@webext-core/proxy-service'
 import { createProxyService, registerService } from '@webext-core/proxy-service'
@@ -27,116 +37,177 @@ import type { Account } from '@workspace/db/account/account'
 
 import { decodeTransportBytes } from '../transport-bytes.ts'
 import { getDbService } from './db.ts'
+import { grantedAddress, requireGranted } from './permissions.ts'
+import { assertMessageSignable } from './sign-guards.ts'
 
-const rpc = createSolanaRpc('https://api.devnet.solana.com')
-
-async function withUnlockedActiveWallet<T>(ctx: AppContext, operation: (active: Account) => Promise<T>): Promise<T> {
-  const active = await getDbService().account.active()
-
+// Signing hardening (was: an explicit "not safe for production" POC):
+//   - every call re-verifies the origin grant — the request popup is UX, the
+//     enforcement lives here;
+//   - the dApp's requested account must be exactly the granted one AND belong
+//     to this wallet; signing picks that account's own key, not whatever the
+//     active account happens to be;
+//   - signMessage refuses anything that decodes as a transaction or carries
+//     the API-auth prefix (blind-signing drain / cross-protocol phishing);
+//   - signAndSendTransaction goes to the user's ACTIVE network, never the
+//     hardcoded devnet.
+async function withSigningAccounts<T>(
+  ctx: AppContext,
+  origin: string,
+  addresses: string[],
+  operation: (signers: Map<string, { account: Account; keyPair: CryptoKeyPair }>) => Promise<T>,
+): Promise<T> {
+  const signers = new Map<string, { account: Account; keyPair: CryptoKeyPair }>()
   try {
-    await ctx.vault.requireWalletKey({ walletId: active.walletId })
-    return await operation(active)
+    for (const addr of new Set(addresses)) {
+      await requireGranted(origin, addr)
+      const account = await getDbService().account.byPublicKey(addr)
+      if (!account) {
+        throw new Error(`account ${addr} does not belong to this wallet`)
+      }
+      signers.set(addr, { account, keyPair: await getDbService().account.keyPairForAccount(account.id) })
+    }
+    return await operation(signers)
   } finally {
     ctx.vault.lock()
   }
 }
 
-// TODO: None of this code is safe for production use.
-// Private keys should not be handled in this way.
-// We are not verifying any input.
-// We are not validating any output.
-// We are not handling errors.
-// Nothing about this code should be trusted.
-// This is acceptable for a POC
-// This will be improved post-hackathon.
+function requireSigner(
+  signers: Map<string, { account: Account; keyPair: CryptoKeyPair }>,
+  addr: string,
+): { account: Account; keyPair: CryptoKeyPair } {
+  const signer = signers.get(addr)
+  if (!signer) {
+    throw new Error(`no signer resolved for account ${addr}`)
+  }
+  return signer
+}
+
 function createSignService(ctx: AppContext) {
   return {
     signAndSendTransaction: async (
       inputs: SolanaSignAndSendTransactionInput[],
+      origin: string,
     ): Promise<SolanaSignAndSendTransactionOutput[]> => {
-      return await withUnlockedActiveWallet(ctx, async () => {
-        const results: SolanaSignAndSendTransactionOutput[] = []
-        const key = await getDbService().account.keyPair()
+      return await withSigningAccounts(
+        ctx,
+        origin,
+        inputs.map((input) => input.account.address),
+        async (signers) => {
+          const network = await getDbService().network.active()
+          const rpc = createSolanaRpc(network.endpoint as ClusterUrl)
+          const results: SolanaSignAndSendTransactionOutput[] = []
 
-        for (const input of inputs) {
-          const decoded = getTransactionDecoder().decode(decodeTransportBytes(input.transaction))
-          const transaction = await signTransaction([key], decoded)
-          assertIsSendableTransaction(transaction)
-          const sendTransaction = sendTransactionWithoutConfirmingFactory({ rpc })
-          await sendTransaction(transaction, { commitment: 'confirmed' })
+          for (const input of inputs) {
+            const { keyPair } = requireSigner(signers, input.account.address)
+            const decoded = getTransactionDecoder().decode(decodeTransportBytes(input.transaction))
+            const transaction = await signTransaction([keyPair], decoded)
+            assertIsSendableTransaction(transaction)
+            const sendTransaction = sendTransactionWithoutConfirmingFactory({ rpc })
+            await sendTransaction(transaction, { commitment: 'confirmed' })
 
-          results.push({
-            signature: new Uint8Array(getBase58Encoder().encode(getSignatureFromTransaction(transaction))),
-          })
-        }
+            results.push({
+              signature: new Uint8Array(getBase58Encoder().encode(getSignatureFromTransaction(transaction))),
+            })
+          }
 
-        return results
-      })
+          return results
+        },
+      )
     },
-    signIn: async (inputs: SolanaSignInInput[]): Promise<SolanaSignInOutput[]> => {
-      return await withUnlockedActiveWallet(ctx, async (active) => {
-        const results: SolanaSignInOutput[] = []
-        const accounts = await getDbService().account.walletAccounts()
+    signIn: async (inputs: SolanaSignInInput[], origin: string): Promise<SolanaSignInOutput[]> => {
+      const granted = await grantedAddress(origin)
+      if (!granted) {
+        throw new Error(`origin is not connected: ${origin}`)
+      }
+      const host = new URL(origin).host
+      return await withSigningAccounts(
+        ctx,
+        origin,
+        inputs.map((input) => input.address || granted),
+        async (signers) => {
+          const results: SolanaSignInOutput[] = []
 
-        if (accounts.accounts[0] === undefined) {
-          throw new Error('No wallet account found')
-        }
+          for (const input of inputs) {
+            const addr = input.address || granted
+            if (input.domain && input.domain !== host) {
+              throw new Error(`sign-in domain ${input.domain} does not match origin ${origin}`)
+            }
+            const { account, keyPair } = requireSigner(signers, addr)
+            const signedMessage = createSignInMessage({
+              ...input,
+              address: addr,
+              domain: input.domain || host,
+            })
+            const signature = await signBytes(keyPair.privateKey, signedMessage)
 
-        const { privateKey } = await getDbService().account.keyPair()
+            results.push({
+              account: {
+                address: account.publicKey,
+                chains: SOLANA_CHAINS,
+                features: [SolanaSignAndSendTransaction, SolanaSignIn, SolanaSignMessage, SolanaSignTransaction],
+                publicKey: getAddressEncoder().encode(address(account.publicKey)),
+              },
+              signature,
+              signatureType: 'ed25519',
+              signedMessage,
+            })
+          }
 
-        for (const input of inputs) {
-          const signedMessage = createSignInMessage({
-            ...input,
-            address: input.address || active.publicKey,
-            domain: input.domain || globalThis.self?.location?.hostname || 'localhost',
-          })
-          const signature = await signBytes(privateKey, signedMessage)
-
-          results.push({
-            account: accounts.accounts[0],
-            signature,
-            signatureType: 'ed25519',
-            signedMessage,
-          })
-        }
-
-        return results
-      })
+          return results
+        },
+      )
     },
-    signMessage: async (inputs: SolanaSignMessageInput[]): Promise<SolanaSignMessageOutput[]> => {
-      return await withUnlockedActiveWallet(ctx, async () => {
-        const results: SolanaSignMessageOutput[] = []
-        const { privateKey } = await getDbService().account.keyPair()
+    signMessage: async (inputs: SolanaSignMessageInput[], origin: string): Promise<SolanaSignMessageOutput[]> => {
+      return await withSigningAccounts(
+        ctx,
+        origin,
+        inputs.map((input) => input.account.address),
+        async (signers) => {
+          const results: SolanaSignMessageOutput[] = []
 
-        for (const input of inputs) {
-          const signedMessage = decodeTransportBytes(input.message)
-          const signature = await signBytes(privateKey, signedMessage)
+          for (const input of inputs) {
+            const signedMessage = decodeTransportBytes(input.message)
+            // Re-checked here even though the action gates the same way: the
+            // sign service is the last line of defense.
+            assertMessageSignable(signedMessage)
+            const { keyPair } = requireSigner(signers, input.account.address)
+            const signature = await signBytes(keyPair.privateKey, signedMessage)
 
-          results.push({
-            signature,
-            signatureType: 'ed25519',
-            signedMessage,
-          })
-        }
+            results.push({
+              signature,
+              signatureType: 'ed25519',
+              signedMessage,
+            })
+          }
 
-        return results
-      })
+          return results
+        },
+      )
     },
-    signTransaction: async (inputs: SolanaSignTransactionInput[]): Promise<SolanaSignTransactionOutput[]> => {
-      return await withUnlockedActiveWallet(ctx, async () => {
-        const results: SolanaSignTransactionOutput[] = []
-        const key = await getDbService().account.keyPair()
+    signTransaction: async (
+      inputs: SolanaSignTransactionInput[],
+      origin: string,
+    ): Promise<SolanaSignTransactionOutput[]> => {
+      return await withSigningAccounts(
+        ctx,
+        origin,
+        inputs.map((input) => input.account.address),
+        async (signers) => {
+          const results: SolanaSignTransactionOutput[] = []
 
-        for (const input of inputs) {
-          const decoded = getTransactionDecoder().decode(decodeTransportBytes(input.transaction))
-          const signed = await signTransaction([key], decoded)
-          results.push({
-            signedTransaction: new Uint8Array(getTransactionEncoder().encode(signed)),
-          })
-        }
+          for (const input of inputs) {
+            const { keyPair } = requireSigner(signers, input.account.address)
+            const decoded = getTransactionDecoder().decode(decodeTransportBytes(input.transaction))
+            const signed = await signTransaction([keyPair], decoded)
+            results.push({
+              signedTransaction: new Uint8Array(getTransactionEncoder().encode(signed)),
+            })
+          }
 
-        return results
-      })
+          return results
+        },
+      )
     },
   }
 }

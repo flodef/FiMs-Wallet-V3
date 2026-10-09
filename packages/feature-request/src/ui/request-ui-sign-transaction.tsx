@@ -6,14 +6,16 @@ import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { useState } from 'react'
 import { useRequestSignApproval } from '../data-access/use-request-sign-approval.tsx'
+import { RequestUiOrigin } from './request-ui-origin.tsx'
 import { RequestUiTransactionReview } from './request-ui-transaction-review.tsx'
 import { RequestUiUnlockDialog } from './request-ui-unlock-dialog.tsx'
 
 export interface RequestUiSignTransactionProps {
   data: SolanaSignTransactionInput[]
+  origin: string
 }
 
-export function RequestUiSignTransaction({ data }: RequestUiSignTransactionProps) {
+export function RequestUiSignTransaction({ data, origin }: RequestUiSignTransactionProps) {
   const approval = useRequestSignApproval()
   const { t } = useTranslation('request')
   const [blockedMap, setBlockedMap] = useState<Record<number, boolean>>({})
@@ -22,6 +24,7 @@ export function RequestUiSignTransaction({ data }: RequestUiSignTransactionProps
   return (
     <div className="flex flex-col gap-4 p-4">
       <h1 className="text-center font-bold text-2xl">{t(($) => $.signTransactionTitle)}</h1>
+      <RequestUiOrigin origin={origin} />
       {data.map((input, index) => (
         <RequestUiTransactionReview
           input={input}
@@ -34,7 +37,7 @@ export function RequestUiSignTransaction({ data }: RequestUiSignTransactionProps
           disabled={approval.state.isBusy || blocked}
           onClick={() =>
             approval.approve(
-              async () => await getRequestService().resolve(await getSignService().signTransaction(data)),
+              async () => await getRequestService().resolve(await getSignService().signTransaction(data, origin)),
             )
           }
           variant="destructive"

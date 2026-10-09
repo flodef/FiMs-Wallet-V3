@@ -160,6 +160,9 @@ export async function custodialAddress(): Promise<Address> {
 
 const rpcUrl = () => process.env['SOLANA_RPC_URL'] ?? 'https://api.mainnet-beta.solana.com'
 
+const TOKEN_PROGRAM_ADDRESS = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as Address
+const SYSTEM_PROGRAM_ADDRESS = '11111111111111111111111111111111' as Address
+
 // Public RPCs rate-limit hard — retry transient 429s before giving up.
 async function rpcCall<T>(fn: () => Promise<T>): Promise<T> {
   for (let i = 0; ; i++) {
@@ -172,9 +175,100 @@ async function rpcCall<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Custody simulation guard.
+//
+// The custodial key signs composed transactions that include instructions
+// fetched over HTTP from yield providers. The structural allowlist in
+// yield-placement.ts narrows what providers may ask for, but the definitive
+// check is outcome-based: before sending, the transaction is simulated and
+// every custody-owned token account is compared pre/post. A debit that was
+// not explicitly declared by the caller fails closed — a provider cannot
+// drain the float, the yield positions, or move lamports beyond fee+rent.
+// ---------------------------------------------------------------------------
+export interface CustodyGuard {
+  // Custody token account → max base units the transaction may debit. Any
+  // other custody token account must be untouched or credited only.
+  maxDebits?: ReadonlyMap<Address, bigint>
+  // Max lamports the custody wallet may lose — fees + member ATA rent.
+  maxLamports?: bigint
+}
+
+const DEFAULT_MAX_LAMPORTS = 10_000_000n // 0.01 SOL
+
+// SPL Token / Token-2022 base account: mint(32) + owner(32) + amount u64 LE.
+function tokenAccountAmount(data: string | undefined): bigint {
+  if (!data) return 0n
+  const bytes = Uint8Array.from(atob(data), (char) => char.charCodeAt(0))
+  if (bytes.length < 72) return 0n
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getBigUint64(64, true)
+}
+
+function accountDataBase64(data: unknown): string | undefined {
+  if (typeof data === 'string') return data
+  if (Array.isArray(data) && typeof data[0] === 'string') return data[0]
+  return undefined
+}
+
+async function assertCustodySimulation(wire: string, custody: Address, guard: CustodyGuard): Promise<void> {
+  const rpc = createSolanaRpc(rpcUrl())
+  // Enumerate every custody token account — the set the guard must protect.
+  const pre = new Map<Address, bigint>()
+  const watched: Address[] = []
+  for (const programId of [TOKEN_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS]) {
+    const { value } = await rpcCall(() =>
+      rpc.getTokenAccountsByOwner(custody, { programId }, { encoding: 'base64' }).send(),
+    )
+    for (const { pubkey, account } of value) {
+      pre.set(pubkey, tokenAccountAmount(accountDataBase64(account.data)))
+      watched.push(pubkey)
+    }
+  }
+  const { value: preLamports } = await rpcCall(() => rpc.getBalance(custody).send())
+  const response = await rpcCall(() =>
+    rpc
+      .simulateTransaction(wire as never, {
+        accounts: { addresses: [custody, ...watched], encoding: 'base64' },
+        commitment: 'confirmed',
+        encoding: 'base64',
+        replaceRecentBlockhash: true,
+        sigVerify: false,
+      })
+      .send(),
+  )
+  const value = response.value as {
+    accounts?: ({ data?: unknown; lamports?: bigint | number | string; owner?: string } | null)[] | null
+    err: unknown
+  }
+  if (value.err) throw new Error(`custody simulation failed: ${JSON.stringify(value.err)}`)
+  const accounts = value.accounts ?? []
+  const walletAccount = accounts[0]
+  if (!walletAccount || `${walletAccount.owner}` !== SYSTEM_PROGRAM_ADDRESS) {
+    throw new Error('custody simulation changed the wallet owner')
+  }
+  const postLamports = BigInt(walletAccount.lamports ?? preLamports)
+  const lamportDebit = preLamports - postLamports
+  const maxLamports = guard.maxLamports ?? DEFAULT_MAX_LAMPORTS
+  if (lamportDebit > maxLamports) {
+    throw new Error(`custody simulation spends ${lamportDebit} lamports (max ${maxLamports})`)
+  }
+  for (let i = 0; i < watched.length; i++) {
+    const account = accounts[i + 1]
+    if (!account) continue // absent from simulation → unchanged
+    const debit = (pre.get(watched[i] as Address) ?? 0n) - tokenAccountAmount(accountDataBase64(account.data))
+    if (debit <= 0n) continue
+    const allowed = guard.maxDebits?.get(watched[i] as Address) ?? 0n
+    if (debit > allowed) {
+      throw new Error(`custody simulation debits ${debit} from ${watched[i]} (allowed ${allowed})`)
+    }
+  }
+}
+
 // Send + confirm a transaction signed by the custodial keypair. Confirmation
-// is polled over HTTP (no websocket in the worker); ~30 s worst case.
-async function sendCustodialTransaction(instructions: Instruction[]): Promise<Signature> {
+// is polled over HTTP (no websocket in the worker); ~30 s worst case. The
+// custody guard simulates the signed transaction first and aborts on any
+// undeclared debit of a custody account.
+async function sendCustodialTransaction(instructions: Instruction[], guard: CustodyGuard = {}): Promise<Signature> {
   const signer = await custodialSigner()
   const rpc = createSolanaRpc(rpcUrl())
   const { value: latestBlockhash } = await rpcCall(() => rpc.getLatestBlockhash().send())
@@ -186,6 +280,7 @@ async function sendCustodialTransaction(instructions: Instruction[]): Promise<Si
   )
   const signed = await signTransactionMessageWithSigners(message)
   const wire = getBase64EncodedWireTransaction(signed)
+  await assertCustodySimulation(wire, signer.address, guard)
   const signature = (await rpcCall(() =>
     rpc.sendTransaction(wire, { encoding: 'base64', skipPreflight: false }).send(),
   )) as Signature
@@ -243,20 +338,28 @@ export async function custodialMint(
   const signer = await custodialSigner()
   const destinationAta = await ata(config.mint, owner)
   const depositIxs = await yieldInstructions(product, 'deposit', config, signer.address, backingUnits)
-  const signature = await sendCustodialTransaction([
-    getCreateAssociatedTokenIdempotentInstruction({
-      ata: destinationAta,
-      mint: config.mint,
-      owner,
-      payer: signer,
-      tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
-    }),
-    ...depositIxs,
-    getMintToInstruction(
-      { amount: productUnits, mint: config.mint, mintAuthority: signer, token: destinationAta },
-      { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
-    ),
-  ])
+  const debits = new Map<Address, bigint>()
+  if (depositIxs.length > 0) {
+    const backingProgram = await mintProgram(config.backingMint)
+    debits.set(await ata(config.backingMint, signer.address, backingProgram), backingUnits)
+  }
+  const signature = await sendCustodialTransaction(
+    [
+      getCreateAssociatedTokenIdempotentInstruction({
+        ata: destinationAta,
+        mint: config.mint,
+        owner,
+        payer: signer,
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+      }),
+      ...depositIxs,
+      getMintToInstruction(
+        { amount: productUnits, mint: config.mint, mintAuthority: signer, token: destinationAta },
+        { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
+      ),
+    ],
+    { maxDebits: debits },
+  )
   // Best-effort float sweep right after minting — the backing just landed, so
   // move the excess to the multisig vault now rather than waiting for the
   // keeper. A failure must not fail the mint: the backing is already safe in
@@ -331,26 +434,29 @@ export async function custodialSweep(product: FimsWrappedProduct): Promise<{
   const amount = sweepAmount(await tokenBalance(custodyAta), floatTarget(product))
   if (amount === 0n) return { product, signature: null, swept: 0n }
   const vaultAta = await ata(config.backingMint, vault, backingProgram)
-  const signature = await sendCustodialTransaction([
-    getCreateAssociatedTokenIdempotentInstruction({
-      ata: vaultAta,
-      mint: config.backingMint,
-      owner: vault,
-      payer: signer,
-      tokenProgram: backingProgram,
-    }),
-    getTransferCheckedInstruction(
-      {
-        amount,
-        authority: signer,
-        decimals: 6,
-        destination: vaultAta,
+  const signature = await sendCustodialTransaction(
+    [
+      getCreateAssociatedTokenIdempotentInstruction({
+        ata: vaultAta,
         mint: config.backingMint,
-        source: custodyAta,
-      },
-      { programAddress: backingProgram },
-    ),
-  ])
+        owner: vault,
+        payer: signer,
+        tokenProgram: backingProgram,
+      }),
+      getTransferCheckedInstruction(
+        {
+          amount,
+          authority: signer,
+          decimals: 6,
+          destination: vaultAta,
+          mint: config.backingMint,
+          source: custodyAta,
+        },
+        { programAddress: backingProgram },
+      ),
+    ],
+    { maxDebits: new Map([[custodyAta, amount]]) },
+  )
   return { product, signature, swept: amount }
 }
 
@@ -427,29 +533,36 @@ export async function custodialRedeem(
     }
   }
   const withdrawIxs = await yieldInstructions(product, 'withdraw', config, signer.address, backingUnits)
-  return sendCustodialTransaction([
-    getBurnInstruction(
-      { account: custodyAta, amount: productUnits, authority: signer, mint: config.mint },
-      { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
-    ),
-    ...withdrawIxs,
-    getCreateAssociatedTokenIdempotentInstruction({
-      ata: destinationAta,
-      mint: config.backingMint,
-      owner,
-      payer: signer,
-      tokenProgram: backingProgram,
-    }),
-    getTransferCheckedInstruction(
-      {
-        amount: backingUnits,
-        authority: signer,
-        decimals: 6,
-        destination: destinationAta,
-        mint: config.backingMint,
-        source: backingCustodyAta,
-      },
-      { programAddress: backingProgram },
-    ),
+  const debits = new Map<Address, bigint>([
+    [custodyAta, productUnits],
+    [backingCustodyAta, backingUnits],
   ])
+  return sendCustodialTransaction(
+    [
+      getBurnInstruction(
+        { account: custodyAta, amount: productUnits, authority: signer, mint: config.mint },
+        { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
+      ),
+      ...withdrawIxs,
+      getCreateAssociatedTokenIdempotentInstruction({
+        ata: destinationAta,
+        mint: config.backingMint,
+        owner,
+        payer: signer,
+        tokenProgram: backingProgram,
+      }),
+      getTransferCheckedInstruction(
+        {
+          amount: backingUnits,
+          authority: signer,
+          decimals: 6,
+          destination: destinationAta,
+          mint: config.backingMint,
+          source: backingCustodyAta,
+        },
+        { programAddress: backingProgram },
+      ),
+    ],
+    { maxDebits: debits },
+  )
 }

@@ -42,7 +42,7 @@ describe('fetchDonationTransaction', () => {
 
       // ASSERT
       expect(result?.payer).toBe(PAYER)
-      expect(result?.deltas).toEqual([{ amount: 1, mint: 'SOL' }])
+      expect(result?.deltas).toEqual([{ amount: 1, decimals: 9, mint: 'SOL', rawAmount: 1_000_000_000n }])
       expect(result?.blockTime).toEqual(new Date(1_700_000_000_000))
       expect(fetch).toHaveBeenCalledTimes(1)
     })
@@ -83,7 +83,7 @@ describe('fetchDonationTransaction', () => {
 
       // ASSERT
       expect(result?.payer).toBe(PAYER)
-      expect(result?.deltas).toEqual([{ amount: 1, mint: MINT }])
+      expect(result?.deltas).toEqual([{ amount: 1, decimals: 6, mint: MINT, rawAmount: 1_000_000n }])
     })
 
     it('should ignore token balance movements not owned by the tontine', async () => {

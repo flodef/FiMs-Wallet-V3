@@ -11,13 +11,21 @@ import type {
 import type { StandardConnectInput, StandardConnectOutput } from '@wallet-standard/core'
 import type { Request } from './services/request.ts'
 
+// Every request carries the page origin captured by the content script —
+// the background service never trusts an origin supplied inside the payload.
 export interface Schema {
-  connect(input?: StandardConnectInput): Promise<StandardConnectOutput>
-  disconnect(): Promise<void>
+  connect(request: { input: StandardConnectInput | undefined; origin: string }): Promise<StandardConnectOutput>
+  disconnect(request: { origin: string }): Promise<void>
   onRequestCreate(request: Request): void
   onRequestReset(): void
-  signAndSendTransaction(inputs: SolanaSignAndSendTransactionInput[]): Promise<SolanaSignAndSendTransactionOutput[]>
-  signIn(inputs: SolanaSignInInput[]): Promise<SolanaSignInOutput[]>
-  signMessage(inputs: SolanaSignMessageInput[]): Promise<SolanaSignMessageOutput[]>
-  signTransaction(inputs: SolanaSignTransactionInput[]): Promise<SolanaSignTransactionOutput[]>
+  signAndSendTransaction(request: {
+    inputs: SolanaSignAndSendTransactionInput[]
+    origin: string
+  }): Promise<SolanaSignAndSendTransactionOutput[]>
+  signIn(request: { inputs: SolanaSignInInput[]; origin: string }): Promise<SolanaSignInOutput[]>
+  signMessage(request: { inputs: SolanaSignMessageInput[]; origin: string }): Promise<SolanaSignMessageOutput[]>
+  signTransaction(request: {
+    inputs: SolanaSignTransactionInput[]
+    origin: string
+  }): Promise<SolanaSignTransactionOutput[]>
 }

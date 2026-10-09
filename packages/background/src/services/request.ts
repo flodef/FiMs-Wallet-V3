@@ -36,6 +36,7 @@ export type Request =
   | {
       data: SolanaSignAndSendTransactionInput[]
       id?: number
+      origin: string
       reject: (reason?: Error) => void
       resolve: (data: SolanaSignAndSendTransactionOutput[]) => void
       type: 'signAndSendTransaction'
@@ -43,6 +44,7 @@ export type Request =
   | {
       data: SolanaSignInInput[]
       id?: number
+      origin: string
       reject: (reason?: Error) => void
       resolve: (data: SolanaSignInOutput[]) => void
       type: 'signIn'
@@ -50,6 +52,7 @@ export type Request =
   | {
       data: SolanaSignMessageInput[]
       id?: number
+      origin: string
       reject: (reason?: Error) => void
       resolve: (data: SolanaSignMessageOutput[]) => void
       type: 'signMessage'
@@ -57,6 +60,7 @@ export type Request =
   | {
       data: SolanaSignTransactionInput[]
       id?: number
+      origin: string
       reject: (reason?: Error) => void
       resolve: (data: SolanaSignTransactionOutput[]) => void
       type: 'signTransaction'
@@ -64,6 +68,7 @@ export type Request =
   | {
       data: StandardConnectInput | undefined
       id?: number
+      origin: string
       reject: (reason?: Error) => void
       resolve: (data: StandardConnectOutput) => void
       type: 'connect'
@@ -103,7 +108,7 @@ class RequestService {
     })
   }
 
-  async create<T extends Request['type']>(type: T, data: DataType<T>): Promise<ResolveType<T>> {
+  async create<T extends Request['type']>(type: T, data: DataType<T>, origin: string): Promise<ResolveType<T>> {
     if (this.request) {
       throw new Error('Request already exists')
     }
@@ -115,6 +120,7 @@ class RequestService {
       this.request = {
         data,
         id,
+        origin,
         reject,
         resolve,
         type,

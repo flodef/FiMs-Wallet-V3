@@ -1,10 +1,15 @@
 import { getRequestService } from '@workspace/background/services/request'
 
-export async function requestRouteLoader() {
+export interface RequestRouteData<T> {
+  data: T
+  origin: string
+}
+
+export async function requestRouteLoader(): Promise<RequestRouteData<unknown>> {
   const result = await getRequestService().get()
   if (!result) {
     throw new Response('Not Found', { status: 404 })
   }
 
-  return result.data
+  return { data: result.data, origin: result.origin }
 }
