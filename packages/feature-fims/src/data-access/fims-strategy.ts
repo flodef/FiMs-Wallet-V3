@@ -151,7 +151,7 @@ async function ataOf(owner: Address, mint: Address, tokenProgram: Address): Prom
 
 // mint → owning token program — legacy SPL or Token-2022 (FLiP): the on-chain
 // derivation of every ATA depends on it.
-async function mintTokenProgram(rpc: Rpc<GetAccountInfoApi>, mint: Address): Promise<Address> {
+export async function mintTokenProgram(rpc: Rpc<GetAccountInfoApi>, mint: Address): Promise<Address> {
   const program = (await fetchMint(rpc, mint)).programAddress
   if (program !== TOKEN_PROGRAM_ID && program !== TOKEN_2022_PROGRAM_ID) {
     throw new Error(`mint ${mint} lives under unexpected program ${program}`)
@@ -219,6 +219,7 @@ export async function buildDepositIx(
       { address: shareTokenProgram, role: READONLY },
       { address: SYSTEM_PROGRAM_ID, role: READONLY },
       { address: ATA_PROGRAM_ID, role: READONLY },
+      { address: strategy.collateralMint, role: READONLY },
     ],
     data,
     programAddress: FIMS_STRATEGY_PROGRAM_ID,

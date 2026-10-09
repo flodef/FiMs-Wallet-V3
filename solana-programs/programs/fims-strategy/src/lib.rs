@@ -98,7 +98,7 @@ pub mod fims_strategy {
         drop(data);
 
         validate_whitelists(&args.allowed_programs, &args.member_whitelist)?;
-        require!(args.strategies.len() <= MAX_STRATEGIES, StrategyError::BadConfig);
+        validate_strategies(&args.strategies)?;
         validate_mint_pairs(&args.allowed_mint_pairs)?;
 
         let state = &mut ctx.accounts.state;
@@ -181,6 +181,18 @@ pub mod fims_strategy {
                 == ata_address(ctx.accounts.member.key(), strategy.share_mint, &share_token_program),
             StrategyError::WrongAccount
         );
+        // The 1:1 share issuance only makes sense when collateral and share
+        // tokens count in the same base units — checked against the mints
+        // themselves, not a config promise.
+        require!(
+            ctx.accounts.collateral_mint.key() == strategy.collateral_mint,
+            StrategyError::WrongAccount
+        );
+        let collateral_decimals = mint_decimals(&ctx.accounts.collateral_mint.to_account_info())?;
+        require!(
+            mint_decimals(&ctx.accounts.share_mint.to_account_info())? == collateral_decimals,
+            StrategyError::BadConfig
+        );
 
         // The member's share ATA must exist by the time the delegate issues
         // shares — create it idempotently here so the member (not the
@@ -204,16 +216,31 @@ pub mod fims_strategy {
         )?;
 
         // Member is a real signer — a plain invoke (no PDA seeds) moves the
-        // collateral into the vault.
+        // collateral into the vault. TransferChecked: Token-2022 mints with
+        // a transfer-fee extension reject plain Transfer, and `pending` must
+        // record what ACTUALLY arrived — not what was sent — or shares would
+        // be issued for value the vault never received.
+        let received_before = token_amount(&ctx.accounts.vault_ata.to_account_info())?;
         invoke(
-            &spl_transfer_ix(&member_ata_program, ctx.accounts.member_ata.key(), ctx.accounts.vault_ata.key(), ctx.accounts.member.key(), amount),
+            &spl_transfer_checked_ix(
+                &member_ata_program,
+                ctx.accounts.member_ata.key(),
+                strategy.collateral_mint,
+                ctx.accounts.vault_ata.key(),
+                ctx.accounts.member.key(),
+                amount,
+                collateral_decimals,
+            ),
             &[
                 ctx.accounts.member_ata.to_account_info(),
+                ctx.accounts.collateral_mint.to_account_info(),
                 ctx.accounts.vault_ata.to_account_info(),
                 ctx.accounts.member.to_account_info(),
                 ctx.accounts.token_program.to_account_info(),
             ],
         )?;
+        let received = token_amount(&ctx.accounts.vault_ata.to_account_info())?.saturating_sub(received_before);
+        require!(received > 0, StrategyError::BadConfig);
         invoke(
             &system_instruction::transfer(&ctx.accounts.member.key(), &ctx.accounts.delegate.key(), tip_lamports),
             &[
@@ -227,8 +254,8 @@ pub mod fims_strategy {
         deposit.member = ctx.accounts.member.key();
         deposit.strategy = strategy_index;
         deposit.bump = ctx.bumps.member_deposit;
-        deposit.pending = deposit.pending.saturating_add(amount);
-        emit!(Deposited { member: deposit.member, strategy: strategy_index, amount, pending: deposit.pending });
+        deposit.pending = deposit.pending.saturating_add(received);
+        emit!(Deposited { member: deposit.member, strategy: strategy_index, amount: received, pending: deposit.pending });
         Ok(())
     }
 
@@ -456,12 +483,23 @@ pub mod fims_strategy {
             StrategyError::NotWhitelisted
         );
         spend_token_allowance(state, amount)?;
+        require!(ctx.accounts.mint_info.key() == mint, StrategyError::WrongAccount);
+        let decimals = mint_decimals(&ctx.accounts.mint_info.to_account_info())?;
 
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
         invoke_signed(
-            &spl_transfer_ix(&token_program, ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
+            &spl_transfer_checked_ix(
+                &token_program,
+                ctx.accounts.source.key(),
+                mint,
+                ctx.accounts.destination.key(),
+                vault_key,
+                amount,
+                decimals,
+            ),
             &[
                 ctx.accounts.source.to_account_info(),
+                ctx.accounts.mint_info.to_account_info(),
                 ctx.accounts.destination.to_account_info(),
                 ctx.accounts.vault.to_account_info(),
                 ctx.accounts.token_program.to_account_info(),
@@ -497,13 +535,27 @@ pub mod fims_strategy {
             StrategyError::WrongAccount
         );
         assert_healthy_ata(&ctx.accounts.source.to_account_info(), vault_key)?;
+        require!(
+            ctx.accounts.share_mint.key() == strategy.share_mint,
+            StrategyError::WrongAccount
+        );
+        let decimals = mint_decimals(&ctx.accounts.share_mint.to_account_info())?;
 
         deposit.pending -= amount;
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
         invoke_signed(
-            &spl_transfer_ix(&token_program, ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
+            &spl_transfer_checked_ix(
+                &token_program,
+                ctx.accounts.source.key(),
+                strategy.share_mint,
+                ctx.accounts.destination.key(),
+                vault_key,
+                amount,
+                decimals,
+            ),
             &[
                 ctx.accounts.source.to_account_info(),
+                ctx.accounts.share_mint.to_account_info(),
                 ctx.accounts.destination.to_account_info(),
                 ctx.accounts.vault.to_account_info(),
                 ctx.accounts.token_program.to_account_info(),
@@ -521,22 +573,48 @@ pub mod fims_strategy {
 
     /// Move yield to the treasury — the only delegate-callable exit besides
     /// capped member payouts. Destination is fixed in state, timelocked to
-    /// change.
+    /// change. Strategy-critical mints are never sweepable and the amount
+    /// burns the same rolling token cap as member payouts: a compromised
+    /// delegate can bleed the vault to the treasury (DoS / insolvency),
+    /// so the flow is bounded too.
     pub fn sweep(ctx: Context<Sweep>, mint: Pubkey, amount: u64) -> Result<()> {
-        let state = &ctx.accounts.state;
+        let state = &mut ctx.accounts.state;
         require!(!state.paused, StrategyError::Paused);
+        require!(amount > 0, StrategyError::BadConfig);
+        for strategy in &state.strategies {
+            require!(
+                mint != strategy.collateral_mint
+                    && mint != strategy.share_mint
+                    && mint != strategy.borrow_mint
+                    && mint != strategy.stable_mint
+                    && mint != strategy.position_nft_mint,
+                StrategyError::StrategyAssetNotSweepable
+            );
+        }
+        spend_token_allowance(state, amount)?;
         let vault_key = ctx.accounts.vault.key();
         let treasury = state.treasury;
         let token_program = require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, mint)?;
         require!(ctx.accounts.token_program.key() == token_program, StrategyError::WrongAccount);
         let expected_dest = ata_address(treasury, mint, &token_program);
         require!(ctx.accounts.destination.key() == expected_dest, StrategyError::WrongAccount);
+        require!(ctx.accounts.mint_info.key() == mint, StrategyError::WrongAccount);
+        let decimals = mint_decimals(&ctx.accounts.mint_info.to_account_info())?;
 
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
         invoke_signed(
-            &spl_transfer_ix(&token_program, ctx.accounts.source.key(), ctx.accounts.destination.key(), vault_key, amount),
+            &spl_transfer_checked_ix(
+                &token_program,
+                ctx.accounts.source.key(),
+                mint,
+                ctx.accounts.destination.key(),
+                vault_key,
+                amount,
+                decimals,
+            ),
             &[
                 ctx.accounts.source.to_account_info(),
+                ctx.accounts.mint_info.to_account_info(),
                 ctx.accounts.destination.to_account_info(),
                 ctx.accounts.vault.to_account_info(),
                 ctx.accounts.token_program.to_account_info(),
@@ -554,6 +632,17 @@ pub mod fims_strategy {
     pub fn guardian_pause(ctx: Context<GuardianOnly>) -> Result<()> {
         ctx.accounts.state.paused = true;
         emit!(Paused {});
+        Ok(())
+    }
+
+    /// Guardian veto: cancel a scheduled config change inside its timelock
+    /// window — the fast response to a compromised admin queuing a hostile
+    /// whitelist, treasury, or delegate change. Scheduling a fresh change
+    /// still needs the admin key, so the veto cannot be abused to create
+    /// one either.
+    pub fn guardian_cancel_pending(ctx: Context<GuardianOnly>) -> Result<()> {
+        ctx.accounts.state.pending = None;
+        emit!(PendingCanceled {});
         Ok(())
     }
 
@@ -581,18 +670,19 @@ pub mod fims_strategy {
         match &change {
             ConfigChange::AllowedPrograms { programs } => validate_whitelists(programs, &[])?,
             ConfigChange::MemberWhitelist { members } => validate_whitelists(&[], members)?,
-            ConfigChange::Strategies { strategies } => {
-                require!(strategies.len() <= MAX_STRATEGIES, StrategyError::BadConfig);
-            }
+            ConfigChange::Strategies { strategies } => validate_strategies(strategies)?,
             ConfigChange::MintPairs { pairs } => validate_mint_pairs(pairs)?,
+            ConfigChange::Caps { daily_lamports, tx_lamports, daily_token: _ } => {
+                require!(tx_lamports <= daily_lamports, StrategyError::BadConfig);
+            }
             _ => {}
         }
         let state = &mut ctx.accounts.state;
-        state.pending = Some(PendingConfig {
-            eta: Clock::get()?.unix_timestamp.saturating_add(ADMIN_TIMELOCK_SECS),
-            change,
-        });
-        emit!(ConfigScheduled {});
+        let eta = Clock::get()?.unix_timestamp.saturating_add(ADMIN_TIMELOCK_SECS);
+        state.pending = Some(PendingConfig { eta, change: change.clone() });
+        // The change itself is emitted for off-chain monitors — the guardian
+        // watches this event to veto hostile changes inside the window.
+        emit!(ConfigScheduled { eta, change });
         Ok(())
     }
 
@@ -616,7 +706,15 @@ pub mod fims_strategy {
                 state.tx_cap_lamports = tx_lamports;
                 state.daily_token_cap = daily_token;
             }
-            ConfigChange::Strategies { strategies } => state.strategies = strategies,
+            ConfigChange::Strategies { strategies } => {
+                for strategy in &strategies {
+                    require!(
+                        state.allowed_programs.contains(&strategy.vaults_program),
+                        StrategyError::ProgramNotAllowed
+                    );
+                }
+                state.strategies = strategies;
+            }
             ConfigChange::MintPairs { pairs } => state.allowed_mint_pairs = pairs,
         }
         emit!(ConfigApplied {});
@@ -658,6 +756,20 @@ fn validate_mint_pairs(pairs: &[MintPair]) -> Result<()> {
             !pairs[..i].iter().any(|q| q.from == p.from && q.to == p.to),
             StrategyError::BadConfig
         );
+    }
+    Ok(())
+}
+
+/// Strategy-config sanity: bounded size and every pubkey set. The
+/// vaults_program whitelist check happens at apply time so programs can be
+/// scheduled together with the strategy that uses them.
+fn validate_strategies(strategies: &[StrategyConfig]) -> Result<()> {
+    require!(strategies.len() <= MAX_STRATEGIES, StrategyError::BadConfig);
+    for s in strategies {
+        require!(s.vaults_program != Pubkey::default(), StrategyError::BadConfig);
+        require!(s.collateral_mint != Pubkey::default(), StrategyError::BadConfig);
+        require!(s.share_mint != Pubkey::default(), StrategyError::BadConfig);
+        require!(s.collateral_mint != s.share_mint, StrategyError::BadConfig);
     }
     Ok(())
 }
@@ -713,11 +825,27 @@ fn cpi_whitelisted(
         metas.iter().any(|m| m.pubkey == vault_key && m.is_signer),
         StrategyError::VaultMustSign
     );
+    // Vault invariants: the PDA is a dataless System-owned lamport account
+    // that also holds the SOL payout pool. A whitelisted program — or any
+    // program it chains into, since signer privilege propagates — could
+    // otherwise siphon the lamports via system::transfer or hijack the
+    // account via system::assign/allocate. Token post-conditions see none
+    // of that, so lamports / owner / data_len are asserted around the call.
+    let vault_info = data_accounts
+        .iter()
+        .find(|info| info.key() == vault_key)
+        .ok_or(StrategyError::MissingAccounts)?;
+    require!(*vault_info.owner == SYSTEM_PROGRAM_ID, StrategyError::WrongAccount);
+    require!(vault_info.data_len() == 0, StrategyError::WrongAccount);
+    let vault_lamports_before = vault_info.lamports();
     invoke_signed(
         &Instruction { program_id, accounts: metas, data },
         remaining,
         &[&[b"vault", &[vault_bump]]],
     )?;
+    require!(vault_info.lamports() >= vault_lamports_before, StrategyError::VaultDrained);
+    require!(*vault_info.owner == SYSTEM_PROGRAM_ID, StrategyError::VaultDrained);
+    require!(vault_info.data_len() == 0, StrategyError::VaultDrained);
     Ok(())
 }
 
@@ -933,14 +1061,41 @@ fn is_member_ata(state: &StrategyState, destination: &Pubkey, mint: Pubkey) -> b
     })
 }
 
-fn spl_transfer_ix(token_program: &Pubkey, source: Pubkey, destination: Pubkey, authority: Pubkey, amount: u64) -> Instruction {
-    let mut data = Vec::with_capacity(9);
-    data.push(3u8); // Transfer — same discriminator on SPL Token and Token-2022.
+/// SPL Mint decimals: mint_authority COption(36) + supply u64 + decimals u8
+/// at offset 44 — identical base layout on Token and Token-2022 (extension
+/// data lives past byte 82). `is_initialized` at 45 must be set.
+fn mint_decimals(mint: &AccountInfo) -> Result<u8> {
+    require!(
+        mint.owner == &TOKEN_PROGRAM_ID || mint.owner == &TOKEN_2022_PROGRAM_ID,
+        StrategyError::WrongAccount
+    );
+    let data = mint.try_borrow_data()?;
+    require!(data.len() >= 82, StrategyError::WrongAccount);
+    require!(data[45] != 0, StrategyError::WrongAccount);
+    Ok(data[44])
+}
+
+/// TransferChecked — required for Token-2022 mints carrying a transfer-fee
+/// extension (plain Transfer is rejected there) and strictly safer: the mint
+/// account authenticates the token program and the decimals guard the amount.
+fn spl_transfer_checked_ix(
+    token_program: &Pubkey,
+    source: Pubkey,
+    mint: Pubkey,
+    destination: Pubkey,
+    authority: Pubkey,
+    amount: u64,
+    decimals: u8,
+) -> Instruction {
+    let mut data = Vec::with_capacity(10);
+    data.push(12u8); // TransferChecked — same discriminator on SPL Token and Token-2022.
     data.extend_from_slice(&amount.to_le_bytes());
+    data.push(decimals);
     Instruction {
         program_id: *token_program,
         accounts: vec![
             AccountMeta::new(source, false),
+            AccountMeta::new_readonly(mint, false),
             AccountMeta::new(destination, false),
             AccountMeta::new_readonly(authority, true),
         ],
@@ -1223,13 +1378,16 @@ pub struct PayoutToken<'info> {
     /// CHECK: SPL Token or Token-2022 program — verified against `source` in
     /// the handler (the mint's owner decides which).
     pub token_program: UncheckedAccount<'info>,
+    /// CHECK: the mint account itself — key verified against the `mint` arg;
+    /// decimals read for TransferChecked.
+    pub mint_info: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
 pub struct Sweep<'info> {
     #[account(constraint = caller.key() == state.delegate @ StrategyError::NotDelegate)]
     pub caller: Signer<'info>,
-    #[account(seeds = [b"state"], bump = state.bump)]
+    #[account(mut, seeds = [b"state"], bump = state.bump)]
     pub state: Box<Account<'info, StrategyState>>,
     /// CHECK: validated by seeds.
     #[account(mut, seeds = [b"vault"], bump = state.vault_bump)]
@@ -1242,6 +1400,9 @@ pub struct Sweep<'info> {
     pub destination: UncheckedAccount<'info>,
     /// CHECK: SPL Token or Token-2022 program — verified against `source`.
     pub token_program: UncheckedAccount<'info>,
+    /// CHECK: the mint account itself — key verified against the `mint` arg;
+    /// decimals read for TransferChecked.
+    pub mint_info: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -1314,6 +1475,9 @@ pub struct Deposit<'info> {
     /// CHECK: pinned to the canonical ATA program id.
     #[account(address = ATA_PROGRAM_ID)]
     pub ata_program: UncheckedAccount<'info>,
+    /// CHECK: the collateral mint account — key verified against the
+    /// strategy inside the handler; decimals read for TransferChecked.
+    pub collateral_mint: UncheckedAccount<'info>,
 }
 
 /// Delegate-issued share payout tied to a recorded deposit — no whitelist
@@ -1341,6 +1505,9 @@ pub struct IssueShares<'info> {
     pub destination: UncheckedAccount<'info>,
     /// CHECK: SPL Token or Token-2022 — verified against `source`.
     pub token_program: UncheckedAccount<'info>,
+    /// CHECK: the share mint account — key verified against the strategy in
+    /// the handler; decimals read for TransferChecked.
+    pub share_mint: UncheckedAccount<'info>,
 }
 
 /// Per-member pending deposit: collateral base units owed back as share
@@ -1411,9 +1578,14 @@ pub struct DelegateChanged {
     pub delegate: Pubkey,
 }
 #[event]
-pub struct ConfigScheduled {}
+pub struct ConfigScheduled {
+    pub eta: i64,
+    pub change: ConfigChange,
+}
 #[event]
 pub struct ConfigApplied {}
+#[event]
+pub struct PendingCanceled {}
 #[event]
 pub struct AdminProposed {
     pub new_admin: Pubkey,
@@ -1505,6 +1677,10 @@ pub enum StrategyError {
     InsufficientDeposit,
     #[msg("min_out below the pair's deviation bound")]
     MinOutTooLow,
+    #[msg("vault lamports, owner or data changed during the CPI")]
+    VaultDrained,
+    #[msg("strategy-critical mints cannot be swept")]
+    StrategyAssetNotSweepable,
 }
 
 // ---------------------------------------------------------------------------

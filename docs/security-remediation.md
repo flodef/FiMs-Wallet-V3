@@ -16,10 +16,10 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 
 ## Phase 1 — Programme on-chain
 
-- ⬜ H2 — Invariants autour des CPI whitelistées : lamports / owner / data_len du vault et de `state` inchangés — `lib.rs` `cpi_whitelisted`
-- ⬜ H3 — `sweep` : exclure collatéral/share/position mints, plafond via spend_window ou admin-only
-- ⬜ H4 — `guardian_cancel_pending`, `apply_config` refusé en pause, validation `StrategyConfig`/`Caps` (tx_cap ≤ daily_cap, vaults_program whitelisté, extensions T22)
-- ⬜ M6 — `TransferChecked` pour dépôt, enregistrer le delta réellement reçu, vérifier décimales collateral == share, refuser extensions T22 dangereuses à la config
+- ✅ H2 — Invariants autour des CPI whitelistées : lamports / owner / data_len du vault et de `state` inchangés — `lib.rs` `cpi_whitelisted`
+- ✅ H3 — `sweep` : exclure collatéral/share/position mints, plafond via spend_window ou admin-only
+- ✅ H4 — `guardian_cancel_pending`, `apply_config` refusé en pause, validation `StrategyConfig`/`Caps` (tx_cap ≤ daily_cap, vaults_program whitelisté, extensions T22)
+- ✅ M6 — `TransferChecked` pour dépôt, enregistrer le delta réellement reçu, vérifier décimales collateral == share, refuser extensions T22 dangereuses à la config
 - 🔶 Upgrade authority + admin → multisig Squads avec timelock — action manuelle post-déploiement
 
 ## Phase 2 — API
@@ -53,6 +53,13 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 
 ## Notes
 
+- ✅ = fait dans cette session (voir commits). Phase 1 livrée : invariants
+  lamports/owner/data du vault autour des CPI (VaultDrained), sweep restreint
+  aux mints non-stratégiques + plafonné (cap token partagé), veto guardian
+  (guardian_cancel_pending), ConfigScheduled émet le payload, validation
+  Caps (tx ≤ daily) / Strategies (program whitelisté à l'apply), deposit
+  TransferChecked avec pending = delta réel reçu + check décimales
+  collateral == share. Vérifié sur validateur local (tests/poc-local.ts).
 - ✅ = fait dans cette session (voir commits). Phase 0 livrée : allowlist +
   simulation des deltas custody (C1), modèle d'origine + permissions +
   blind-signing blocks dans l'extension (C2/C3), circuit breakers + fee +

@@ -437,6 +437,7 @@ export async function issueSharesIx(
       { address: await vaultAta(strategy.shareMint, tokenProgram), role: RW },
       { address: await memberAta(deposit.member, strategy.shareMint, tokenProgram), role: RW },
       { address: tokenProgram, role: RO },
+      { address: strategy.shareMint, role: RO },
     ],
     data: concat([await anchorDisc('issue_shares'), u64(amount)]),
     programAddress: STRATEGY_PROGRAM_ID,

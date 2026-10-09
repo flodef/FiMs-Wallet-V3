@@ -109,12 +109,16 @@ async function main() {
   // deterministic mints so the whitelisted swap pair survives reruns
   const mintA = Keypair.fromSeed(createHash('sha256').update('fims-poc-mintA').digest())
   const mintB = Keypair.fromSeed(createHash('sha256').update('fims-poc-mintB').digest())
+  // mintC is NOT strategy-critical — sweepable (yield / airdropped token).
+  const mintC = Keypair.fromSeed(createHash('sha256').update('fims-poc-mintC').digest())
   const vaultAtaA = ataOf(vaultPda, mintA.publicKey)
   const vaultAtaB = ataOf(vaultPda, mintB.publicKey)
+  const vaultAtaC = ataOf(vaultPda, mintC.publicKey)
   const memberAtaA = ataOf(member.publicKey, mintA.publicKey)
   const member2AtaA = ataOf(member2.publicKey, mintA.publicKey)
   const member2AtaB = ataOf(member2.publicKey, mintB.publicKey)
   const treasuryAtaA = ataOf(payer.publicKey, mintA.publicKey) // treasury=payer
+  const treasuryAtaC = ataOf(payer.publicKey, mintC.publicKey)
   const attackerAtaA = ataOf(attacker.publicKey, mintA.publicKey)
   const attackerAtaB = ataOf(attacker.publicKey, mintB.publicKey)
 
@@ -220,7 +224,16 @@ async function main() {
         SystemProgram.transfer({ fromPubkey: payer.publicKey, lamports: 500_000_000, toPubkey: vaultPda }),
         ...mintIx(mintA),
         ...mintIx(mintB),
+        ...mintIx(mintC),
+      ],
+      [payer, mintA, mintB, mintC],
+      'create mints A/B/C',
+    )
+    await send(
+      [
         createAtaIx(payer.publicKey, vaultAtaA, vaultPda, mintA.publicKey),
+        createAtaIx(payer.publicKey, vaultAtaC, vaultPda, mintC.publicKey),
+        createAtaIx(payer.publicKey, treasuryAtaC, payer.publicKey, mintC.publicKey),
         createAtaIx(payer.publicKey, vaultAtaB, vaultPda, mintB.publicKey),
         createAtaIx(payer.publicKey, memberAtaA, member.publicKey, mintA.publicKey),
         createAtaIx(payer.publicKey, member2AtaA, member2.publicKey, mintA.publicKey),
@@ -258,9 +271,19 @@ async function main() {
           ],
           programId: TOKEN_PROGRAM,
         }),
+        // 1000 mintC to vault — the sweepable yield token
+        new TransactionInstruction({
+          data: Buffer.concat([Buffer.from([7]), u64(1_000_000_000n)]),
+          keys: [
+            { isSigner: false, isWritable: true, pubkey: mintC.publicKey },
+            { isSigner: false, isWritable: true, pubkey: vaultAtaC },
+            { isSigner: true, isWritable: false, pubkey: payer.publicKey },
+          ],
+          programId: TOKEN_PROGRAM,
+        }),
       ],
-      [payer, mintA, mintB],
-      'fund vault + mint A/B supplies + member2 deposit balance',
+      [payer],
+      'create ATAs + fund vault mint balances',
     )
     // member2 pays its own deposit tx fee + member_deposit PDA rent
     await send(
@@ -323,6 +346,7 @@ async function main() {
         { isSigner: false, isWritable: true, pubkey: vaultAtaA },
         { isSigner: false, isWritable: true, pubkey: dest },
         { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
+        { isSigner: false, isWritable: false, pubkey: mintA.publicKey }, // mint_info
       ],
       programId: PROGRAM_ID,
     })
@@ -330,22 +354,38 @@ async function main() {
   await trySend([payoutTokenIx(attackerAtaA, 100_000_000n)], [payer], 'payout_token → attacker ATA')
   await trySend([payoutTokenIx(memberAtaA, 500_000_000n)], [payer], 'payout_token over token cap')
 
-  // 5. sweep → treasury only ----------------------------------------------------
-  const sweepIx = (dest: PublicKey, amount: bigint) =>
+  // 5. sweep → treasury only, yield mints only, token-cap bound --------------
+  const sweepIx = (mint: PublicKey, source: PublicKey, dest: PublicKey, amount: bigint) =>
     new TransactionInstruction({
-      data: Buffer.concat([disc('sweep'), mintA.publicKey.toBuffer(), u64(amount)]),
+      data: Buffer.concat([disc('sweep'), mint.toBuffer(), u64(amount)]),
       keys: [
         { isSigner: true, isWritable: false, pubkey: payer.publicKey },
-        { isSigner: false, isWritable: false, pubkey: statePda },
+        { isSigner: false, isWritable: true, pubkey: statePda },
         { isSigner: false, isWritable: true, pubkey: vaultPda },
-        { isSigner: false, isWritable: true, pubkey: vaultAtaA },
+        { isSigner: false, isWritable: true, pubkey: source },
         { isSigner: false, isWritable: true, pubkey: dest },
         { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
+        { isSigner: false, isWritable: false, pubkey: mint }, // mint_info
       ],
       programId: PROGRAM_ID,
     })
-  await send([sweepIx(treasuryAtaA, 50_000_000n)], [payer], 'sweep 50 → treasury ATA')
-  await trySend([sweepIx(memberAtaA, 50_000_000n)], [payer], 'sweep → member ATA (wrong dest)')
+  await send([sweepIx(mintC.publicKey, vaultAtaC, treasuryAtaC, 50_000_000n)], [payer], 'sweep 50 mintC → treasury ATA')
+  await trySend(
+    [sweepIx(mintA.publicKey, vaultAtaA, treasuryAtaA, 50_000_000n)],
+    [payer],
+    'sweep collateral mint (strategy asset)',
+  )
+  await trySend(
+    [sweepIx(mintB.publicKey, vaultAtaB, ataOf(payer.publicKey, mintB.publicKey), 50_000_000n)],
+    [payer],
+    'sweep share mint (strategy asset)',
+  )
+  await trySend(
+    [sweepIx(mintC.publicKey, vaultAtaC, memberAtaA, 50_000_000n)],
+    [payer],
+    'sweep → member ATA (wrong dest)',
+  )
+  await trySend([sweepIx(mintC.publicKey, vaultAtaC, treasuryAtaC, 500_000_000n)], [payer], 'sweep over token cap')
 
   // 5b. member deposit → issue_shares (1:1 guarantee, no whitelist needed) ----
   // member2 is NOT in member_whitelist — deposit is permissionless and
@@ -371,6 +411,7 @@ async function main() {
         { isSigner: false, isWritable: false, pubkey: shareProgram }, // share_token_program
         { isSigner: false, isWritable: false, pubkey: SystemProgram.programId },
         { isSigner: false, isWritable: false, pubkey: ATA_PROGRAM },
+        { isSigner: false, isWritable: false, pubkey: mintA.publicKey }, // collateral_mint
       ],
       programId: PROGRAM_ID,
     })
@@ -396,6 +437,7 @@ async function main() {
         { isSigner: false, isWritable: true, pubkey: source },
         { isSigner: false, isWritable: true, pubkey: dest },
         { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
+        { isSigner: false, isWritable: false, pubkey: mintB.publicKey }, // share_mint
       ],
       programId: PROGRAM_ID,
     })
@@ -411,6 +453,7 @@ async function main() {
         { isSigner: false, isWritable: true, pubkey: vaultAtaB },
         { isSigner: false, isWritable: true, pubkey: dest },
         { isSigner: false, isWritable: false, pubkey: TOKEN_PROGRAM },
+        { isSigner: false, isWritable: false, pubkey: mintB.publicKey }, // mint_info
       ],
       programId: PROGRAM_ID,
     })
@@ -499,6 +542,42 @@ async function main() {
   await trySend([payoutIx(member.publicKey, 10_000_000n)], [payer], 'payout while paused')
   await send([pauseIx(payer.publicKey, false)], [payer], 'admin unpause')
   await trySend([pauseIx(guardian.publicKey, false)], [guardian], 'guardian tries admin-only set_paused')
+
+  // guardian veto: a scheduled config change can be canceled inside the
+  // timelock — apply then fails with NothingPending.
+  await send(
+    [
+      new TransactionInstruction({
+        data: Buffer.concat([disc('schedule_config'), cfgArgs]),
+        keys: stateKeys(payer.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [payer],
+    'schedule_config (veto target)',
+  )
+  await send(
+    [
+      new TransactionInstruction({
+        data: disc('guardian_cancel_pending'),
+        keys: stateKeys(guardian.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [guardian],
+    'guardian_cancel_pending (veto)',
+  )
+  await trySend(
+    [
+      new TransactionInstruction({
+        data: disc('apply_config'),
+        keys: stateKeys(payer.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [payer],
+    'apply_config after guardian veto',
+  )
 
   // two-step admin handover
   const proposeIx = Buffer.concat([disc('propose_admin'), newAdmin.publicKey.toBuffer()])
