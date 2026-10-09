@@ -28,7 +28,7 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 - ✅ M1 — `chainLabels` : membres non-publics invisibles hors owner/admin, carnet d'adresses limité aux entrées du propriétaire
 - ✅ M2 — `deleteUser`/`addUserAddress`/`removeUserAddress` réservés à l'adresse canonique (ou admin) + step-up signature ; audit trail étendu à tous les signataires
 - ✅ M3 — Cap `convertPosition` vérifié sous verrou membre dans la transaction ; donations enregistrées via claim transactionnel `donation:{sig}` (pas de doublon concurrent) ; cooldown ballot sous verrou
-- ✅ M4 — Custodial : machine d'états `wrapped_claims` (claimed → minted → recorded, migration `0016`), replay du ledger sans re-mint, legs `claimed` bloquants avec déblocage admin, sweep sorti de la requête (keeper `custodialSweep`)
+- ✅ M4 — Custodial : machine d'états `wrapped_claims` (claimed → minted → recorded, migration `0016`), replay du ledger sans re-mint, legs `claimed` bloquants avec déblocage admin, sweep sorti de la requête (keeper `custodialSweep`), `maxDuration` 300 s sur la fonction API
 - ✅ M5 — Keeper : lease TTL `keeper_locks` (migration `0017`), reprise horaire des placements `failed` (5/passe), rejet d'un quote sans `otherAmountThreshold`
 - ✅ M9 — CSP prod sans `localhost:*` + `upgrade-insecure-requests` ; erreurs chaîne/custodial génériques (détail en logs) ; quota Helius par wallet (60/10 min via `rate_limits`)
 
