@@ -40,6 +40,7 @@ import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import { keeperLocks, strategyOps } from './db/schema.js'
 import type { Db } from './db/service.js'
 import { createBackendSigner } from './signer.js'
+import { fetchProviderInstructions, rpcCall, rpcUrl, tokenBalance } from './solana-util.js'
 
 export const STRATEGY_PROGRAM_ID = address('AtmC4gPAEZ1r4fD698mDaCpGEC5WZN5f4z55zscsdVmS')
 const TOKEN_PROGRAM_ID = address('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
@@ -62,7 +63,6 @@ export async function mintTokenProgram(rpc: ReturnType<typeof createSolanaRpc>, 
 
 const JUPITER_API = () => process.env['JUPITER_API'] ?? 'https://lite-api.jup.ag'
 const KAMINO_KTX_API = () => process.env['KAMINO_KTX_API'] ?? 'https://api.kamino.finance/ktx'
-const rpcUrl = () => process.env['SOLANA_RPC_URL'] ?? 'https://api.mainnet-beta.solana.com'
 // Fraction of collateral value borrowed per deposit, in bps (default 50%).
 const targetLtvBps = () => Number(process.env['STRATEGY_LTV_BPS'] ?? '5000')
 // Pending deposits older than this make /strategy/status return unhealthy.
@@ -445,17 +445,6 @@ function delegateSigner(): Promise<TransactionSigner> {
   return delegateSignerPromise
 }
 
-async function rpcCall<T>(fn: () => Promise<T>): Promise<T> {
-  for (let i = 0; ; i++) {
-    try {
-      return await fn()
-    } catch (error) {
-      if (i > 8 || !`${error}`.includes('429')) throw error
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-    }
-  }
-}
-
 async function sendDelegateTx(ixs: Instruction[]): Promise<Signature> {
   const signer = await delegateSigner()
   const rpc = createSolanaRpc(rpcUrl())
@@ -533,16 +522,7 @@ export async function listPendingDeposits(rpc = createSolanaRpc(rpcUrl())): Prom
 // ---------------------------------------------------------------------------
 
 async function fetchInstructions(url: string, payload: Record<string, unknown>): Promise<RawInstruction[]> {
-  const res = await fetch(url, {
-    body: JSON.stringify(payload),
-    headers: { 'content-type': 'application/json' },
-    method: 'POST',
-  })
-  if (!res.ok) throw new Error(`provider ${res.status}: ${(await res.text()).slice(0, 200)}`)
-  const body = (await res.json()) as { instructions?: RawInstruction[] } | RawInstruction[]
-  if (Array.isArray(body)) return body
-  if (Array.isArray(body.instructions)) return body.instructions
-  throw new Error('provider returned no instructions')
+  return (await fetchProviderInstructions(url, payload)) as RawInstruction[]
 }
 
 /** Jupiter Lend `operate` — the last instruction on the vaults program is the
@@ -663,7 +643,9 @@ export async function runStrategyPass(db: Db): Promise<DelegatePassReport> {
   try {
     return await runStrategyPassUnlocked(db)
   } finally {
-    await releaseKeeperLease(db, 'strategy-delegate', owner).catch(() => {})
+    await releaseKeeperLease(db, 'strategy-delegate', owner).catch((error) =>
+      console.warn('keeper lease release failed — lease expires on its TTL', error),
+    )
   }
 }
 
@@ -842,7 +824,7 @@ async function placeCollateral(
   )
 
   // Supply whatever stable arrived into Kamino.
-  const stableBalance = await tokenBalance(await vaultAta(strategy.stableMint, stableTokenProgram))
+  const stableBalance = await strategyTokenBalance(await vaultAta(strategy.stableMint, stableTokenProgram))
   const kamino = await kaminoDepositInstruction(vault, stableBalance, await mintDecimals(strategy.stableMint))
   signatures.push(
     await sendDelegateTx([await kaminoFlowIx(signer.address, strategyIndex, 'supply', stableBalance, kamino)]),
@@ -850,10 +832,9 @@ async function placeCollateral(
   return signatures
 }
 
-async function tokenBalance(ata: Address): Promise<bigint> {
+async function strategyTokenBalance(ata: Address): Promise<bigint> {
   const rpc = createSolanaRpc(rpcUrl())
-  const res = await rpcCall(() => rpc.getTokenAccountBalance(ata).send())
-  return BigInt(res.value.amount)
+  return tokenBalance(rpc, ata)
 }
 
 async function mintDecimals(mint: Address): Promise<number> {

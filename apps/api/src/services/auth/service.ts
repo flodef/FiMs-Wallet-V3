@@ -6,6 +6,7 @@ import { eq, sql } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'
 import { fimsSessions, usedSignatures } from '../../db/schema.js'
 import { DatabaseError, DatabaseService } from '../../db/service.js'
+import { FIMS_DEMO_ADDRESS } from '../../fims-constants.js'
 
 export class AuthUnauthorized extends Schema.TaggedError<AuthUnauthorized>()('AuthUnauthorized', {
   reason: Schema.String,
@@ -189,7 +190,9 @@ export const isAdminAddress = (signer: string) => adminAddresses().includes(sign
 // member must stay readable but must never write to shared data (votes,
 // conversions, address book): those are ledger-relevant and would be open
 // to anonymous griefing. Admins can still manage the demo member.
-const DEMO_ADDRESSES = new Set(['5F86TNSTre3CYwZd1wELsGQGhqG2HkN3d8zxhbyBSnzm'])
+const DEMO_ADDRESSES = new Set([FIMS_DEMO_ADDRESS])
+
+export const isDemoAddress = (address: string) => DEMO_ADDRESSES.has(address)
 
 export function requireNotDemo(signer: string) {
   return DEMO_ADDRESSES.has(signer) ? Effect.fail(new AuthForbidden({ address: signer })) : Effect.void

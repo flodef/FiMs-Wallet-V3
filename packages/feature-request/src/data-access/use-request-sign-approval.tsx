@@ -80,7 +80,9 @@ export function useRequestSignApproval(): RequestSignApproval {
     }
 
     if (result.type === 'approve') {
-      await approvalActionMutation.mutateAsync(result.action).catch(() => {})
+      await approvalActionMutation
+        .mutateAsync(result.action)
+        .catch((error) => console.warn('request: reject failed', error))
       return
     }
 
@@ -133,7 +135,7 @@ export function useRequestSignApproval(): RequestSignApproval {
     }
 
     cancelUnlock()
-    await approvalActionMutation.mutateAsync(action).catch(() => {})
+    await approvalActionMutation.mutateAsync(action).catch((error) => console.warn('request: action failed', error))
   }
 
   return {

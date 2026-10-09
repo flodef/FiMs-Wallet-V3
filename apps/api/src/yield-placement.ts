@@ -14,6 +14,7 @@
 import { AccountRole, type Address, address, type Instruction } from '@solana/kit'
 import { findAssociatedTokenPda } from '@solana-program/token'
 import type { FimsWrappedProduct, WrappedProductConfig } from './custodial.js'
+import { fetchProviderInstructions } from './solana-util.js'
 
 const JUPITER_EARN_API = () => process.env['JUPITER_EARN_API'] ?? 'https://api.jup.ag/lend/v1/earn'
 const KAMINO_KTX_API = () => process.env['KAMINO_KTX_API'] ?? 'https://api.kamino.finance/ktx'
@@ -159,30 +160,7 @@ function asInstructionList(body: unknown): RawInstruction[] {
 }
 
 async function fetchInstructions(url: string, payload: Record<string, string>): Promise<Instruction[]> {
-  let lastError: unknown = new Error('yield API unreachable')
-  for (let attempt = 0; attempt < 4; attempt++) {
-    let response: Response
-    try {
-      response = await fetch(url, {
-        body: JSON.stringify(payload),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      })
-    } catch (error) {
-      // fetch itself rejected (network) — retryable.
-      lastError = error
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)))
-      continue
-    }
-    if (response.ok) {
-      // Parse/convert failures are not retryable and propagate as-is.
-      return asInstructionList(await response.json()).map(toInstruction)
-    }
-    lastError = new Error(`yield API ${response.status}: ${(await response.text()).slice(0, 200)}`)
-    if (response.status !== 429 && response.status < 500) throw lastError
-    await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)))
-  }
-  throw lastError
+  return asInstructionList(await fetchProviderInstructions(url, payload)).map(toInstruction)
 }
 
 // Instructions placing `units` of backing into the product's yield venue.

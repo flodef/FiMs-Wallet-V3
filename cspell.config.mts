@@ -187,6 +187,8 @@ const config: CSpellSettings = {
     'mnemónica',
     'modifícalo',
     'clippy',
+    'dtolnay',
+    'NFKC',
     'multifirma',
     'rebalancear',
     'rebalanceo',

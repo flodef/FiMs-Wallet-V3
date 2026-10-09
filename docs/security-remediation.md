@@ -41,8 +41,10 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 - ✅ Bug — `wrappedTransfer` : tous les deltas du tx traités (Phase 0)
 - ✅ Bug — tx soumise comme donation puis dépôt wrapped : le check `existing` ne bloque que les lignes `{sig}:{mint}` ; claims `claimed` restants : déblocage admin par suppression de la ligne `wrapped_claims` après vérif on-chain
 - ✅ Bug — Commentaires custodial (NAV pas 1:1, ledger EURF/USDF)
-- 🔶 Refactor — `requireMember` mutualisé + base58 via `@solana/codecs-strings`. Reste : découpe `http.ts`, package `fims-constants`, montants décimaux exacts
-- ⬜ Tests — `.catch(() => {})` → logging ; i18n `feature-request` ; effets dépendant de fonctions instables
+- ✅ Refactor — `requireMember` mutualisé, base58 via `@solana/codecs-strings`, `rpcCall`/`tokenBalance`/`fetchProviderInstructions` mutualisés dans `solana-util.ts`, constantes FiMs dédupliquées dans `fims-constants.ts`, **`http.ts` découpé** : glue de 99 lignes + `helpers.ts` + 10 fichiers `handlers/` par domaine (session, users, ledger, book, votes, donations, convert, wrapped, chain, cron)
+- ✅ `.catch(() => {})` → logging (`console.warn`) sur les chemins critiques (démo, approvals, lease keeper, onboarding)
+- ✅ i18n `feature-request` : dialogue de déverrouillage traduit (en/fr/es)
+- 🔶 Reste : montants décimaux exacts (`numeric` → exact), package `fims-constants` partagé client↔API (volontairement gardé dupliqué — l'API Vercel reste sans dépendance workspace)
 
 ## Phase 4 — Assurance externe (manuel)
 
@@ -50,6 +52,7 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 - 🔶 Fuzzing CPI comptes adversariaux, tests fork mainnet
 - 🔶 Bug bounty
 - 🔶 CI Rust : job ajouté (fmt, clippy, tests, `cargo-build-sbf --arch v3`) — reste le premier run à valider
+- ✅ Surfpool épinglé à `1.6` (plus de `:latest` en CI)
 
 ## Notes
 
@@ -58,7 +61,11 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
   reprise keeper M5, CSP + quotas + sanitisation M9, carve tontine auto M7,
   alerte démo M8, bugs fonctionnels (vote atomique, backing-status yield,
   déblocage donation↔wrapped), refactor requireMember + base58, CI Rust.
-  Migrations 0015/0016/0017 appliquées et vérifiées en prod.
+  Migrations 0015/0016/0017 appliquées et vérifiées en prod. Deuxième passe :
+  découpe http.ts en handlers par domaine, noms membres normalisés (NFKC,
+  casse-insensible, ≤40, démo figée à « Démo »), votes bornés (titre ≤80,
+  options ≤16×80, description ≤1000), client neon mutualisé dans le rate
+  limiter, i18n unlock-dialog, logging des catch silencieux, surfpool épinglé.
 - ✅ = fait dans cette session (voir commits). Phase 1 livrée : invariants
   lamports/owner/data du vault autour des CPI (VaultDrained), sweep restreint
   aux mints non-stratégiques + plafonné (cap token partagé), veto guardian

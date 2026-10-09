@@ -105,14 +105,14 @@ export class AddressBookEntry extends Schema.Class<AddressBookEntry>('AddressBoo
 // Base58-encoded Solana public key (32 bytes → 32-44 chars, no 0/O/I/l).
 export const SolanaAddress = Schema.String.pipe(Schema.pattern(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/))
 
-const CreateAddressBookEntryBody = Schema.Struct({
+export const CreateAddressBookEntryBody = Schema.Struct({
   address: SolanaAddress,
   label: Schema.String,
   type: Schema.optional(AddressBookType),
   userId: Schema.Number,
 })
 
-const UpdateAddressBookEntryBody = Schema.Struct({
+export const UpdateAddressBookEntryBody = Schema.Struct({
   address: Schema.optional(SolanaAddress),
   label: Schema.optional(Schema.String),
   type: Schema.optional(AddressBookType),
@@ -227,19 +227,23 @@ export class ChainHistoryPage extends Schema.Class<ChainHistoryPage>('ChainHisto
   transactions: Schema.Array(ChainTransaction),
 }) {}
 
-const CreateUserBody = Schema.Struct({
+// Public-facing member identity is bounded: unbounded/blank names allow
+// squats and abuse; homoglyph normalization happens in the handler.
+const MemberName = Schema.String.pipe(Schema.minLength(1), Schema.maxLength(40))
+
+export const CreateUserBody = Schema.Struct({
   address: SolanaAddress,
   isPublic: Schema.optional(Schema.Boolean),
-  name: Schema.String,
+  name: MemberName,
 })
 
 // `address` and `isPro` are privileged: the handler rejects them for non-admin
 // signers (self-service is limited to name/isPublic).
-const UpdateUserBody = Schema.Struct({
+export const UpdateUserBody = Schema.Struct({
   address: Schema.optional(SolanaAddress),
   isPro: Schema.optional(Schema.Boolean),
   isPublic: Schema.optional(Schema.Boolean),
-  name: Schema.optional(Schema.String),
+  name: Schema.optional(MemberName),
   // Member's own rebalance target (% of risky assets). Preference, not
   // identity — exempt from the once-a-day profile-edit cooldown.
   riskTarget: Schema.optional(Schema.NullOr(Schema.Number.pipe(Schema.between(0, 100)))),
@@ -249,12 +253,12 @@ const UpdateUserBody = Schema.Struct({
 // message `fims-wallet-v3\nlink-address\n<userId>\n<address>` (base64). It is
 // required for member-initiated links: the already-linked request signer
 // alone cannot squat a foreign key. Admins may attach addresses without it.
-const LinkUserAddressBody = Schema.Struct({
+export const LinkUserAddressBody = Schema.Struct({
   address: SolanaAddress,
   signature: Schema.optional(Schema.String),
 })
 
-const CreateTransactionBody = Schema.Struct({
+export const CreateTransactionBody = Schema.Struct({
   address: Schema.String,
   amount: Schema.optional(Schema.Number),
   cost: Schema.optional(Schema.Number),
@@ -270,7 +274,7 @@ const CreateTransactionBody = Schema.Struct({
 
 // `userId` is intentionally absent: reassigning a transaction to another user
 // would let a writer pollute someone else's history.
-const UpdateTransactionBody = Schema.Struct({
+export const UpdateTransactionBody = Schema.Struct({
   address: Schema.optional(Schema.String),
   amount: Schema.optional(Schema.Number),
   cost: Schema.optional(Schema.Number),
@@ -333,37 +337,52 @@ export class FimsConfig extends Schema.Class<FimsConfig>('FimsConfig')({
   totalInvested: Schema.Number,
 }) {}
 
-const UpdateConfigBody = Schema.Struct({
+export const UpdateConfigBody = Schema.Struct({
   proposalThreshold: Schema.Number.pipe(Schema.greaterThan(0), Schema.lessThanOrEqualTo(1)),
 })
 
-const RecordDonationBody = Schema.Struct({
+export const RecordDonationBody = Schema.Struct({
   signature: Schema.String.pipe(Schema.minLength(32), Schema.maxLength(128)),
 })
 
-const CreateVoteBody = Schema.Struct({
-  closesAt: Schema.optional(Schema.Date),
-  description: Schema.optional(Schema.String),
-  kind: VoteKind,
-  options: Schema.Array(Schema.String).pipe(Schema.minItems(2)),
-  title: Schema.String,
+// Vote fields are member-written public content — bound them server-side
+// (unbounded strings are storage and rendering abuse, not just ugly).
+export const ConvertPositionBody = Schema.Struct({
+  eurAmount: Schema.Number.pipe(Schema.greaterThan(0)),
+  fromToken: Schema.String,
+  // Idempotency key the client generates per conversion intent:
+  // retried submissions are deduplicated by (user_id, request_id)
+  // instead of double-applying the ledger pair.
+  requestId: Schema.String.pipe(Schema.minLength(8), Schema.maxLength(64)),
+  toToken: Schema.String,
 })
 
-const UpdateVoteBody = Schema.Struct({
+export const CreateVoteBody = Schema.Struct({
+  closesAt: Schema.optional(Schema.Date),
+  description: Schema.optional(Schema.String.pipe(Schema.maxLength(1000))),
+  kind: VoteKind,
+  options: Schema.Array(Schema.String.pipe(Schema.minLength(1), Schema.maxLength(80))).pipe(
+    Schema.minItems(2),
+    Schema.maxItems(16),
+  ),
+  title: Schema.String.pipe(Schema.minLength(1), Schema.maxLength(80)),
+})
+
+export const UpdateVoteBody = Schema.Struct({
   status: VoteStatus,
 })
 
-const CastBallotBody = Schema.Struct({
+export const CastBallotBody = Schema.Struct({
   optionId: Schema.Number,
 })
 
-const WrappedTxBody = Schema.Struct({
+export const WrappedTxBody = Schema.Struct({
   signature: Schema.String.pipe(Schema.minLength(32), Schema.maxLength(128)),
 })
 
 // SIWS sign-in: the server rebuilds the canonical message from these fields
 // and verifies `signature` over it — the message text is never client-trusted.
-const CreateSessionBody = Schema.Struct({
+export const CreateSessionBody = Schema.Struct({
   address: SolanaAddress,
   issuedAt: Schema.String,
   nonce: Schema.String.pipe(Schema.minLength(16), Schema.maxLength(64)),
@@ -651,17 +670,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
   .add(
     HttpApiEndpoint.post('convertPosition', '/fims/conversions')
       .annotate(OpenApi.Summary, 'Rebalance: convert EUR value between two tokens')
-      .setPayload(
-        Schema.Struct({
-          eurAmount: Schema.Number.pipe(Schema.greaterThan(0)),
-          fromToken: Schema.String,
-          // Idempotency key the client generates per conversion intent:
-          // retried submissions are deduplicated by (user_id, request_id)
-          // instead of double-applying the ledger pair.
-          requestId: Schema.String.pipe(Schema.minLength(8), Schema.maxLength(64)),
-          toToken: Schema.String,
-        }),
-      )
+      .setPayload(ConvertPositionBody)
       .addSuccess(Schema.Array(Transaction))
       .addError(AuthUnauthorized, { status: 401 })
       .addError(AuthForbidden, { status: 403 })

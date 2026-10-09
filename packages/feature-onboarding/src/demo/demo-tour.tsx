@@ -42,7 +42,7 @@ function DemoAirdrop({ address, network }: { address: Address; network: Network 
       .then(() =>
         queryClient.invalidateQueries({ queryKey: getBalanceQueryOptions({ address, client, network }).queryKey }),
       )
-      .catch(() => {})
+      .catch((error) => console.warn('demo: airdrop failed', error))
       .finally(() => demoSetState({ airdropRequested: true }))
   }, [address, client, network, queryClient])
   return null
@@ -71,7 +71,7 @@ function DemoMemberRegistration({ account }: { account: Account }) {
       })
     })()
       .then(() => queryClient.invalidateQueries({ queryKey: ['fims', 'users'] }))
-      .catch(() => {})
+      .catch((error) => console.warn('demo: member registration failed', error))
       .finally(() => demoSetState({ memberRegistered: true }))
   }, [account, accountSecretKey, queryClient])
   return null
@@ -151,7 +151,9 @@ export function DemoTour() {
         setDemoAddress(publicKey)
         // Drop 'Démo' wallets left behind by interrupted earlier runs — the
         // public-mnemonic wallet must never linger in the user's list.
-        await demoCleanupStale(context, publicKey, demo.walletId).catch(() => {})
+        await demoCleanupStale(context, publicKey, demo.walletId).catch((error) =>
+          console.warn('demo: stale wallet cleanup failed', error),
+        )
       })
       .catch(() => {})
   }, [demo.active, demoAddress, demo.walletId, context])
@@ -170,7 +172,7 @@ export function DemoTour() {
     const demoAccount = accounts.find((account) => account.walletId === demo.walletId)
     if (demoAccount && activeAccountId !== demoAccount.id && activatedRef.current !== demoAccount.id) {
       activatedRef.current = demoAccount.id
-      setActiveAccountId(demoAccount.id).catch(() => {})
+      setActiveAccountId(demoAccount.id).catch((error) => console.warn('demo: activate failed', error))
     }
   }, [demo.active, demo.walletCreated, demo.walletId, accounts, activeAccountId, setActiveAccountId])
 
@@ -182,10 +184,10 @@ export function DemoTour() {
     // row, and the restore's get-then-update would land on a deleted row —
     // a silent no-op leaving no active account at all.
     if (previousAccountId && previousAccountId !== activeAccountId) {
-      await setActiveAccountId(previousAccountId).catch(() => {})
+      await setActiveAccountId(previousAccountId).catch((error) => console.warn('demo: restore account failed', error))
     }
     if (previousNetworkId && previousNetworkId !== activeNetworkId) {
-      await setActiveNetworkId(previousNetworkId).catch(() => {})
+      await setActiveNetworkId(previousNetworkId).catch((error) => console.warn('demo: restore network failed', error))
     }
     // The demo keys are public knowledge — never leave an unsecured wallet
     // holding them behind: anything that lands on that address is public

@@ -41,7 +41,7 @@ export function OnboardingFeatureIndex({ redirectTo }: { redirectTo: string }) {
   const firstExternal = accounts.find((account) => !!account.externalWallet)
   useEffect(() => {
     if (firstExternal && !activeAccountId) {
-      setActiveAccountId(firstExternal.id).catch(() => {})
+      setActiveAccountId(firstExternal.id).catch((error) => console.warn('onboarding: activate failed', error))
     }
   }, [firstExternal, activeAccountId, setActiveAccountId])
 

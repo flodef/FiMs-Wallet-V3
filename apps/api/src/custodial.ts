@@ -44,6 +44,7 @@ import {
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '@solana-program/token-2022'
 import { createBackendSigner } from './signer.js'
+import { rpcCall, rpcUrl, tokenBalance } from './solana-util.js'
 import { yieldInstructions } from './yield-placement.js'
 
 // Mainnet backing mints. Overridable via env so devnet can point at test
@@ -138,22 +139,8 @@ export async function custodialAddress(): Promise<Address> {
   return (await custodialSigner()).address
 }
 
-const rpcUrl = () => process.env['SOLANA_RPC_URL'] ?? 'https://api.mainnet-beta.solana.com'
-
 const TOKEN_PROGRAM_ADDRESS = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as Address
 const SYSTEM_PROGRAM_ADDRESS = '11111111111111111111111111111111' as Address
-
-// Public RPCs rate-limit hard — retry transient 429s before giving up.
-async function rpcCall<T>(fn: () => Promise<T>): Promise<T> {
-  for (let i = 0; ; i++) {
-    try {
-      return await fn()
-    } catch (error) {
-      if (i > 8 || !`${error}`.includes('429')) throw error
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-    }
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Custody simulation guard.
@@ -387,10 +374,9 @@ export function sweepAmount(balance: bigint, target: bigint): bigint {
   return balance > target ? balance - target : 0n
 }
 
-async function tokenBalance(tokenAccount: Address): Promise<bigint> {
+async function tokenBalanceOf(tokenAccount: Address): Promise<bigint> {
   const rpc = createSolanaRpc(rpcUrl())
-  const { value } = await rpcCall(() => rpc.getTokenAccountBalance(tokenAccount).send())
-  return BigInt(value.amount)
+  return tokenBalance(rpc, tokenAccount)
 }
 
 // Transfer the excess above floatTarget to the vault's ATA. Called after
@@ -406,7 +392,7 @@ export async function custodialSweep(product: FimsWrappedProduct): Promise<{
   const signer = await custodialSigner()
   const backingProgram = await mintProgram(config.backingMint)
   const custodyAta = await ata(config.backingMint, signer.address, backingProgram)
-  const amount = sweepAmount(await tokenBalance(custodyAta), floatTarget(product))
+  const amount = sweepAmount(await tokenBalanceOf(custodyAta), floatTarget(product))
   if (amount === 0n) return { product, signature: null, swept: 0n }
   const vaultAta = await ata(config.backingMint, vault, backingProgram)
   const signature = await sendCustodialTransaction(
@@ -463,8 +449,8 @@ export async function custodialBackingStatus(prices: Readonly<Record<string, num
     const custodyAta = await ata(config.backingMint, signer.address, backingProgram)
     const vaultAta = vault ? await ata(config.backingMint, vault, backingProgram) : null
     const { value: supply } = await rpcCall(() => rpc.getTokenSupply(config.mint).send())
-    const float = await tokenBalance(custodyAta)
-    const vaultBalance = vaultAta ? await tokenBalance(vaultAta).catch(() => 0n) : 0n
+    const float = await tokenBalanceOf(custodyAta)
+    const vaultBalance = vaultAta ? await tokenBalanceOf(vaultAta).catch(() => 0n) : 0n
     // Backing parked in the yield venue (jlEURC, Kamino collateral tokens)
     // still backs the product — without it the monitor alerts "unbacked"
     // whenever yield placement is active. The position token ≈ 1:1 backing
@@ -475,7 +461,7 @@ export async function custodialBackingStatus(prices: Readonly<Record<string, num
       try {
         const yieldMint = address(yieldAsset)
         const yieldProgram = await mintProgram(yieldMint)
-        yieldBalance = await tokenBalance(await ata(yieldMint, signer.address, yieldProgram))
+        yieldBalance = await tokenBalanceOf(await ata(yieldMint, signer.address, yieldProgram))
       } catch {
         // an unset/unreachable yield position counts as zero, not as an alert
       }
@@ -514,7 +500,7 @@ export async function custodialRedeem(
   const backingCustodyAta = await ata(config.backingMint, signer.address, backingProgram)
   const destinationAta = await ata(config.backingMint, owner, backingProgram)
   if (backingVault()) {
-    const float = await tokenBalance(backingCustodyAta)
+    const float = await tokenBalanceOf(backingCustodyAta)
     if (backingUnits > float) {
       throw new Error(
         `redeem of ${backingUnits} exceeds the available float (${float}) — ` +

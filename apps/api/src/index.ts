@@ -51,12 +51,24 @@ function isRateLimitedMemory(key: string, max: number): boolean {
   return bucket.count > max
 }
 
+// neon() clients are cheap but not free — cache one per URL instead of
+// building a fresh driver on every request.
+const sharedClients = new Map<string, ReturnType<typeof neon>>()
+function sharedSql(url: string) {
+  let client = sharedClients.get(url)
+  if (!client) {
+    client = neon(url)
+    sharedClients.set(url, client)
+  }
+  return client
+}
+
 // null = shared limiter unavailable (no DATABASE_URL or query failed) —
 // the caller falls back to the in-memory bucket.
 async function isRateLimitedShared(key: string, max: number, databaseUrl: string | undefined): Promise<boolean | null> {
   if (!databaseUrl) return null
   try {
-    const sql = neon(databaseUrl)
+    const sql = sharedSql(databaseUrl)
     const windowStart = new Date(Math.floor(Date.now() / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS)
     const rows = await sql`
       INSERT INTO rate_limits (bucket, window_start, count)
@@ -69,7 +81,8 @@ async function isRateLimitedShared(key: string, max: number, databaseUrl: string
     if (Math.random() < 0.02) {
       void sql`DELETE FROM rate_limits WHERE window_start < NOW() - INTERVAL '10 minutes'`.catch(() => {})
     }
-    return Number(rows[0]?.['count'] ?? 0) > max
+    const count = Number((rows as { count?: number }[])[0]?.count ?? 0)
+    return count > max
   } catch {
     return null
   }

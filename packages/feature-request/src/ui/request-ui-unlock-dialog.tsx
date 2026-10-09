@@ -1,3 +1,4 @@
+import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import {
   Dialog,
@@ -10,10 +11,11 @@ import {
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { useId } from 'react'
-import type { RequestSignApproval, RequestUnlockMode } from '../data-access/use-request-sign-approval.tsx'
+import type { RequestSignApproval } from '../data-access/use-request-sign-approval.tsx'
 
 export function RequestUiUnlockDialog({ approval }: { approval: RequestSignApproval }) {
   const credentialId = useId()
+  const { t } = useTranslation('request')
   const { actions, state } = approval
 
   return (
@@ -21,11 +23,17 @@ export function RequestUiUnlockDialog({ approval }: { approval: RequestSignAppro
       <DialogContent>
         <form className="space-y-4" onSubmit={actions.submitUnlock}>
           <DialogHeader>
-            <DialogTitle>Unlock wallet</DialogTitle>
-            <DialogDescription>Unlock the active wallet to continue with this signing request.</DialogDescription>
+            <DialogTitle>{t(($) => $.unlockTitle)}</DialogTitle>
+            <DialogDescription>{t(($) => $.unlockDescription)}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor={credentialId}>{getCredentialLabel(state.mode)}</Label>
+            <Label htmlFor={credentialId}>
+              {state.mode === 'password'
+                ? t(($) => $.unlockPasswordLabel)
+                : state.mode === 'pin'
+                  ? t(($) => $.unlockPinLabel)
+                  : t(($) => $.unlockWalletLabel)}
+            </Label>
             <Input
               autoComplete={state.mode === 'password' ? 'current-password' : 'off'}
               id={credentialId}
@@ -39,25 +47,14 @@ export function RequestUiUnlockDialog({ approval }: { approval: RequestSignAppro
           {state.error ? <p className="text-destructive text-sm">{state.error}</p> : null}
           <DialogFooter>
             <Button disabled={state.isUnlocking} onClick={actions.cancelUnlock} type="button" variant="outline">
-              Cancel
+              {t(($) => $.unlockCancel)}
             </Button>
             <Button disabled={state.isUnlocking} type="submit" variant="destructive">
-              {state.isUnlocking ? 'Unlocking...' : 'Unlock'}
+              {state.isUnlocking ? t(($) => $.unlockSubmitting) : t(($) => $.unlockSubmit)}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   )
-}
-
-function getCredentialLabel(mode: RequestUnlockMode): string {
-  switch (mode) {
-    case 'password':
-      return 'Password'
-    case 'pin':
-      return 'PIN'
-    case 'unsecured':
-      return 'Wallet'
-  }
 }

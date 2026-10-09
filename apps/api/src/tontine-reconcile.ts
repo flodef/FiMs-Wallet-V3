@@ -6,10 +6,9 @@
 import { eq, sql } from 'drizzle-orm'
 import { tokens, transactions, usedSignatures, userAddresses, users } from './db/schema.js'
 import type { Db } from './db/service.js'
+import { FIMS_TONTINE_ADDRESS } from './fims-constants.js'
 import { fetchDonationTransaction } from './solana-rpc.js'
 
-// Same pot address as routes/fims/http.ts and feature-fims constants.
-const FIMS_TONTINE_ADDRESS = 'Fe1RpesrtYMJdjwbNXtpVCDNpnFvk6jSic3sJd2aCBng'
 const DEFAULT_RPC_URL = 'https://api.mainnet-beta.solana.com'
 // Scan horizon: the pot is quiet — 20 signatures covers weeks of activity.
 const SCAN_LIMIT = 20

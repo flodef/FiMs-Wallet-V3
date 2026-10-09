@@ -150,7 +150,7 @@ describe('yieldInstructions', () => {
       vi.mocked(fetch).mockResolvedValueOnce(new Response('boom', { status: 400 }))
 
       // ACT & ASSERT
-      await expect(yieldInstructions('fims-eur', 'deposit', CONFIG, SIGNER, 1n)).rejects.toThrow('yield API 400')
+      await expect(yieldInstructions('fims-eur', 'deposit', CONFIG, SIGNER, 1n)).rejects.toThrow('provider API 400')
     })
 
     it('should throw when the response carries no instructions', async () => {
@@ -161,7 +161,7 @@ describe('yieldInstructions', () => {
 
       // ACT & ASSERT
       await expect(yieldInstructions('fims-eur', 'deposit', CONFIG, SIGNER, 1n)).rejects.toThrow(
-        'yield API returned no instructions',
+        'provider API returned no instructions',
       )
     })
 

@@ -169,7 +169,9 @@ function FimsVoteCard({
           <div className="flex justify-end gap-2 pt-1">
             {vote.status !== 'open' ? (
               <Button
-                onClick={() => update.mutateAsync({ status: 'open' }).catch(() => {})}
+                onClick={() =>
+                  update.mutateAsync({ status: 'open' }).catch((error) => console.warn('vote: reopen failed', error))
+                }
                 size="sm"
                 variant="outline"
               >
@@ -178,7 +180,9 @@ function FimsVoteCard({
             ) : null}
             {vote.status === 'open' ? (
               <Button
-                onClick={() => update.mutateAsync({ status: 'closed' }).catch(() => {})}
+                onClick={() =>
+                  update.mutateAsync({ status: 'closed' }).catch((error) => console.warn('vote: close failed', error))
+                }
                 size="sm"
                 variant="outline"
               >
