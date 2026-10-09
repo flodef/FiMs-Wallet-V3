@@ -16,6 +16,7 @@ import { withDb, withTransaction } from '../../../db/service.js'
 import { getFimsFeeRate } from '../../../fee-config.js'
 import { requireNotDemo, verifyWalletRequest } from '../../../services/auth/service.js'
 import { fetchDonationTransaction } from '../../../solana-rpc.js'
+import { formatTokenUnits } from '../../../solana-util.js'
 import { BadRequest, CustodialUnavailable, type WrappedTxBody } from '../api.js'
 import {
   addressLinkedToUser,
@@ -287,7 +288,8 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
           .insert(transactions)
           .values({
             address: tx.payer,
-            amount: direction === 'deposit' ? productAmount : -productAmount,
+            amount:
+              direction === 'deposit' ? formatTokenUnits(row.productUnits, 6) : formatTokenUnits(-row.productUnits, 6),
             cost: movement,
             date: tx.blockTime ?? new Date(),
             movement: direction === 'deposit' ? movement : -movement,

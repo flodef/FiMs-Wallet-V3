@@ -24,7 +24,7 @@ export function computeFimsDebt(currentTotal: number, transactions: FimsTransact
     // Embedded gifts (donationAmount on an outflow row) count toward the
     // donation too, at the row's implied rate |movement + cost| / |amount|.
     if (tx.donationAmount != null && tx.amount)
-      return sum + (Math.abs(tx.movement + tx.cost) * tx.donationAmount) / Math.abs(tx.amount)
+      return sum + (Math.abs(tx.movement + tx.cost) * Number(tx.donationAmount)) / Math.abs(Number(tx.amount))
     return ['donation', 'tontine'].includes(getFimsTransactionType(tx)) ? sum + (tx.movement ?? 0) : sum
   }, 0)
   return Math.max(0, pnl * tontineRate - donated)

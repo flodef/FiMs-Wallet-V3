@@ -8,6 +8,7 @@ import { tokens, transactions, usedSignatures, userAddresses, users } from './db
 import type { Db } from './db/service.js'
 import { FIMS_TONTINE_ADDRESS } from './fims-constants.js'
 import { fetchDonationTransaction } from './solana-rpc.js'
+import { formatTokenUnits } from './solana-util.js'
 
 const DEFAULT_RPC_URL = 'https://api.mainnet-beta.solana.com'
 // Scan horizon: the pot is quiet — 20 signatures covers weeks of activity.
@@ -83,7 +84,7 @@ export async function reconcileTontineDonations(db: Db): Promise<{ recorded: num
           const movement = symbol ? (priceOf(symbol) ?? 0) * delta.amount : 0
           return {
             address: fetched.payer,
-            amount: delta.amount,
+            amount: formatTokenUnits(delta.rawAmount, delta.decimals),
             cost: movement,
             date: fetched.blockTime ?? new Date(),
             donationTarget: 'tontine',

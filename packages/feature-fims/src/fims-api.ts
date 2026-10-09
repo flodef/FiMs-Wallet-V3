@@ -28,7 +28,9 @@ export type FimsTransactionType =
 
 export interface FimsTransaction {
   address: string
-  amount: null | number
+  // Token units as an exact decimal string (numeric column) — convert with
+  // Number() where a float is enough; do not serialize back.
+  amount: null | string
   cost: number
   createdAt: string
   date: string
@@ -36,7 +38,7 @@ export interface FimsTransaction {
   // `amount`): a withdrawal/conversion can carry its tontine share inline
   // instead of a separate donation row. Its EUR share is movement ×
   // donationAmount/|amount|. Pure donations keep it null.
-  donationAmount: null | number
+  donationAmount: null | string
   donationTarget: null | string
   id: number
   movement: number

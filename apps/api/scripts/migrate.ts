@@ -238,7 +238,7 @@ const pushTx = (t: TxInput) => {
   txRows.push({
     row: {
       address,
-      amount: num(t.amount),
+      amount: num(t.amount) == null ? null : `${num(t.amount)}`,
       cost: num(t.cost) ?? 0,
       date,
       movement: num(t.movement) ?? 0,

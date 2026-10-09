@@ -44,7 +44,8 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 - ✅ Refactor — `requireMember` mutualisé, base58 via `@solana/codecs-strings`, `rpcCall`/`tokenBalance`/`fetchProviderInstructions` mutualisés dans `solana-util.ts`, constantes FiMs dédupliquées dans `fims-constants.ts`, **`http.ts` découpé** : glue de 99 lignes + `helpers.ts` + 10 fichiers `handlers/` par domaine (session, users, ledger, book, votes, donations, convert, wrapped, chain, cron)
 - ✅ `.catch(() => {})` → logging (`console.warn`) sur les chemins critiques (démo, approvals, lease keeper, onboarding)
 - ✅ i18n `feature-request` : dialogue de déverrouillage traduit (en/fr/es)
-- 🔶 Reste : montants décimaux exacts (`numeric` → exact), package `fims-constants` partagé client↔API (volontairement gardé dupliqué — l'API Vercel reste sans dépendance workspace)
+- ✅ Montants décimaux exacts — `transactions.amount`/`donation_amount` lues/écrites comme strings `numeric` exactes (les deltas on-chain passent par `rawAmount` bigint + `formatTokenUnits`, plus de `Number(raw)/10^d`) ; `cost`/`movement` restent float (valorisation EUR, pas unité de compte) ; colonnes DB inchangées → pas de migration
+- ✅ Constantes protocolaires : gardées dupliquées (API standalone) mais verrouillées par `fims-constants.spec.ts` qui lit la copie client et échoue sur drift
 
 ## Phase 4 — Assurance externe (manuel)
 
@@ -66,6 +67,9 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
   casse-insensible, ≤40, démo figée à « Démo »), votes bornés (titre ≤80,
   options ≤16×80, description ≤1000), client neon mutualisé dans le rate
   limiter, i18n unlock-dialog, logging des catch silencieux, surfpool épinglé.
+  Troisième passe : montants ledger en décimal exact (amount/donation_amount
+  en numeric string bout-en-bout), test anti-drift des constantes
+  protocolaires, maxDuration Vercel 300 s.
 - ✅ = fait dans cette session (voir commits). Phase 1 livrée : invariants
   lamports/owner/data du vault autour des CPI (VaultDrained), sweep restreint
   aux mints non-stratégiques + plafonné (cap token partagé), veto guardian

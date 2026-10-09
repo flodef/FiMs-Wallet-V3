@@ -78,7 +78,7 @@ export const handleConvertPosition = ({ payload }: { payload: Schema.Schema.Type
         .values([
           {
             address: signer,
-            amount: -payload.eurAmount / fromPrice,
+            amount: `${-payload.eurAmount / fromPrice}`,
             date: now,
             movement: -payload.eurAmount,
             requestId: payload.requestId,
@@ -90,7 +90,7 @@ export const handleConvertPosition = ({ payload }: { payload: Schema.Schema.Type
             // Credited side is net of the operating fee — the member's
             // balance drops by the fee, which stays in the treasury.
             address: signer,
-            amount: (payload.eurAmount * (1 - getFimsFeeRate())) / toPrice,
+            amount: `${(payload.eurAmount * (1 - getFimsFeeRate())) / toPrice}`,
             date: now,
             movement: payload.eurAmount * (1 - getFimsFeeRate()),
 

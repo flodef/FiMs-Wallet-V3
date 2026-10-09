@@ -51,3 +51,14 @@ export async function fetchProviderInstructions(url: string, payload: Record<str
   }
   throw lastError
 }
+
+// Raw base units → exact decimal string (bigint-safe, no float path). Used
+// for ledger writes where a `numeric` column must hold the precise on-chain
+// quantity — `Number(raw) / 10**decimals` loses digits past 15.
+export function formatTokenUnits(raw: bigint, decimals: number): string {
+  const negative = raw < 0n
+  const digits = (negative ? -raw : raw).toString().padStart(decimals + 1, '0')
+  const whole = digits.slice(0, -decimals) || '0'
+  const frac = decimals ? digits.slice(-decimals).replace(/0+$/, '') : ''
+  return `${negative ? '-' : ''}${whole}${frac ? `.${frac}` : ''}`
+}

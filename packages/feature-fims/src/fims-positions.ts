@@ -18,19 +18,20 @@ export function computeFimsPositions(transactions: FimsTransaction[], tokens: Fi
 
   for (const tx of transactions) {
     if (!tx.token || tx.amount == null) continue
+    const amount = Number(tx.amount)
     const bucket = bySymbol.get(tx.token) ?? { invested: 0, returned: 0, unitsBought: 0, unitsSold: 0 }
-    if (tx.amount >= 0) {
-      bucket.unitsBought += tx.amount
+    if (amount >= 0) {
+      bucket.unitsBought += amount
       bucket.invested += Math.max(tx.movement, 0)
     } else {
       // An embedded gift (donationAmount on an outflow row) is an extra
       // outflow on top of `amount`: the gifted units keep counting as
       // invested — the member's tontine stake is still a position — priced
       // at the row's implied rate |movement + cost| / |amount|.
-      const gifted = Math.max(tx.donationAmount ?? 0, 0)
+      const gifted = Math.max(Number(tx.donationAmount ?? 0), 0)
       bucket.unitsBought += gifted
-      bucket.invested += (Math.abs(tx.movement + tx.cost) * gifted) / -tx.amount
-      bucket.unitsSold -= tx.amount
+      bucket.invested += (Math.abs(tx.movement + tx.cost) * gifted) / -amount
+      bucket.unitsSold -= amount
       bucket.returned += Math.max(-tx.movement, 0)
     }
     bySymbol.set(tx.token, bucket)

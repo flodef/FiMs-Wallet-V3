@@ -82,7 +82,9 @@ export const transactions = pgTable(
   'transactions',
   {
     address: text('address').notNull(),
-    amount: numeric('amount', { mode: 'number' }),
+    // Token units, stored/read as an exact decimal string — float64 would
+    // drift the on-chain reconciliation invariant over enough decimals.
+    amount: numeric('amount', { mode: 'string' }),
     cost: numeric('cost', { mode: 'number' }).notNull().default(0),
     createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
     date: timestamp('date', { mode: 'date' }).notNull(),
@@ -92,7 +94,7 @@ export const transactions = pgTable(
     // carry e.g. a withdrawal + its tontine share + an operating fee (cost).
     // Outflow rows only (amount < 0). Pure donations keep it NULL — their
     // whole amount is already the gift.
-    donationAmount: numeric('donation_amount', { mode: 'number' }),
+    donationAmount: numeric('donation_amount', { mode: 'string' }),
     donationTarget: text('donation_target'),
     id: serial('id').primaryKey(),
     movement: numeric('movement', { mode: 'number' }).notNull().default(0),

@@ -6,7 +6,7 @@ import { computeFimsPositions } from '../src/fims-positions.ts'
 function tx(amount: number, movement: number, token: string): FimsTransaction {
   return {
     address: 'x',
-    amount,
+    amount: `${amount}`,
     cost: 0,
     createdAt: '',
     date: '',
@@ -94,7 +94,7 @@ describe('compute-fims-positions', () => {
         {
           ...tx(-30, -2994, 'FSOL'),
           cost: -6,
-          donationAmount: 3,
+          donationAmount: '3',
           donationTarget: 'tontine',
           type: 'withdrawal' as const,
         },

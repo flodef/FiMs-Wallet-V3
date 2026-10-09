@@ -70,9 +70,9 @@ describe('compute-fims-debt', () => {
       const transactions = [
         tx(100000),
         tx(-2994, {
-          amount: -30,
+          amount: '-30',
           cost: -6,
-          donationAmount: 3,
+          donationAmount: '3',
           donationTarget: 'tontine',
           type: 'withdrawal',
         }),

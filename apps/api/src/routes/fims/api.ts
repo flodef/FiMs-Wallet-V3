@@ -38,11 +38,11 @@ export class UserAddress extends Schema.Class<UserAddress>('UserAddress')({
 
 export class Transaction extends Schema.Class<Transaction>('Transaction')({
   address: Schema.String,
-  amount: Schema.NullOr(Schema.Number),
+  amount: Schema.NullOr(Schema.String),
   cost: Schema.Number,
   createdAt: Schema.Date,
   date: Schema.Date,
-  donationAmount: Schema.NullOr(Schema.Number),
+  donationAmount: Schema.NullOr(Schema.String),
   donationTarget: Schema.NullOr(Schema.String),
   id: Schema.Number,
   movement: Schema.Number,
@@ -258,12 +258,14 @@ export const LinkUserAddressBody = Schema.Struct({
   signature: Schema.optional(Schema.String),
 })
 
+const TokenUnits = Schema.Union(Schema.Number, Schema.String)
+
 export const CreateTransactionBody = Schema.Struct({
   address: Schema.String,
-  amount: Schema.optional(Schema.Number),
+  amount: Schema.optional(TokenUnits),
   cost: Schema.optional(Schema.Number),
   date: Schema.Date,
-  donationAmount: Schema.optional(Schema.Number),
+  donationAmount: Schema.optional(TokenUnits),
   donationTarget: Schema.optional(Schema.String),
   movement: Schema.Number,
   signature: Schema.optional(Schema.String),
@@ -276,10 +278,10 @@ export const CreateTransactionBody = Schema.Struct({
 // would let a writer pollute someone else's history.
 export const UpdateTransactionBody = Schema.Struct({
   address: Schema.optional(Schema.String),
-  amount: Schema.optional(Schema.Number),
+  amount: Schema.optional(TokenUnits),
   cost: Schema.optional(Schema.Number),
   date: Schema.optional(Schema.Date),
-  donationAmount: Schema.optional(Schema.Number),
+  donationAmount: Schema.optional(TokenUnits),
   donationTarget: Schema.optional(Schema.String),
   movement: Schema.optional(Schema.Number),
   signature: Schema.optional(Schema.String),

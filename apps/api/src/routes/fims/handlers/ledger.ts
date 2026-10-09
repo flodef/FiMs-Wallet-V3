@@ -108,7 +108,7 @@ export const handleCreateTransaction = ({ payload }: { payload: Schema.Schema.Ty
         return yield* Effect.fail(new BadRequest({ reason: `donationAmount is redundant on a ${type} row` }))
       if (!payload.donationTarget)
         return yield* Effect.fail(new BadRequest({ reason: 'donationTarget is required when donationAmount is set' }))
-      if (payload.donationAmount <= 0 || payload.amount == null || payload.amount >= 0)
+      if (Number(payload.donationAmount) <= 0 || payload.amount == null || Number(payload.amount) >= 0)
         return yield* Effect.fail(
           new BadRequest({ reason: 'donationAmount requires a positive value on an outflow (amount < 0)' }),
         )
@@ -116,7 +116,12 @@ export const handleCreateTransaction = ({ payload }: { payload: Schema.Schema.Ty
     const rows = yield* withDb((db) =>
       db
         .insert(transactions)
-        .values({ ...payload, type })
+        .values({
+          ...payload,
+          amount: payload.amount == null ? null : String(payload.amount),
+          donationAmount: payload.donationAmount == null ? null : String(payload.donationAmount),
+          type,
+        })
         .returning(),
     )
     const created = rows[0]
@@ -148,14 +153,25 @@ export const handleUpdateTransaction = ({
           return yield* Effect.fail(new BadRequest({ reason: `donationAmount is redundant on a ${merged.type} row` }))
         if (!merged.donationTarget)
           return yield* Effect.fail(new BadRequest({ reason: 'donationTarget is required when donationAmount is set' }))
-        if (merged.donationAmount <= 0 || merged.amount == null || merged.amount >= 0)
+        if (Number(merged.donationAmount) <= 0 || merged.amount == null || Number(merged.amount) >= 0)
           return yield* Effect.fail(
             new BadRequest({ reason: 'donationAmount requires a positive value on an outflow (amount < 0)' }),
           )
       }
     }
+    const { amount: _amount, donationAmount: _donationAmount, ...rest } = payload
     const rows = yield* withDb((db) =>
-      db.update(transactions).set(payload).where(eq(transactions.id, path.id)).returning(),
+      db
+        .update(transactions)
+        .set({
+          ...rest,
+          ...(_amount !== undefined ? { amount: _amount == null ? null : String(_amount) } : {}),
+          ...(_donationAmount !== undefined
+            ? { donationAmount: _donationAmount == null ? null : String(_donationAmount) }
+            : {}),
+        })
+        .where(eq(transactions.id, path.id))
+        .returning(),
     )
     const updated = rows[0]
     if (!updated) return yield* Effect.fail(notFound(`transaction ${path.id}`))
