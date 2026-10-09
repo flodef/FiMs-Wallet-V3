@@ -28,6 +28,7 @@
   "signTransactionTitle": "Firmar la transacción",
   "thisWallet": "Este wallet",
   "warningCriticalTitle": "Peligro — revisa con atención",
+  "warningDemoRecipient": "CRÍTICO: esta transacción envía valor a la wallet de demostración de FiMs — su seed es pública y cualquiera puede vaciarla:",
   "warningSimulationFailed": "La simulación de la transacción falló — probablemente revertirá on-chain.",
   "warningTokenAccountCompromised": "Esta transacción cambia el propietario, la delegación o cierra una de tus cuentas de tokens:",
   "warningUnexpectedSigner": "Esta transacción requiere firmas de otras claves que no contiene. La firma está bloqueada.",

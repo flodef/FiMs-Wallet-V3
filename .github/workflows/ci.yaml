@@ -204,3 +204,44 @@ jobs:
 
       - name: Test Integration
         run: bun run test:integration
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@04b19f5bf43b8ee8b9d1e98b2b8ec1d5e0ed2a1f # stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          key: ${{ runner.os }}-cargo-${{ hashFiles('solana-programs/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            solana-programs/target
+
+      - name: Rustfmt
+        run: cargo fmt --check
+        working-directory: solana-programs
+
+      - name: Clippy
+        run: cargo clippy --all-targets
+        working-directory: solana-programs
+
+      - name: Tests
+        run: cargo test
+        working-directory: solana-programs
+
+      - name: Install Agave toolchain
+        run: |
+          curl -sSfL https://release.anza.xyz/stable/install | sh
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Build SBF
+        run: cargo-build-sbf --arch v3
+        working-directory: solana-programs

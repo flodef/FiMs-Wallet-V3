@@ -98,6 +98,7 @@
   "sendConfirmOperatingFee": "Comisión operativa FiMs",
   "sendConfirmPreparingTransaction": "Preparando transacción...",
   "sendConfirmRecipientDemo": "Wallet demo FiMs",
+  "sendConfirmRecipientDemoWarning": "Wallet de demostración FiMs — CLAVES PÚBLICAS: su seed está publicada, cualquiera puede vaciar lo que envíes. Envía solo tokens que estés dispuesto a perder.",
   "sendConfirmRecipientTontine": "Tontine FiMs",
   "sendConfirmRecipientTreasury": "Tesorería FiMs",
   "sendConfirmSimulatingTransaction": "Simulando transacción...",

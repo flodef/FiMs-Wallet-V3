@@ -52,8 +52,10 @@ export function FimsFeatureSolExcess() {
   }, [excess, account.type])
 
   const quote = useJupiterQuote({
+    account,
     amount: excess,
     inputMint: open ? NATIVE_MINT : undefined,
+    network,
     outputMint: FIMS_FSOL_MINT,
     platformFeeBps: getFimsPlatformFeeBps(),
   })

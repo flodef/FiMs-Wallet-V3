@@ -1,5 +1,5 @@
 import { HttpApiBuilder, HttpServerRequest } from '@effect/platform'
-import { type Signature, address as solAddress } from '@solana/kit'
+import { address as solAddress } from '@solana/kit'
 import { and, asc, desc, eq, getTableColumns, ilike, inArray, isNull, like, or, type SQL, sql } from 'drizzle-orm'
 import { Effect, Layer, Option } from 'effect'
 import { Api } from '../../api.js'
@@ -30,8 +30,16 @@ import {
   voteBallots,
   voteOptions,
   votes,
+  wrappedClaims,
 } from '../../db/schema.js'
-import { DatabaseError, DatabaseService, type Db, withDb, withTransaction } from '../../db/service.js'
+import {
+  DatabaseError,
+  type DatabaseNotConfigured,
+  DatabaseService,
+  type Db,
+  withDb,
+  withTransaction,
+} from '../../db/service.js'
 import { getFimsFeeRate } from '../../fee-config.js'
 import {
   chainSymbolForMint,
@@ -43,15 +51,19 @@ import {
 import {
   AuthForbidden,
   AuthUnauthorized,
+  createSession,
+  deleteSession,
   isAdminAddress,
   optionalWalletRequest,
   requireAdmin,
   requireNotDemo,
   verifyAddressSignature,
+  verifyFreshConfirmation,
   verifyWalletRequest,
 } from '../../services/auth/service.js'
 import { fetchDonationTransaction } from '../../solana-rpc.js'
 import { cronAuthorized, runStrategyPass, strategyHealth } from '../../strategy-delegate.js'
+import { reconcileTontineDonations } from '../../tontine-reconcile.js'
 import { ballotChangeRetryAt } from '../../vote-ballot-rules.js'
 import { BadRequest, ChainUnavailable, CustodialUnavailable, RateLimited } from './api.js'
 
@@ -101,6 +113,35 @@ const requireLinkedOrAdmin = (signer: string, userId: number) =>
         .where(and(eq(users.id, userId), addressLinkedToUser(signer))),
     )
     if (!linked.length) return yield* Effect.fail(new AuthForbidden({ address: signer }))
+  })
+
+// Identity management (link / unlink / delete) is canonical-address only:
+// an alias wallet has full usage rights but a single compromised alias key
+// must not be able to destroy or hijack the member it belongs to.
+const requireCanonicalOrAdmin = (signer: string, userId: number) =>
+  Effect.gen(function* () {
+    yield* userAccessOfId(userId)
+    yield* requireNotDemo(signer)
+    if (isAdminAddress(signer)) return
+    const canonical = yield* withDb((db) =>
+      db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, userId), eq(users.address, signer))),
+    )
+    if (!canonical.length) return yield* Effect.fail(new AuthForbidden({ address: signer }))
+  })
+
+// Resolve the member a signer belongs to (canonical or any linked alias) —
+// most mutations are member-scoped; without it any signed keypair could act.
+const requireMember = (
+  signer: string,
+): Effect.Effect<typeof users.$inferSelect, BadRequest | DatabaseError | DatabaseNotConfigured, DatabaseService> =>
+  Effect.gen(function* () {
+    const memberRows = yield* withDb((db) => db.select().from(users).where(addressLinkedToUser(signer)))
+    const member = memberRows[0]
+    if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+    return member
   })
 
 // Canonical consent message the NEW wallet signs to accept being linked to a
@@ -283,20 +324,18 @@ const wrappedDailyCap = (scope: 'global' | 'member') =>
 // block a legitimate rebalance.
 const MAX_DAILY_CONVERT_EUR = 250_000
 
-// Append-only record of privileged actions. Only logged when an admin acts
-// on a resource they do not own — that is exactly the set of writes that
-// move the community ledger or other members' data.
+// Append-only record of ledger mutations — every signer, not just admins:
+// a compromised member key must be reconstructible too. `admin_address`
+// holds the acting signer (the column name is historical).
 const auditAdmin = (signer: string, action: string, resourceId: string, detail?: unknown) =>
-  isAdminAddress(signer)
-    ? withDb((db) =>
-        db.insert(adminAuditLog).values({
-          action,
-          adminAddress: signer,
-          detail: detail === undefined ? null : JSON.stringify(detail).slice(0, 2000),
-          resourceId,
-        }),
-      )
-    : Effect.void
+  withDb((db) =>
+    db.insert(adminAuditLog).values({
+      action,
+      adminAddress: signer,
+      detail: detail === undefined ? null : JSON.stringify(detail).slice(0, 2000),
+      resourceId,
+    }),
+  )
 
 const deriveTransactionType = (
   movement: number,
@@ -312,6 +351,20 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
   Effect.gen(function* () {
     return (
       handlers
+        // SIWS sign-in: one signature → bearer session (7d). The signed path
+        // stays for compatibility, but clients should only need it once.
+        .handle('createSession', ({ payload }) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            return yield* createSession(request, payload)
+          }),
+        )
+        .handle('deleteSession', () =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            return yield* deleteSession(request)
+          }),
+        )
         .handle('users', ({ urlParams }) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
@@ -423,7 +476,10 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            yield* requireLinkedOrAdmin(signer, path.id)
+            yield* requireCanonicalOrAdmin(signer, path.id)
+            // Step-up: a bearer session alone cannot destroy a member — the
+            // wallet must re-sign this exact action.
+            yield* verifyFreshConfirmation(request, signer)
             const rows = yield* withDb((db) =>
               db.delete(users).where(eq(users.id, path.id)).returning({ id: users.id }),
             )
@@ -439,7 +495,8 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            yield* requireLinkedOrAdmin(signer, path.id)
+            yield* requireCanonicalOrAdmin(signer, path.id)
+            yield* verifyFreshConfirmation(request, signer)
             if (!isAdminAddress(signer)) {
               if (!payload.signature)
                 return yield* Effect.fail(new BadRequest({ reason: 'missing link consent signature' }))
@@ -492,7 +549,8 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
-            yield* requireLinkedOrAdmin(signer, path.id)
+            yield* requireCanonicalOrAdmin(signer, path.id)
+            yield* verifyFreshConfirmation(request, signer)
             const rows = yield* withDb((db) =>
               db
                 .delete(userAddresses)
@@ -763,11 +821,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
             yield* requireNotDemo(signer)
-            const memberRows = yield* withDb((db) =>
-              db.select({ id: users.id }).from(users).where(addressLinkedToUser(signer)),
-            )
-            const member = memberRows[0]
-            if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+            const member = yield* requireMember(signer)
             if (payload.fromToken === payload.toToken)
               return yield* Effect.fail(new BadRequest({ reason: 'source and destination tokens must differ' }))
             const priceRows = yield* withDb((db) =>
@@ -793,26 +847,29 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                   }),
                 )
             }
-            // The per-day cap bounds what a stolen member key can bleed
-            // through back-and-forth conversions (each round-trip burns the
-            // fee). Generous enough to never block a legitimate rebalance.
-            const dailyRows = (yield* withDb((db) =>
-              db.execute(
-                sql`SELECT COALESCE(SUM(-movement), 0)::float AS eur FROM transactions WHERE user_id = ${member.id} AND type = 'conversion' AND movement < 0 AND date >= NOW() - INTERVAL '24 hours'`,
-              ),
-            )).rows as { eur: number }[]
-            if (Number(dailyRows[0]?.eur ?? 0) + payload.eurAmount > MAX_DAILY_CONVERT_EUR)
-              return yield* Effect.fail(
-                new BadRequest({ reason: `daily conversion limit of ${MAX_DAILY_CONVERT_EUR} EUR exceeded` }),
-              )
             const now = new Date()
             // Session-level transaction: the member row lock serializes
-            // concurrent conversions so each one re-reads the position
-            // under the lock before writing — a racy double-read can no
-            // longer overdraw the position. (user_id, request_id) is
-            // unique, so a retried submission is deduplicated.
+            // concurrent conversions so each one re-reads the position AND
+            // the daily cap under the lock before writing — a racy
+            // double-read can no longer overdraw the position nor double
+            // the daily quota. (user_id, request_id) is unique, so a
+            // retried submission is deduplicated.
             const outcome = yield* withTransaction(async (tx) => {
               await tx.execute(sql`SELECT id FROM users WHERE id = ${member.id} FOR UPDATE`)
+              // The per-day cap bounds what a stolen member key can bleed
+              // through back-and-forth conversions (each round-trip burns
+              // the fee). Checked under the member lock — parallel requests
+              // cannot both see headroom and slip past the cap.
+              const dailyRows = (
+                await tx.execute(
+                  sql`SELECT COALESCE(SUM(-movement), 0)::float AS eur FROM transactions WHERE user_id = ${member.id} AND type = 'conversion' AND movement < 0 AND date >= NOW() - INTERVAL '24 hours'`,
+                )
+              ).rows as { eur: number }[]
+              if (Number(dailyRows[0]?.eur ?? 0) + payload.eurAmount > MAX_DAILY_CONVERT_EUR) {
+                return {
+                  capExceeded: `daily conversion limit of ${MAX_DAILY_CONVERT_EUR} EUR exceeded`,
+                } as const
+              }
               const lockedUnits = (
                 await tx.execute(
                   sql`SELECT COALESCE(SUM(amount), 0)::float AS units FROM transactions WHERE user_id = ${member.id} AND token = ${payload.fromToken}`,
@@ -857,6 +914,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                 .returning()
               return { inserted } as const
             })
+            if ('capExceeded' in outcome) return yield* Effect.fail(new BadRequest({ reason: outcome.capExceeded }))
             if ('insufficient' in outcome) return yield* Effect.fail(new BadRequest({ reason: outcome.insufficient }))
             if (outcome.inserted.length) return outcome.inserted
             // Conflict on request_id: the same conversion was already
@@ -897,19 +955,17 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               yield* requireNotDemo(signer)
               if (payload.kind !== 'tontine')
                 return yield* Effect.fail(new BadRequest({ reason: 'member proposals must target the tontine' }))
-              const memberRows = yield* withDb((db) =>
-                db.select({ id: users.id }).from(users).where(addressLinkedToUser(signer)),
-              )
-              const member = memberRows[0]
-              if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+              const member = yield* requireMember(signer)
               const [config, weights] = yield* Effect.all([loadFimsConfig, loadVoteWeights])
               const invested = weights.invested.get(member.id) ?? 0
               if (!(invested > config.proposalThreshold * config.totalInvested))
                 return yield* Effect.fail(new AuthForbidden({ address: signer }))
               proposerId = member.id
             }
-            const created = yield* withDb((db) =>
-              db
+            // Vote + options in one transaction — a failed options insert
+            // used to leave a vote with no options (permanently unusable).
+            const created = yield* withTransaction(async (tx) => {
+              const inserted = await tx
                 .insert(votes)
                 .values({
                   closesAt: payload.closesAt ?? null,
@@ -918,17 +974,17 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                   proposerId,
                   title: payload.title,
                 })
-                .returning(),
-            )
-            const vote = created[0]
-            if (!vote) return yield* Effect.fail(insertFailed())
-            if (proposerId === null) yield* auditAdmin(signer, 'create_vote', String(vote.id), payload)
-            yield* auditAdmin(signer, 'create_vote', String(vote.id), payload)
-            yield* withDb((db) =>
-              db
+                .returning()
+              const vote = inserted[0]
+              if (!vote) return null
+              await tx
                 .insert(voteOptions)
-                .values(payload.options.map((label, sortOrder) => ({ label, sortOrder, voteId: vote.id }))),
-            )
+                .values(payload.options.map((label, sortOrder) => ({ label, sortOrder, voteId: vote.id })))
+              return vote
+            })
+            const vote = created
+            if (!vote) return yield* Effect.fail(insertFailed())
+            yield* auditAdmin(signer, 'create_vote', String(vote.id), payload)
             const list = yield* loadVotesWithResults(Option.some(signer))
             const found = list.find((v) => v.id === vote.id)
             if (!found) return yield* Effect.fail(notFound(`vote ${vote.id}`))
@@ -961,11 +1017,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             if (!vote) return yield* Effect.fail(notFound(`vote ${path.id}`))
             if (vote.status !== 'open' || (vote.closesAt && vote.closesAt.getTime() < Date.now()))
               return yield* Effect.fail(new BadRequest({ reason: 'vote is not open' }))
-            const memberRows = yield* withDb((db) =>
-              db.select({ id: users.id }).from(users).where(addressLinkedToUser(signer)),
-            )
-            const member = memberRows[0]
-            if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+            const member = yield* requireMember(signer)
             const optionRows = yield* withDb((db) =>
               db.select({ id: voteOptions.id }).from(voteOptions).where(eq(voteOptions.voteId, path.id)),
             )
@@ -973,29 +1025,33 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
               return yield* Effect.fail(
                 new BadRequest({ reason: `option ${payload.optionId} is not part of this vote` }),
               )
-            const existingBallots = yield* withDb((db) =>
-              db
+            // A decision can be changed once per 24 h — re-selecting the same
+            // option is a no-op, not a change. The member lock serializes
+            // concurrent casts so the cooldown cannot be double-passed.
+            const ballotOutcome = yield* withTransaction(async (tx) => {
+              await tx.execute(sql`SELECT id FROM users WHERE id = ${member.id} FOR UPDATE`)
+              const existingBallots = await tx
                 .select({ optionId: voteBallots.optionId, updatedAt: voteBallots.updatedAt })
                 .from(voteBallots)
-                .where(and(eq(voteBallots.voteId, path.id), eq(voteBallots.userId, member.id))),
-            )
-            // A decision can be changed once per 24 h — re-selecting the same
-            // option is a no-op, not a change.
-            const retryAt = ballotChangeRetryAt(existingBallots[0] ?? null, payload.optionId)
-            if (retryAt) {
-              return yield* Effect.fail(
-                new BadRequest({ reason: `ballot changeable once per day — retry at ${retryAt.toISOString()}` }),
-              )
-            }
-            yield* withDb((db) =>
-              db
+                .where(and(eq(voteBallots.voteId, path.id), eq(voteBallots.userId, member.id)))
+              const retryAt = ballotChangeRetryAt(existingBallots[0] ?? null, payload.optionId)
+              if (retryAt) return { retryAt } as const
+              await tx
                 .insert(voteBallots)
                 .values({ optionId: payload.optionId, userId: member.id, voteId: path.id })
                 .onConflictDoUpdate({
                   set: { optionId: payload.optionId, updatedAt: new Date() },
                   target: [voteBallots.voteId, voteBallots.userId],
+                })
+              return { cast: true } as const
+            })
+            if ('retryAt' in ballotOutcome) {
+              return yield* Effect.fail(
+                new BadRequest({
+                  reason: `ballot changeable once per day — retry at ${ballotOutcome.retryAt.toISOString()}`,
                 }),
-            )
+              )
+            }
             const list = yield* loadVotesWithResults(Option.some(signer))
             const found = list.find((v) => v.id === path.id)
             if (!found) return yield* Effect.fail(notFound(`vote ${path.id}`))
@@ -1030,9 +1086,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const request = yield* HttpServerRequest.HttpServerRequest
             const signer = yield* verifyWalletRequest(request)
             yield* requireNotDemo(signer)
-            const memberRows = yield* withDb((db) => db.select().from(users).where(addressLinkedToUser(signer)))
-            const member = memberRows[0]
-            if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+            const member = yield* requireMember(signer)
             // Idempotent: a retry of the same signature returns what was
             // already recorded instead of double-counting the donation.
             const existing = yield* withDb((db) =>
@@ -1040,19 +1094,19 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             )
             if (existing.length) return existing
 
-            const tx = yield* Effect.tryPromise({
+            const fetched = yield* Effect.tryPromise({
               catch: () => new BadRequest({ reason: 'cannot fetch transaction from the RPC' }),
               try: () => fetchDonationTransaction(payload.signature, FIMS_TONTINE_ADDRESS),
             })
-            if (!tx)
+            if (!fetched)
               return yield* Effect.fail(new BadRequest({ reason: 'transaction not found, failed, or not confirmed' }))
-            if (!tx.deltas.length)
+            if (!fetched.deltas.length)
               return yield* Effect.fail(new BadRequest({ reason: 'transaction did not credit the tontine wallet' }))
             // The fee payer must belong to the signer: recording someone
             // else's gift under your own name would inflate your vote weight
             // and erase your debt for free.
             const payerRows = yield* withDb((db) =>
-              db.select({ id: users.id }).from(users).where(addressLinkedToUser(tx.payer)),
+              db.select({ id: users.id }).from(users).where(addressLinkedToUser(fetched.payer)),
             )
             if (payerRows[0]?.id !== member.id)
               return yield* Effect.fail(
@@ -1064,18 +1118,33 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
             const symbolOf = (mint: string) =>
               mint === 'SOL' ? 'SOL' : (tokenRows.find((t) => t.address === mint)?.symbol ?? null)
 
-            const rows = yield* withDb((db) =>
-              db
+            // Claim the signature inside a transaction: two concurrent
+            // recordings serialize on the PK, so only one writes the rows —
+            // the other returns them. The claim rolls back with any failure,
+            // so a crashed attempt stays retryable.
+            const rows = yield* withTransaction(async (tx) => {
+              const claim = await tx
+                .insert(usedSignatures)
+                .values({ signature: `donation:${payload.signature}` })
+                .onConflictDoNothing()
+                .returning()
+              if (!claim.length) return null
+              const committed = await tx
+                .select()
+                .from(transactions)
+                .where(eq(transactions.signature, payload.signature))
+              if (committed.length) return committed
+              return tx
                 .insert(transactions)
                 .values(
-                  tx.deltas.map((delta) => {
+                  fetched.deltas.map((delta) => {
                     const symbol = symbolOf(delta.mint)
                     const movement = symbol ? (priceOf(symbol) ?? 0) * delta.amount : 0
                     return {
-                      address: tx.payer,
+                      address: fetched.payer,
                       amount: delta.amount,
                       cost: movement,
-                      date: tx.blockTime ?? new Date(),
+                      date: fetched.blockTime ?? new Date(),
                       donationTarget: 'tontine',
                       movement,
                       signature: payload.signature,
@@ -1085,8 +1154,18 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                     }
                   }),
                 )
-                .returning(),
-            )
+                .returning()
+            })
+            if (rows === null) {
+              // Someone else recorded it — serve what they wrote.
+              const committed = yield* withDb((db) =>
+                db.select().from(transactions).where(eq(transactions.signature, payload.signature)),
+              )
+              if (committed.length) return committed
+              return yield* Effect.fail(
+                new BadRequest({ reason: 'donation recording in flight — retry in a few seconds' }),
+              )
+            }
             if (!rows.length) return yield* Effect.fail(insertFailed())
             return rows
           }),
@@ -1126,22 +1205,23 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
         .handle('chainLabels', () =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
-            yield* verifyWalletRequest(request)
-            const { rows } = yield* withDb(loadChainLabels)
+            const signer = yield* verifyWalletRequest(request)
+            const { rows } = yield* withDb((db) => loadChainLabels(db, Option.some(signer)))
             return rows.slice(0, CHAIN_ADDRESS_MAX)
           }),
         )
         .handle('chainHistory', ({ urlParams }) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
-            yield* verifyWalletRequest(request)
+            const signer = yield* verifyWalletRequest(request)
+            yield* consumeChainQuota(signer)
             const keys = yield* heliusKeysOrFail
             const limit = Math.min(Math.max(1, Math.floor(urlParams.limit ?? 100)), 100)
             const page = yield* Effect.tryPromise({
               catch: chainUnavailable,
               try: () => fetchHeliusTransactions(keys, urlParams.address, { cursor: urlParams.cursor, limit }),
             })
-            const { labels, symbols } = yield* withDb(loadChainLabels)
+            const { labels, symbols } = yield* withDb((db) => loadChainLabels(db, Option.some(signer)))
             const flat = new Map([...labels.entries()].map(([a, v]) => [a, v.label] as const))
             return {
               cursor: page.paginationToken ?? null,
@@ -1154,13 +1234,14 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
         .handle('chainAssets', ({ urlParams }) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest
-            yield* verifyWalletRequest(request)
+            const signer = yield* verifyWalletRequest(request)
+            yield* consumeChainQuota(signer)
             const keys = yield* heliusKeysOrFail
             const assets = yield* Effect.tryPromise({
               catch: chainUnavailable,
               try: () => fetchHeliusAssets(keys, urlParams.address),
             })
-            const { symbols } = yield* withDb(loadChainLabels)
+            const { symbols } = yield* withDb((db) => loadChainLabels(db, Option.some(signer)))
             return assets.map((asset) => ({
               ...asset,
               symbol: asset.mint ? (asset.symbol ?? chainSymbolForMint(asset.mint, symbols)) : 'SOL',
@@ -1198,6 +1279,14 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
                 new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'delegate pass failed' }),
               try: () => runStrategyPass(db),
             })
+            // Piggyback the tontine reconcile on the same cron tick: the pot
+            // sees so few transactions that one scan a minute is plenty, and
+            // carving sends no longer depend on the client reporting them.
+            // Best-effort — a reconcile hiccup must not fail the keeper pass.
+            yield* Effect.tryPromise({
+              catch: () => new ChainUnavailable({ reason: 'reconcile failed' }),
+              try: () => reconcileTontineDonations(db),
+            }).pipe(Effect.catchAll((error) => Effect.logWarning('tontine reconcile failed', error)))
             // Surface per-deposit failures as 503 so cron-job.org alerts —
             // the full detail stays in the strategy_ops table.
             const failed = report.deposits.filter((d) => d.error)
@@ -1275,21 +1364,25 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
     const request = yield* HttpServerRequest.HttpServerRequest
     const signer = yield* verifyWalletRequest(request)
     yield* requireNotDemo(signer)
-    const memberRows = yield* withDb((db) => db.select().from(users).where(addressLinkedToUser(signer)))
-    const member = memberRows[0]
-    if (!member) return yield* Effect.fail(new BadRequest({ reason: 'signer is not a FiMs member' }))
+    const member = yield* requireMember(signer)
+    // Only wrapped ledger rows ({sig}:{mint}) count as "already processed":
+    // a transaction can ALSO appear as a donation row (same signature, no
+    // suffix) when it carried a tontine carve — that must not block the mint.
     const existing = yield* withDb((db) =>
       db
         .select()
         .from(transactions)
-        .where(or(eq(transactions.signature, signature), like(transactions.signature, `${signature}:%`))),
+        .where(like(transactions.signature, `${signature}:%`)),
     )
     if (existing.length) {
       return { custodialSignature: '', transactions: existing }
     }
 
     const custody = yield* Effect.tryPromise({
-      catch: (error) => new CustodialUnavailable({ reason: `custodial wallet unavailable: ${error}` }),
+      catch: (error) => {
+        console.error('custodial wallet unavailable', error)
+        return new CustodialUnavailable({ reason: 'custodial wallet is not configured' })
+      },
       try: () => custodialAddress(),
     })
     const tx = yield* Effect.tryPromise({
@@ -1395,82 +1488,120 @@ function wrappedTransfer(signature: string, direction: 'deposit' | 'redeem') {
       })
     }
 
-    // Cap check + replay claim inside ONE locked transaction: the user row
-    // lock serializes concurrent requests so the 24h sums cannot be raced,
-    // and each claim key is per-(tx, mint) so a tx carrying several backing
-    // legs mints each exactly once.
+    // State machine, not a blind mint: wrapped_claims records each leg's
+    // progress (claimed → minted → recorded). A crash mid-flight leaves a
+    // durable mark a retry can resume from instead of re-minting or
+    // blocking forever — see the wrapped_claims table comment for states.
     const claimOutcome = yield* withTransaction(async (tx) => {
       await tx.execute(sql`SELECT id FROM users WHERE id = ${member.id} FOR UPDATE`)
-      const symbols = prepared.map((row) => row.symbol)
-      const memberUnits = (
-        await tx.execute(
-          sql`SELECT COALESCE(SUM(ABS(amount)), 0)::float AS units FROM transactions WHERE user_id = ${member.id} AND ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'`,
-        )
-      ).rows as { units: number }[]
-      const globalUnits = (
-        await tx.execute(
-          sql`SELECT COALESCE(SUM(ABS(amount)), 0)::float AS units FROM transactions WHERE ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'`,
-        )
-      ).rows as { units: number }[]
-      const requested = prepared.reduce((sum, row) => sum + Number(row.productUnits) / 1e6, 0)
-      if (Number(memberUnits[0]?.units ?? 0) + requested > wrappedDailyCap('member'))
-        return { limited: 'member daily wrapped limit exceeded' } as const
-      if (Number(globalUnits[0]?.units ?? 0) + requested > wrappedDailyCap('global'))
-        return { limited: 'global daily wrapped limit exceeded' } as const
-      const claimed = await Promise.all(
-        prepared.map((row) =>
-          tx
-            .insert(usedSignatures)
-            .values({ signature: `wrapped:${signature}:${row.delta.mint}` })
-            .onConflictDoNothing()
-            .returning(),
-        ),
-      )
-      return { claimed: prepared.filter((_, i) => (claimed[i]?.length ?? 0) > 0) } as const
+      const mints = prepared.map((row) => row.delta.mint)
+      const existing = await tx
+        .select()
+        .from(wrappedClaims)
+        .where(and(eq(wrappedClaims.signature, signature), inArray(wrappedClaims.mint, mints)))
+      const byMint = new Map(existing.map((claim) => [claim.mint, claim]))
+      // A 'claimed' leg means a previous request died between claim and
+      // ledger write — a retried mint could double-credit the member, so it
+      // blocks until an admin verifies the chain and unblocks the row.
+      if (existing.some((claim) => claim.state === 'claimed')) return { inFlight: true } as const
+      const replay = prepared.filter((row) => byMint.get(row.delta.mint)?.state === 'minted')
+      const fresh = prepared.filter((row) => !byMint.has(row.delta.mint))
+      // Caps only gate NEW legs — replaying a minted leg's ledger row must
+      // never be refused (the units are already on-chain).
+      const symbols = fresh.map((row) => row.symbol)
+      if (symbols.length) {
+        const memberUnits = (
+          await tx.execute(
+            sql`SELECT COALESCE(SUM(ABS(amount)), 0)::float AS units FROM transactions WHERE user_id = ${member.id} AND ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'`,
+          )
+        ).rows as { units: number }[]
+        const globalUnits = (
+          await tx.execute(
+            sql`SELECT COALESCE(SUM(ABS(amount)), 0)::float AS units FROM transactions WHERE ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'`,
+          )
+        ).rows as { units: number }[]
+        const requested = fresh.reduce((sum, row) => sum + Number(row.productUnits) / 1e6, 0)
+        if (Number(memberUnits[0]?.units ?? 0) + requested > wrappedDailyCap('member'))
+          return { limited: 'member daily wrapped limit exceeded' } as const
+        if (Number(globalUnits[0]?.units ?? 0) + requested > wrappedDailyCap('global'))
+          return { limited: 'global daily wrapped limit exceeded' } as const
+      }
+      for (const row of fresh) {
+        await tx.insert(wrappedClaims).values({ mint: row.delta.mint, signature, state: 'claimed' })
+      }
+      return { fresh, replay } as const
     })
+    if ('inFlight' in claimOutcome)
+      return yield* Effect.fail(
+        new BadRequest({ reason: 'this transfer is already being processed — retry in a minute' }),
+      )
     if ('limited' in claimOutcome) return yield* Effect.fail(new BadRequest({ reason: claimOutcome.limited }))
-    const claimed = claimOutcome.claimed
-    if (!claimed.length) {
-      const rows = yield* withDb((db) => db.select().from(transactions).where(eq(transactions.signature, signature)))
+    const { fresh, replay } = claimOutcome
+    if (!fresh.length && !replay.length) {
+      const rows = yield* withDb((db) =>
+        db
+          .select()
+          .from(transactions)
+          .where(like(transactions.signature, `${signature}:%`)),
+      )
       return { custodialSignature: '', transactions: rows }
     }
 
-    const custodialSignature = yield* Effect.tryPromise({
-      catch: (error) => new CustodialUnavailable({ reason: `custodial ${direction} failed: ${error}` }),
-      try: async () => {
-        let last = '' as Signature
-        for (const row of claimed) {
-          last =
-            direction === 'deposit'
-              ? await custodialMint(row.product, solAddress(tx.payer), row.productUnits, row.backingUnits)
-              : await custodialRedeem(row.product, solAddress(tx.payer), row.productUnits, row.backingUnits)
-        }
-        return last
-      },
-    })
+    // Mint each fresh leg, then durably mark it minted — a retry replays the
+    // ledger write without touching the chain again.
+    const minted: ({ custodialSignature?: string } & (typeof fresh)[number])[] = [...replay]
+    for (const row of fresh) {
+      const custodialSignature = yield* Effect.tryPromise({
+        catch: (error) => {
+          console.error(`custodial ${direction} failed`, error)
+          return new CustodialUnavailable({
+            reason: `custodial ${direction} failed — the backing is safe; retry in a few minutes`,
+          })
+        },
+        try: () =>
+          direction === 'deposit'
+            ? custodialMint(row.product, solAddress(tx.payer), row.productUnits, row.backingUnits)
+            : custodialRedeem(row.product, solAddress(tx.payer), row.productUnits, row.backingUnits),
+      })
+      yield* withDb((db) =>
+        db
+          .update(wrappedClaims)
+          .set({ custodialSignature, state: 'minted', updatedAt: new Date() })
+          .where(and(eq(wrappedClaims.signature, signature), eq(wrappedClaims.mint, row.delta.mint))),
+      )
+      minted.push({ ...row, custodialSignature })
+    }
 
-    const rows = yield* withDb((db) =>
-      db
-        .insert(transactions)
-        .values(
-          claimed.map((row) => {
-            const productAmount = Number(row.productUnits) / 1e6
-            const movement = row.price * productAmount
-            return {
-              address: tx.payer,
-              amount: direction === 'deposit' ? productAmount : -productAmount,
-              cost: movement,
-              date: tx.blockTime ?? new Date(),
-              movement: direction === 'deposit' ? movement : -movement,
-              signature: `${signature}:${row.delta.mint}`,
-              token: row.symbol,
-              type: direction === 'deposit' ? ('deposit' as const) : ('withdrawal' as const),
-              userId: member.id,
-            }
-          }),
-        )
-        .returning(),
-    )
+    // Ledger rows + terminal state in one transaction per leg.
+    const rows = []
+    let custodialSignature = minted[0]?.custodialSignature ?? ''
+    for (const row of minted) {
+      const productAmount = Number(row.productUnits) / 1e6
+      const movement = row.price * productAmount
+      const inserted = yield* withTransaction(async (dbTx) => {
+        const ledger = await dbTx
+          .insert(transactions)
+          .values({
+            address: tx.payer,
+            amount: direction === 'deposit' ? productAmount : -productAmount,
+            cost: movement,
+            date: tx.blockTime ?? new Date(),
+            movement: direction === 'deposit' ? movement : -movement,
+            signature: `${signature}:${row.delta.mint}`,
+            token: row.symbol,
+            type: direction === 'deposit' ? ('deposit' as const) : ('withdrawal' as const),
+            userId: member.id,
+          })
+          .returning()
+        await dbTx
+          .update(wrappedClaims)
+          .set({ state: 'recorded', updatedAt: new Date() })
+          .where(and(eq(wrappedClaims.signature, signature), eq(wrappedClaims.mint, row.delta.mint)))
+        return ledger
+      })
+      custodialSignature = row.custodialSignature ?? custodialSignature
+      rows.push(...inserted)
+    }
     if (!rows.length) return yield* Effect.fail(insertFailed())
     return { custodialSignature, transactions: rows }
   })
@@ -1491,16 +1622,35 @@ interface ChainLabelRow {
 }
 
 // Every address the reader can name, in precedence order: built-ins first,
-// then address-book entries, then members (a member row never overwrites a
-// built-in — a squatted "Tontine" name must not re-label the pot).
-async function loadChainLabels(db: Db) {
+// then the caller's OWN address-book entries, then members. Non-public
+// members are only named for themselves and admins — a private member's
+// wallets and name never leak through labels. Address-book entries stay
+// private to their owner: another member's labels can neither leak their
+// book nor let a member stamp a spoofed name onto shared history.
+async function loadChainLabels(db: Db, signer: Option.Option<string>) {
+  const signerAddress = Option.getOrNull(signer)
+  const memberVisible = (() => {
+    if (!signerAddress) return eq(users.isPublic, true)
+    if (isAdminAddress(signerAddress)) return undefined
+    return or(eq(users.isPublic, true), addressLinkedToUser(signerAddress))
+  })()
+  const ownBook =
+    signerAddress === null
+      ? sql`false`
+      : isAdminAddress(signerAddress)
+        ? undefined
+        : sql`${addressBook.userId} in (select id from ${users} where ${addressLinkedToUser(signerAddress)})`
   const [memberRows, aliasRows, bookRows, tokenRows] = await Promise.all([
-    db.select({ address: users.address, name: users.name }).from(users),
+    db.select({ address: users.address, name: users.name }).from(users).where(memberVisible),
     db
       .select({ address: userAddresses.address, name: users.name })
       .from(userAddresses)
-      .innerJoin(users, eq(userAddresses.userId, users.id)),
-    db.select({ address: addressBook.address, label: addressBook.label, type: addressBook.type }).from(addressBook),
+      .innerJoin(users, eq(userAddresses.userId, users.id))
+      .where(memberVisible),
+    db
+      .select({ address: addressBook.address, label: addressBook.label, type: addressBook.type })
+      .from(addressBook)
+      .where(ownBook),
     db.select({ address: tokens.address, symbol: tokens.symbol }).from(tokens),
   ])
 
@@ -1529,8 +1679,40 @@ async function loadChainLabels(db: Db) {
   return { labels, rows, symbols }
 }
 
-const chainUnavailable = (cause: unknown) =>
-  new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'chain provider unavailable' })
+// Upstream failures never reach the client verbatim — an RPC error body or
+// a fetch error can embed the endpoint URL (and its ?api-key). Detail stays
+// in the server logs; the member gets a generic, retryable reason.
+const chainUnavailable = (cause: unknown) => {
+  console.error('chain provider failure', cause)
+  return new ChainUnavailable({ reason: 'chain provider temporarily unavailable — retry shortly' })
+}
+
+// The chain reader proxies PAID Helius calls — an abused wallet key must not
+// be able to burn the shared provider budget. Per-signer bucket over the
+// rate_limits retention window (rows purge after ~10 min); generous enough
+// for normal browsing, hard against scripted scraping.
+const CHAIN_READS_PER_WINDOW = 60
+const consumeChainQuota = (signer: string) =>
+  Effect.gen(function* () {
+    const { db } = yield* DatabaseService
+    const windowStart = new Date(Math.floor(Date.now() / (10 * 60 * 1000)) * 10 * 60 * 1000)
+    const result = yield* Effect.tryPromise({
+      catch: () => new RateLimited({ reason: 'rate limiter unavailable' }),
+      try: () =>
+        db.execute(sql`
+          INSERT INTO rate_limits (bucket, window_start, count)
+          VALUES (${`chain:${signer}`}, ${windowStart.toISOString()}, 1)
+          ON CONFLICT (bucket, window_start) DO UPDATE SET count = rate_limits.count + 1
+          RETURNING count
+        `),
+    })
+    const count = Number((result as unknown as { rows?: { count: number }[] }).rows?.[0]?.count ?? 0)
+    if (count > CHAIN_READS_PER_WINDOW) {
+      return yield* Effect.fail(
+        new RateLimited({ reason: `chain read quota exceeded (${CHAIN_READS_PER_WINDOW} per 10 minutes)` }),
+      )
+    }
+  })
 
 const heliusKeysOrFail = Effect.gen(function* () {
   const keys = heliusApiKeys()

@@ -192,6 +192,7 @@ function RequestUiChangeRows({
 function RequestUiWarning({ warning }: { warning: WireInspectionWarning }) {
   const { t } = useTranslation('request')
   const messages: Record<WireInspectionWarningId, string> = {
+    demoRecipient: t(($) => $.warningDemoRecipient),
     simulationFailed: t(($) => $.warningSimulationFailed),
     tokenAccountCompromised: t(($) => $.warningTokenAccountCompromised),
     unexpectedSigner: t(($) => $.warningUnexpectedSigner),

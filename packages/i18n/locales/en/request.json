@@ -28,6 +28,7 @@
   "signTransactionTitle": "Sign transaction",
   "thisWallet": "This wallet",
   "warningCriticalTitle": "Danger — review carefully",
+  "warningDemoRecipient": "CRITICAL: this transaction sends value to the FiMs demo wallet — its mnemonic is public and anyone can drain it:",
   "warningSimulationFailed": "The transaction simulation failed — it will likely revert on-chain.",
   "warningTokenAccountCompromised": "This transaction changes ownership, delegation or closes one of your token accounts:",
   "warningUnexpectedSigner": "This transaction requires signatures from other keys it does not already contain. Signing is blocked.",

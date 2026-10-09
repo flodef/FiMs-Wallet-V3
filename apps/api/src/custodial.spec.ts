@@ -295,7 +295,7 @@ describe('custodial', () => {
       const { custodialAddress } = await loadCustodial()
 
       // ACT & ASSERT
-      await expect(custodialAddress()).rejects.toThrow('CUSTODIAL_KEYPAIR: invalid base58 character')
+      await expect(custodialAddress()).rejects.toThrow('for base 58 with alphabet')
     })
   })
 })

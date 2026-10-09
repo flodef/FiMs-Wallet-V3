@@ -361,6 +361,20 @@ const WrappedTxBody = Schema.Struct({
   signature: Schema.String.pipe(Schema.minLength(32), Schema.maxLength(128)),
 })
 
+// SIWS sign-in: the server rebuilds the canonical message from these fields
+// and verifies `signature` over it — the message text is never client-trusted.
+const CreateSessionBody = Schema.Struct({
+  address: SolanaAddress,
+  issuedAt: Schema.String,
+  nonce: Schema.String.pipe(Schema.minLength(16), Schema.maxLength(64)),
+  signature: Schema.String,
+})
+
+export class Session extends Schema.Class<Session>('Session')({
+  expiresAt: Schema.Date,
+  token: Schema.String,
+}) {}
+
 export class WrappedProduct extends Schema.Class<WrappedProduct>('WrappedProduct')({
   backingMint: Schema.String,
   id: Schema.String,
@@ -381,6 +395,23 @@ export class WrappedResult extends Schema.Class<WrappedResult>('WrappedResult')(
 }) {}
 
 export class FimsApi extends HttpApiGroup.make('Fims')
+  .add(
+    HttpApiEndpoint.post('createSession', '/fims/session')
+      .annotate(OpenApi.Summary, 'Sign in — mint a bearer session from a SIWS signature')
+      .setPayload(CreateSessionBody)
+      .addSuccess(Session)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    HttpApiEndpoint.del('deleteSession', '/fims/session')
+      .annotate(OpenApi.Summary, 'Revoke the bearer session')
+      .addSuccess(Schema.String)
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
   .add(
     HttpApiEndpoint.get('votes', '/fims/votes')
       .annotate(OpenApi.Summary, 'List votes with weighted results')
@@ -752,6 +783,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addSuccess(ChainHistoryPage)
       .addError(AuthUnauthorized, { status: 401 })
       .addError(BadRequest, { status: 400 })
+      .addError(RateLimited, { status: 429 })
       .addError(ChainUnavailable, { status: 503 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
@@ -762,6 +794,7 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .setUrlParams(Schema.Struct({ address: SolanaAddress }))
       .addSuccess(Schema.Array(ChainAsset))
       .addError(AuthUnauthorized, { status: 401 })
+      .addError(RateLimited, { status: 429 })
       .addError(ChainUnavailable, { status: 503 })
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),

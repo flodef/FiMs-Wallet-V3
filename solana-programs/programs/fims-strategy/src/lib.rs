@@ -85,16 +85,26 @@ pub mod fims_strategy {
             &[crate::ID.as_ref()],
             &anchor_lang::solana_program::bpf_loader_upgradeable::ID,
         );
-        require!(ctx.accounts.program_data.key() == expected_pd, StrategyError::BadProgramData);
+        require!(
+            ctx.accounts.program_data.key() == expected_pd,
+            StrategyError::BadProgramData
+        );
 
         let data = ctx.accounts.program_data.try_borrow_data()?;
         // UpgradeableLoaderState::ProgramData = variant u32 3, slot u64,
         // then Option<Pubkey> upgrade authority (u8 tag + 32 bytes).
         require!(data.len() >= 45, StrategyError::BadProgramData);
-        require!(u32::from_le_bytes(data[0..4].try_into().unwrap()) == 3, StrategyError::BadProgramData);
+        require!(
+            u32::from_le_bytes(data[0..4].try_into().unwrap()) == 3,
+            StrategyError::BadProgramData
+        );
         require!(data[12] == 1, StrategyError::BadProgramData);
-        let authority = Pubkey::try_from(&data[13..45]).map_err(|_| StrategyError::BadProgramData)?;
-        require!(authority == ctx.accounts.payer.key(), StrategyError::NotUpgradeAuthority);
+        let authority =
+            Pubkey::try_from(&data[13..45]).map_err(|_| StrategyError::BadProgramData)?;
+        require!(
+            authority == ctx.accounts.payer.key(),
+            StrategyError::NotUpgradeAuthority
+        );
         drop(data);
 
         validate_whitelists(&args.allowed_programs, &args.member_whitelist)?;
@@ -122,7 +132,10 @@ pub mod fims_strategy {
         state.proposed_admin = None;
         state.vault_bump = ctx.bumps.vault;
         state.bump = ctx.bumps.state;
-        emit!(Initialized { admin: args.admin, delegate: args.delegate });
+        emit!(Initialized {
+            admin: args.admin,
+            delegate: args.delegate
+        });
         Ok(())
     }
 
@@ -135,7 +148,12 @@ pub mod fims_strategy {
     /// mandatory (MIN_TIP, no free-riding the keeper) and capped at
     /// MAX_TIP_LAMPORTS so a bad client cannot silently drain the member. Deposit itself is permissionless: the
     /// member only sends funds, there is nothing to steal.
-    pub fn deposit(ctx: Context<Deposit>, strategy_index: u8, amount: u64, tip_lamports: u64) -> Result<()> {
+    pub fn deposit(
+        ctx: Context<Deposit>,
+        strategy_index: u8,
+        amount: u64,
+        tip_lamports: u64,
+    ) -> Result<()> {
         let state = &ctx.accounts.state;
         require!(!state.paused, StrategyError::Paused);
         let strategy = state
@@ -164,10 +182,22 @@ pub mod fims_strategy {
         // Same mint => same program: a legacy member ATA and a T22 vault ATA
         // for the same mint would live at different derivations and the
         // transfer could never be reconciled.
-        require!(vault_ata_program == member_ata_program, StrategyError::WrongAccount);
-        require!(ctx.accounts.token_program.key() == member_ata_program, StrategyError::WrongAccount);
-        require!(ctx.accounts.delegate.key() == state.delegate, StrategyError::WrongAccount);
-        require!(ctx.accounts.share_mint.key() == strategy.share_mint, StrategyError::WrongAccount);
+        require!(
+            vault_ata_program == member_ata_program,
+            StrategyError::WrongAccount
+        );
+        require!(
+            ctx.accounts.token_program.key() == member_ata_program,
+            StrategyError::WrongAccount
+        );
+        require!(
+            ctx.accounts.delegate.key() == state.delegate,
+            StrategyError::WrongAccount
+        );
+        require!(
+            ctx.accounts.share_mint.key() == strategy.share_mint,
+            StrategyError::WrongAccount
+        );
         // The share mint's program owner IS its token program — covers T22
         // share tokens (FLiP) without any config field.
         let share_token_program = *ctx.accounts.share_mint.owner;
@@ -175,10 +205,17 @@ pub mod fims_strategy {
             share_token_program == TOKEN_PROGRAM_ID || share_token_program == TOKEN_2022_PROGRAM_ID,
             StrategyError::WrongAccount
         );
-        require!(ctx.accounts.share_token_program.key() == share_token_program, StrategyError::WrongAccount);
+        require!(
+            ctx.accounts.share_token_program.key() == share_token_program,
+            StrategyError::WrongAccount
+        );
         require!(
             ctx.accounts.member_share_ata.key()
-                == ata_address(ctx.accounts.member.key(), strategy.share_mint, &share_token_program),
+                == ata_address(
+                    ctx.accounts.member.key(),
+                    strategy.share_mint,
+                    &share_token_program
+                ),
             StrategyError::WrongAccount
         );
         // The 1:1 share issuance only makes sense when collateral and share
@@ -239,10 +276,15 @@ pub mod fims_strategy {
                 ctx.accounts.token_program.to_account_info(),
             ],
         )?;
-        let received = token_amount(&ctx.accounts.vault_ata.to_account_info())?.saturating_sub(received_before);
+        let received = token_amount(&ctx.accounts.vault_ata.to_account_info())?
+            .saturating_sub(received_before);
         require!(received > 0, StrategyError::BadConfig);
         invoke(
-            &system_instruction::transfer(&ctx.accounts.member.key(), &ctx.accounts.delegate.key(), tip_lamports),
+            &system_instruction::transfer(
+                &ctx.accounts.member.key(),
+                &ctx.accounts.delegate.key(),
+                tip_lamports,
+            ),
             &[
                 ctx.accounts.member.to_account_info(),
                 ctx.accounts.delegate.to_account_info(),
@@ -255,7 +297,12 @@ pub mod fims_strategy {
         deposit.strategy = strategy_index;
         deposit.bump = ctx.bumps.member_deposit;
         deposit.pending = deposit.pending.saturating_add(received);
-        emit!(Deposited { member: deposit.member, strategy: strategy_index, amount: received, pending: deposit.pending });
+        emit!(Deposited {
+            member: deposit.member,
+            strategy: strategy_index,
+            amount: received,
+            pending: deposit.pending
+        });
         Ok(())
     }
 
@@ -284,12 +331,19 @@ pub mod fims_strategy {
             .strategies
             .get(strategy_index as usize)
             .ok_or(StrategyError::UnknownStrategy)?;
-        require!(col_delta != i64::MIN && debt_delta != i64::MIN, StrategyError::BadConfig);
+        require!(
+            col_delta != i64::MIN && debt_delta != i64::MIN,
+            StrategyError::BadConfig
+        );
 
         let vault_key = ctx.accounts.vault.key();
         let col_ata = find_ata(ctx.remaining_accounts, vault_key, strategy.collateral_mint)?;
         let debt_ata = find_ata(ctx.remaining_accounts, vault_key, strategy.borrow_mint)?;
-        let nft_ata = find_ata(ctx.remaining_accounts, vault_key, strategy.position_nft_mint)?;
+        let nft_ata = find_ata(
+            ctx.remaining_accounts,
+            vault_key,
+            strategy.position_nft_mint,
+        )?;
         let position = find_position(ctx.remaining_accounts, strategy)?;
 
         let col_before = token_amount(&col_ata)?;
@@ -302,15 +356,28 @@ pub mod fims_strategy {
             &[col_ata.key(), debt_ata.key(), nft_ata.key()],
         );
 
-        cpi_whitelisted(state, ctx.remaining_accounts, data, vault_key, state.vault_bump)?;
+        cpi_whitelisted(
+            state,
+            ctx.remaining_accounts,
+            data,
+            vault_key,
+            state.vault_bump,
+        )?;
 
         // Position accounting must match the declared deltas — this is what
         // stops an undeclared withdrawal or borrow.
-        let supply_delta = position_field(&position, POSITION_SUPPLY_OFF)? as i128 - supply_before as i128;
-        let dust_delta = position_field(&position, POSITION_DEBT_OFF)? as i128 - dust_before as i128;
+        let supply_delta =
+            position_field(&position, POSITION_SUPPLY_OFF)? as i128 - supply_before as i128;
+        let dust_delta =
+            position_field(&position, POSITION_DEBT_OFF)? as i128 - dust_before as i128;
         // Supply tolerance is tight (10 base units); debt tolerance is wider
         // (10k base units ≈ cent-level) because interest accrues per second.
-        assert_declared(supply_delta, col_delta, 10, StrategyError::BadCollateralFlow)?;
+        assert_declared(
+            supply_delta,
+            col_delta,
+            10,
+            StrategyError::BadCollateralFlow,
+        )?;
         assert_declared(dust_delta, debt_delta, 10_000, StrategyError::BadDebtFlow)?;
 
         // Token flows must land in / leave from the vault's own ATAs:
@@ -318,13 +385,26 @@ pub mod fims_strategy {
         //   col_delta  < 0 withdraw -> vault collateral arrives by >= |delta| (fees tolerated)
         //   debt_delta > 0 borrow   -> vault borrow-mint arrives by >= delta
         //   debt_delta < 0 repay    -> vault borrow-mint leaves by >= |delta|
-        assert_delta(&col_ata, col_before, -col_delta, StrategyError::BadCollateralFlow)?;
-        assert_delta(&debt_ata, debt_before, debt_delta, StrategyError::BadDebtFlow)?;
+        assert_delta(
+            &col_ata,
+            col_before,
+            -col_delta,
+            StrategyError::BadCollateralFlow,
+        )?;
+        assert_delta(
+            &debt_ata,
+            debt_before,
+            debt_delta,
+            StrategyError::BadDebtFlow,
+        )?;
 
         // Total debt is bound by the position's own accounting — the ceiling
         // is real, not a per-operation guess.
         let dust_after = position_field(&position, POSITION_DEBT_OFF)?;
-        require!(dust_after <= strategy.max_debt, StrategyError::DebtCeilingExceeded);
+        require!(
+            dust_after <= strategy.max_debt,
+            StrategyError::DebtCeilingExceeded
+        );
 
         // The position NFT is still vault property and the ATAs are healthy.
         assert_token_amount(&nft_ata, 1, StrategyError::PositionMoved)?;
@@ -332,7 +412,11 @@ pub mod fims_strategy {
         assert_healthy_ata(&debt_ata, vault_key)?;
         assert_healthy_ata(&nft_ata, vault_key)?;
         assert_undeclared_atas_intact(ctx.remaining_accounts, vault_key, &others_before)?;
-        emit!(JlOperate { strategy: strategy_index, col_delta, debt_delta });
+        emit!(JlOperate {
+            strategy: strategy_index,
+            col_delta,
+            debt_delta
+        });
         Ok(())
     }
 
@@ -359,9 +443,16 @@ pub mod fims_strategy {
 
         let ata = find_ata(ctx.remaining_accounts, vault_key, stable_mint)?;
         let before = token_amount(&ata)?;
-        let others_before = snapshot_undeclared_atas(ctx.remaining_accounts, vault_key, &[ata.key()]);
+        let others_before =
+            snapshot_undeclared_atas(ctx.remaining_accounts, vault_key, &[ata.key()]);
 
-        cpi_whitelisted(state, ctx.remaining_accounts, data, vault_key, state.vault_bump)?;
+        cpi_whitelisted(
+            state,
+            ctx.remaining_accounts,
+            data,
+            vault_key,
+            state.vault_bump,
+        )?;
 
         let expected = match direction {
             FlowDirection::Supply => -(amount as i64),
@@ -370,7 +461,11 @@ pub mod fims_strategy {
         assert_delta(&ata, before, expected, StrategyError::BadStableFlow)?;
         assert_healthy_ata(&ata, vault_key)?;
         assert_undeclared_atas_intact(ctx.remaining_accounts, vault_key, &others_before)?;
-        emit!(KaminoFlow { strategy: strategy_index, direction, amount });
+        emit!(KaminoFlow {
+            strategy: strategy_index,
+            direction,
+            amount
+        });
         Ok(())
     }
 
@@ -408,9 +503,8 @@ pub mod fims_strategy {
             .unwrap();
         let pair = &state.allowed_mint_pairs[pair_index];
         if pair.max_deviation_bps > 0 {
-            let floor = (amount as u128)
-                .saturating_mul(10_000 - pair.max_deviation_bps as u128)
-                / 10_000;
+            let floor =
+                (amount as u128).saturating_mul(10_000 - pair.max_deviation_bps as u128) / 10_000;
             require!(min_out as u128 >= floor, StrategyError::MinOutTooLow);
         }
         // Per-pair rolling cap: a compromised delegate can burn at most
@@ -428,18 +522,45 @@ pub mod fims_strategy {
             &[in_ata.key(), out_ata.key()],
         );
 
-        spend_window(state, amount, daily_cap, daily_cap, WindowKind::Swap(pair_index))?;
-        cpi_whitelisted(state, ctx.remaining_accounts, data, vault_key, state.vault_bump)?;
+        spend_window(
+            state,
+            amount,
+            daily_cap,
+            daily_cap,
+            WindowKind::Swap(pair_index),
+        )?;
+        cpi_whitelisted(
+            state,
+            ctx.remaining_accounts,
+            data,
+            vault_key,
+            state.vault_bump,
+        )?;
 
         // Input must leave by exactly `amount` — a swap whose output goes to
         // an external account leaves the vault ATA short and fails; a swap
         // that pulls more than declared fails too.
-        assert_delta_exact(&in_ata, in_before, -(amount as i64), StrategyError::BadSwapFlow)?;
-        assert_delta(&out_ata, out_before, min_out as i64, StrategyError::BadSwapOut)?;
+        assert_delta_exact(
+            &in_ata,
+            in_before,
+            -(amount as i64),
+            StrategyError::BadSwapFlow,
+        )?;
+        assert_delta(
+            &out_ata,
+            out_before,
+            min_out as i64,
+            StrategyError::BadSwapOut,
+        )?;
         assert_healthy_ata(&in_ata, vault_key)?;
         assert_healthy_ata(&out_ata, vault_key)?;
         assert_undeclared_atas_intact(ctx.remaining_accounts, vault_key, &others_before)?;
-        emit!(Swap { in_mint, out_mint, amount, min_out });
+        emit!(Swap {
+            in_mint,
+            out_mint,
+            amount,
+            min_out
+        });
         Ok(())
     }
 
@@ -451,14 +572,20 @@ pub mod fims_strategy {
         let state = &mut ctx.accounts.state;
         require!(!state.paused, StrategyError::Paused);
         require!(
-            state.member_whitelist.contains(&ctx.accounts.destination.key()),
+            state
+                .member_whitelist
+                .contains(&ctx.accounts.destination.key()),
             StrategyError::NotWhitelisted
         );
         spend_allowance(state, amount)?;
 
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
         invoke_signed(
-            &system_instruction::transfer(&ctx.accounts.vault.key(), &ctx.accounts.destination.key(), amount),
+            &system_instruction::transfer(
+                &ctx.accounts.vault.key(),
+                &ctx.accounts.destination.key(),
+                amount,
+            ),
             &[
                 ctx.accounts.vault.to_account_info(),
                 ctx.accounts.destination.to_account_info(),
@@ -466,7 +593,10 @@ pub mod fims_strategy {
             ],
             &[seeds],
         )?;
-        emit!(PayoutSent { destination: ctx.accounts.destination.key(), amount });
+        emit!(PayoutSent {
+            destination: ctx.accounts.destination.key(),
+            amount
+        });
         Ok(())
     }
 
@@ -476,14 +606,21 @@ pub mod fims_strategy {
         let state = &mut ctx.accounts.state;
         require!(!state.paused, StrategyError::Paused);
         let vault_key = ctx.accounts.vault.key();
-        let token_program = require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, mint)?;
-        require!(ctx.accounts.token_program.key() == token_program, StrategyError::WrongAccount);
+        let token_program =
+            require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, mint)?;
+        require!(
+            ctx.accounts.token_program.key() == token_program,
+            StrategyError::WrongAccount
+        );
         require!(
             is_member_ata(state, &ctx.accounts.destination.key(), mint),
             StrategyError::NotWhitelisted
         );
         spend_token_allowance(state, amount)?;
-        require!(ctx.accounts.mint_info.key() == mint, StrategyError::WrongAccount);
+        require!(
+            ctx.accounts.mint_info.key() == mint,
+            StrategyError::WrongAccount
+        );
         let decimals = mint_decimals(&ctx.accounts.mint_info.to_account_info())?;
 
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
@@ -506,7 +643,11 @@ pub mod fims_strategy {
             ],
             &[seeds],
         )?;
-        emit!(TokenPayoutSent { destination: ctx.accounts.destination.key(), mint, amount });
+        emit!(TokenPayoutSent {
+            destination: ctx.accounts.destination.key(),
+            mint,
+            amount
+        });
         Ok(())
     }
 
@@ -526,12 +667,23 @@ pub mod fims_strategy {
             .get(deposit.strategy as usize)
             .ok_or(StrategyError::UnknownStrategy)?;
         require!(amount > 0, StrategyError::BadConfig);
-        require!(amount <= deposit.pending, StrategyError::InsufficientDeposit);
-        let vault_key = ctx.accounts.vault.key();
-        let token_program = require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, strategy.share_mint)?;
-        require!(ctx.accounts.token_program.key() == token_program, StrategyError::WrongAccount);
         require!(
-            ctx.accounts.destination.key() == ata_address(deposit.member, strategy.share_mint, &token_program),
+            amount <= deposit.pending,
+            StrategyError::InsufficientDeposit
+        );
+        let vault_key = ctx.accounts.vault.key();
+        let token_program = require_ata_owned(
+            &ctx.accounts.source.to_account_info(),
+            vault_key,
+            strategy.share_mint,
+        )?;
+        require!(
+            ctx.accounts.token_program.key() == token_program,
+            StrategyError::WrongAccount
+        );
+        require!(
+            ctx.accounts.destination.key()
+                == ata_address(deposit.member, strategy.share_mint, &token_program),
             StrategyError::WrongAccount
         );
         assert_healthy_ata(&ctx.accounts.source.to_account_info(), vault_key)?;
@@ -594,11 +746,21 @@ pub mod fims_strategy {
         spend_token_allowance(state, amount)?;
         let vault_key = ctx.accounts.vault.key();
         let treasury = state.treasury;
-        let token_program = require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, mint)?;
-        require!(ctx.accounts.token_program.key() == token_program, StrategyError::WrongAccount);
+        let token_program =
+            require_ata_owned(&ctx.accounts.source.to_account_info(), vault_key, mint)?;
+        require!(
+            ctx.accounts.token_program.key() == token_program,
+            StrategyError::WrongAccount
+        );
         let expected_dest = ata_address(treasury, mint, &token_program);
-        require!(ctx.accounts.destination.key() == expected_dest, StrategyError::WrongAccount);
-        require!(ctx.accounts.mint_info.key() == mint, StrategyError::WrongAccount);
+        require!(
+            ctx.accounts.destination.key() == expected_dest,
+            StrategyError::WrongAccount
+        );
+        require!(
+            ctx.accounts.mint_info.key() == mint,
+            StrategyError::WrongAccount
+        );
         let decimals = mint_decimals(&ctx.accounts.mint_info.to_account_info())?;
 
         let seeds: &[&[u8]] = &[b"vault", &[state.vault_bump]];
@@ -672,14 +834,23 @@ pub mod fims_strategy {
             ConfigChange::MemberWhitelist { members } => validate_whitelists(&[], members)?,
             ConfigChange::Strategies { strategies } => validate_strategies(strategies)?,
             ConfigChange::MintPairs { pairs } => validate_mint_pairs(pairs)?,
-            ConfigChange::Caps { daily_lamports, tx_lamports, daily_token: _ } => {
+            ConfigChange::Caps {
+                daily_lamports,
+                tx_lamports,
+                daily_token: _,
+            } => {
                 require!(tx_lamports <= daily_lamports, StrategyError::BadConfig);
             }
             _ => {}
         }
         let state = &mut ctx.accounts.state;
-        let eta = Clock::get()?.unix_timestamp.saturating_add(ADMIN_TIMELOCK_SECS);
-        state.pending = Some(PendingConfig { eta, change: change.clone() });
+        let eta = Clock::get()?
+            .unix_timestamp
+            .saturating_add(ADMIN_TIMELOCK_SECS);
+        state.pending = Some(PendingConfig {
+            eta,
+            change: change.clone(),
+        });
         // The change itself is emitted for off-chain monitors — the guardian
         // watches this event to veto hostile changes inside the window.
         emit!(ConfigScheduled { eta, change });
@@ -701,7 +872,11 @@ pub mod fims_strategy {
                 state.delegate = delegate;
                 emit!(DelegateChanged { delegate });
             }
-            ConfigChange::Caps { daily_lamports, tx_lamports, daily_token } => {
+            ConfigChange::Caps {
+                daily_lamports,
+                tx_lamports,
+                daily_token,
+            } => {
                 state.daily_cap_lamports = daily_lamports;
                 state.tx_cap_lamports = tx_lamports;
                 state.daily_token_cap = daily_token;
@@ -732,7 +907,10 @@ pub mod fims_strategy {
     pub fn accept_admin(ctx: Context<AcceptAdmin>) -> Result<()> {
         let state = &mut ctx.accounts.state;
         let proposed = state.proposed_admin.ok_or(StrategyError::NothingPending)?;
-        require!(proposed == ctx.accounts.caller.key(), StrategyError::NotProposedAdmin);
+        require!(
+            proposed == ctx.accounts.caller.key(),
+            StrategyError::NotProposedAdmin
+        );
         state.admin = proposed;
         state.proposed_admin = None;
         emit!(AdminAccepted { admin: proposed });
@@ -766,8 +944,14 @@ fn validate_mint_pairs(pairs: &[MintPair]) -> Result<()> {
 fn validate_strategies(strategies: &[StrategyConfig]) -> Result<()> {
     require!(strategies.len() <= MAX_STRATEGIES, StrategyError::BadConfig);
     for s in strategies {
-        require!(s.vaults_program != Pubkey::default(), StrategyError::BadConfig);
-        require!(s.collateral_mint != Pubkey::default(), StrategyError::BadConfig);
+        require!(
+            s.vaults_program != Pubkey::default(),
+            StrategyError::BadConfig
+        );
+        require!(
+            s.collateral_mint != Pubkey::default(),
+            StrategyError::BadConfig
+        );
         require!(s.share_mint != Pubkey::default(), StrategyError::BadConfig);
         require!(s.collateral_mint != s.share_mint, StrategyError::BadConfig);
     }
@@ -775,17 +959,32 @@ fn validate_strategies(strategies: &[StrategyConfig]) -> Result<()> {
 }
 
 fn validate_whitelists(programs: &[Pubkey], members: &[Pubkey]) -> Result<()> {
-    require!(programs.len() <= MAX_ALLOWED_PROGRAMS, StrategyError::WhitelistTooLarge);
-    require!(members.len() <= MAX_MEMBERS, StrategyError::WhitelistTooLarge);
+    require!(
+        programs.len() <= MAX_ALLOWED_PROGRAMS,
+        StrategyError::WhitelistTooLarge
+    );
+    require!(
+        members.len() <= MAX_MEMBERS,
+        StrategyError::WhitelistTooLarge
+    );
     // Never allow the strategy program itself as a CPI target.
-    require!(!programs.contains(&crate::ID), StrategyError::ProgramNotAllowed);
+    require!(
+        !programs.contains(&crate::ID),
+        StrategyError::ProgramNotAllowed
+    );
     // Generic transfer/account programs are never valid CPI targets: they can
     // move vault assets to arbitrary accounts with no protocol-side witness
     // for the post-conditions to check against.
     for banned in [TOKEN_PROGRAM_ID, ATA_PROGRAM_ID, SYSTEM_PROGRAM_ID] {
-        require!(!programs.contains(&banned), StrategyError::ProgramNotAllowed);
+        require!(
+            !programs.contains(&banned),
+            StrategyError::ProgramNotAllowed
+        );
     }
-    require!(!members.contains(&Pubkey::default()), StrategyError::BadConfig);
+    require!(
+        !members.contains(&Pubkey::default()),
+        StrategyError::BadConfig
+    );
     for (i, p) in programs.iter().enumerate() {
         require!(!programs[..i].contains(p), StrategyError::BadConfig);
     }
@@ -807,7 +1006,9 @@ fn cpi_whitelisted(
     vault_key: Pubkey,
     vault_bump: u8,
 ) -> Result<()> {
-    let (program_info, data_accounts) = remaining.split_last().ok_or(StrategyError::MissingAccounts)?;
+    let (program_info, data_accounts) = remaining
+        .split_last()
+        .ok_or(StrategyError::MissingAccounts)?;
     let program_id = program_info.key();
     require!(
         state.allowed_programs.contains(&program_id),
@@ -835,16 +1036,29 @@ fn cpi_whitelisted(
         .iter()
         .find(|info| info.key() == vault_key)
         .ok_or(StrategyError::MissingAccounts)?;
-    require!(*vault_info.owner == SYSTEM_PROGRAM_ID, StrategyError::WrongAccount);
+    require!(
+        *vault_info.owner == SYSTEM_PROGRAM_ID,
+        StrategyError::WrongAccount
+    );
     require!(vault_info.data_len() == 0, StrategyError::WrongAccount);
     let vault_lamports_before = vault_info.lamports();
     invoke_signed(
-        &Instruction { program_id, accounts: metas, data },
+        &Instruction {
+            program_id,
+            accounts: metas,
+            data,
+        },
         remaining,
         &[&[b"vault", &[vault_bump]]],
     )?;
-    require!(vault_info.lamports() >= vault_lamports_before, StrategyError::VaultDrained);
-    require!(*vault_info.owner == SYSTEM_PROGRAM_ID, StrategyError::VaultDrained);
+    require!(
+        vault_info.lamports() >= vault_lamports_before,
+        StrategyError::VaultDrained
+    );
+    require!(
+        *vault_info.owner == SYSTEM_PROGRAM_ID,
+        StrategyError::VaultDrained
+    );
     require!(vault_info.data_len() == 0, StrategyError::VaultDrained);
     Ok(())
 }
@@ -852,7 +1066,11 @@ fn cpi_whitelisted(
 /// ATA address of `owner` for `mint` under a given token program — SPL Token
 /// or Token-2022, selected by the caller.
 fn ata_address(owner: Pubkey, mint: Pubkey, token_program: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[owner.as_ref(), token_program.as_ref(), mint.as_ref()], &ATA_PROGRAM_ID).0
+    Pubkey::find_program_address(
+        &[owner.as_ref(), token_program.as_ref(), mint.as_ref()],
+        &ATA_PROGRAM_ID,
+    )
+    .0
 }
 
 /// Proves `info` is the canonical ATA of `owner` for `mint` and returns its
@@ -865,18 +1083,25 @@ fn require_ata_owned(info: &AccountInfo, owner: Pubkey, mint: Pubkey) -> Result<
         token_program == TOKEN_PROGRAM_ID || token_program == TOKEN_2022_PROGRAM_ID,
         StrategyError::WrongAccount
     );
-    require!(info.key() == ata_address(owner, mint, &token_program), StrategyError::WrongAccount);
+    require!(
+        info.key() == ata_address(owner, mint, &token_program),
+        StrategyError::WrongAccount
+    );
     Ok(token_program)
 }
 
 /// Find the vault's ATA for `mint` inside the remaining accounts and return
 /// its raw data — the delegate proves the account belongs to the vault by
 /// construction, not by index.
-fn find_ata<'info>(remaining: &'info [AccountInfo<'info>], vault: Pubkey, mint: Pubkey) -> Result<AccountInfo<'info>> {
+fn find_ata<'info>(
+    remaining: &'info [AccountInfo<'info>],
+    vault: Pubkey,
+    mint: Pubkey,
+) -> Result<AccountInfo<'info>> {
     for token_program in [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID] {
         let expected = ata_address(vault, mint, &token_program);
         if let Some(info) = remaining.iter().find(|info| info.key() == expected) {
-            return Ok(info.clone())
+            return Ok(info.clone());
         }
     }
     Err(StrategyError::MissingAccounts.into())
@@ -909,7 +1134,10 @@ fn find_position<'info>(
         .find(|info| info.key() == expected)
         .cloned()
         .ok_or(StrategyError::MissingAccounts)?;
-    require!(position.owner == &strategy.vaults_program, StrategyError::WrongAccount);
+    require!(
+        position.owner == &strategy.vaults_program,
+        StrategyError::WrongAccount
+    );
     {
         let data = position.try_borrow_data()?;
         require!(data.len() >= POSITION_LEN, StrategyError::WrongAccount);
@@ -926,22 +1154,26 @@ fn find_position<'info>(
 fn position_field(position: &AccountInfo, offset: usize) -> Result<u64> {
     let data = position.try_borrow_data()?;
     require!(data.len() >= POSITION_LEN, StrategyError::WrongAccount);
-    Ok(u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap()))
+    Ok(u64::from_le_bytes(
+        data[offset..offset + 8].try_into().unwrap(),
+    ))
 }
 
 /// SPL token balance if `info` is a token account owned by `vault`, else None.
 fn vault_ata_amount(info: &AccountInfo, vault: &Pubkey) -> Option<u64> {
     if info.owner != &TOKEN_PROGRAM_ID && info.owner != &TOKEN_2022_PROGRAM_ID {
-        return None
+        return None;
     }
     let data = info.try_borrow_data().ok()?;
     if data.len() < 165 {
-        return None
+        return None;
     }
     if Pubkey::try_from(&data[TA_OWNER..TA_OWNER + 32]).ok()? != *vault {
-        return None
+        return None;
     }
-    Some(u64::from_le_bytes(data[TA_AMOUNT..TA_AMOUNT + 8].try_into().ok()?))
+    Some(u64::from_le_bytes(
+        data[TA_AMOUNT..TA_AMOUNT + 8].try_into().ok()?,
+    ))
 }
 
 /// Snapshot every vault-owned token account passed in `remaining` that the
@@ -970,7 +1202,10 @@ fn assert_undeclared_atas_intact(
 ) -> Result<()> {
     for (i, amt) in before {
         let info = &remaining[*i];
-        require!(token_amount(info)? >= *amt, StrategyError::UndeclaredOutflow);
+        require!(
+            token_amount(info)? >= *amt,
+            StrategyError::UndeclaredOutflow
+        );
         assert_healthy_ata(info, vault)?;
     }
     // Vault ATAs CREATED during the CPI are not in `before` — a whitelisted
@@ -989,7 +1224,8 @@ fn assert_undeclared_atas_intact(
 /// rounding and, on the debt side, interest accrued between build and land.
 fn assert_declared(actual: i128, declared: i64, abs_floor: u64, err: StrategyError) -> Result<()> {
     let declared = declared as i128;
-    let tolerance = (declared.unsigned_abs() * DELTA_TOLERANCE_NUM as u128 / DELTA_TOLERANCE_DEN as u128)
+    let tolerance = (declared.unsigned_abs() * DELTA_TOLERANCE_NUM as u128
+        / DELTA_TOLERANCE_DEN as u128)
         .max(abs_floor as u128) as i128;
     if (actual - declared).abs() > tolerance {
         return Err(err.into());
@@ -1006,7 +1242,9 @@ fn token_amount(ata: &AccountInfo) -> Result<u64> {
     );
     let data = ata.try_borrow_data()?;
     require!(data.len() >= 165, StrategyError::WrongAccount);
-    Ok(u64::from_le_bytes(data[TA_AMOUNT..TA_AMOUNT + 8].try_into().unwrap()))
+    Ok(u64::from_le_bytes(
+        data[TA_AMOUNT..TA_AMOUNT + 8].try_into().unwrap(),
+    ))
 }
 
 fn assert_token_amount(ata: &AccountInfo, expected: u64, err: StrategyError) -> Result<()> {
@@ -1020,7 +1258,11 @@ fn assert_token_amount(ata: &AccountInfo, expected: u64, err: StrategyError) -> 
 /// in that direction (negative = outflow, positive = inflow).
 fn assert_delta(ata: &AccountInfo, before: u64, expected: i64, err: StrategyError) -> Result<()> {
     let delta = token_amount(ata)? as i128 - before as i128;
-    let ok = if expected >= 0 { delta >= expected as i128 } else { delta <= expected as i128 };
+    let ok = if expected >= 0 {
+        delta >= expected as i128
+    } else {
+        delta <= expected as i128
+    };
     if !ok {
         return Err(err.into());
     }
@@ -1028,7 +1270,12 @@ fn assert_delta(ata: &AccountInfo, before: u64, expected: i64, err: StrategyErro
 }
 
 /// Strict version: the delta must equal `expected` exactly.
-fn assert_delta_exact(ata: &AccountInfo, before: u64, expected: i64, err: StrategyError) -> Result<()> {
+fn assert_delta_exact(
+    ata: &AccountInfo,
+    before: u64,
+    expected: i64,
+    err: StrategyError,
+) -> Result<()> {
     let delta = token_amount(ata)? as i128 - before as i128;
     if delta != expected as i128 {
         return Err(err.into());
@@ -1045,10 +1292,32 @@ fn assert_healthy_ata(ata: &AccountInfo, vault: Pubkey) -> Result<()> {
     );
     let data = ata.try_borrow_data()?;
     require!(data.len() >= 165, StrategyError::WrongAccount);
-    require!(Pubkey::try_from(&data[TA_OWNER..TA_OWNER + 32]).map_err(|_| StrategyError::WrongAccount)? == vault, StrategyError::WrongAccount);
-    require!(data[TA_STATE] == TA_INITIALIZED, StrategyError::WrongAccount);
-    require!(u32::from_le_bytes(data[TA_DELEGATE_TAG..TA_DELEGATE_TAG + 4].try_into().unwrap()) == 0, StrategyError::AtaHijacked);
-    require!(u32::from_le_bytes(data[TA_CLOSE_AUTH_TAG..TA_CLOSE_AUTH_TAG + 4].try_into().unwrap()) == 0, StrategyError::AtaHijacked);
+    require!(
+        Pubkey::try_from(&data[TA_OWNER..TA_OWNER + 32])
+            .map_err(|_| StrategyError::WrongAccount)?
+            == vault,
+        StrategyError::WrongAccount
+    );
+    require!(
+        data[TA_STATE] == TA_INITIALIZED,
+        StrategyError::WrongAccount
+    );
+    require!(
+        u32::from_le_bytes(
+            data[TA_DELEGATE_TAG..TA_DELEGATE_TAG + 4]
+                .try_into()
+                .unwrap()
+        ) == 0,
+        StrategyError::AtaHijacked
+    );
+    require!(
+        u32::from_le_bytes(
+            data[TA_CLOSE_AUTH_TAG..TA_CLOSE_AUTH_TAG + 4]
+                .try_into()
+                .unwrap()
+        ) == 0,
+        StrategyError::AtaHijacked
+    );
     Ok(())
 }
 
@@ -1106,7 +1375,13 @@ fn spl_transfer_checked_ix(
 /// ATA program `CreateIdempotent` — creates the account if missing, no-ops
 /// otherwise. Lets `deposit` guarantee the member's share ATA exists in the
 /// same transaction, so the delegate never has to fund member rent.
-fn create_ata_ix(payer: Pubkey, ata: Pubkey, owner: Pubkey, mint: Pubkey, token_program: &Pubkey) -> Instruction {
+fn create_ata_ix(
+    payer: Pubkey,
+    ata: Pubkey,
+    owner: Pubkey,
+    mint: Pubkey,
+    token_program: &Pubkey,
+) -> Instruction {
     Instruction {
         program_id: ATA_PROGRAM_ID,
         accounts: vec![
@@ -1141,7 +1416,13 @@ enum WindowKind {
     Swap(usize),
 }
 
-fn spend_window(state: &mut StrategyState, amount: u64, tx_cap: u64, window_cap: u64, window: WindowKind) -> Result<()> {
+fn spend_window(
+    state: &mut StrategyState,
+    amount: u64,
+    tx_cap: u64,
+    window_cap: u64,
+    window: WindowKind,
+) -> Result<()> {
     require!(amount <= tx_cap, StrategyError::TxCapExceeded);
     let now = Clock::get()?.unix_timestamp;
     let hour = now.div_euclid(HOUR_SECS);
@@ -1156,7 +1437,7 @@ fn spend_window(state: &mut StrategyState, amount: u64, tx_cap: u64, window_cap:
     let elapsed = hour.saturating_sub(state.window_start_hour);
     // elapsed < 24 → nothing is stale. max(0) BEFORE the usize cast —
     // a negative i64 would wrap to ~2^64 and loop forever.
-    let stale = elapsed.saturating_sub(23).max(0).min(24) as usize;
+    let stale = elapsed.saturating_sub(23).clamp(0, 24) as usize;
     if stale > 0 {
         for i in 0..stale {
             let idx = ((state.window_start_hour + i as i64) % 24) as usize;
@@ -1174,7 +1455,10 @@ fn spend_window(state: &mut StrategyState, amount: u64, tx_cap: u64, window_cap:
         WindowKind::Swap(pair) => &mut state.spent_swap_hourly[pair * 24..(pair + 1) * 24],
     };
     let spent: u64 = buckets.iter().fold(0u64, |a, b| a.saturating_add(*b));
-    require!(spent.saturating_add(amount) <= window_cap, StrategyError::DailyCapExceeded);
+    require!(
+        spent.saturating_add(amount) <= window_cap,
+        StrategyError::DailyCapExceeded
+    );
     let idx = (hour % 24) as usize;
     buckets[idx] = buckets[idx].saturating_add(amount);
     Ok(())
@@ -1247,13 +1531,29 @@ pub enum FlowDirection {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub enum ConfigChange {
-    AllowedPrograms { programs: Vec<Pubkey> },
-    MemberWhitelist { members: Vec<Pubkey> },
-    Treasury { treasury: Pubkey },
-    Delegate { delegate: Pubkey },
-    Caps { daily_lamports: u64, tx_lamports: u64, daily_token: u64 },
-    Strategies { strategies: Vec<StrategyConfig> },
-    MintPairs { pairs: Vec<MintPair> },
+    AllowedPrograms {
+        programs: Vec<Pubkey>,
+    },
+    MemberWhitelist {
+        members: Vec<Pubkey>,
+    },
+    Treasury {
+        treasury: Pubkey,
+    },
+    Delegate {
+        delegate: Pubkey,
+    },
+    Caps {
+        daily_lamports: u64,
+        tx_lamports: u64,
+        daily_token: u64,
+    },
+    Strategies {
+        strategies: Vec<StrategyConfig>,
+    },
+    MintPairs {
+        pairs: Vec<MintPair>,
+    },
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -1699,18 +1999,63 @@ mod tests {
     #[test]
     fn declared_delta_must_match_within_tolerance() {
         // exact match
-        assert!(ok(assert_declared(1000, 1000, 10, StrategyError::BadDebtFlow)));
+        assert!(ok(assert_declared(
+            1000,
+            1000,
+            10,
+            StrategyError::BadDebtFlow
+        )));
         // within 1% relative tolerance
-        assert!(ok(assert_declared(1005, 1000, 10, StrategyError::BadDebtFlow)));
+        assert!(ok(assert_declared(
+            1005,
+            1000,
+            10,
+            StrategyError::BadDebtFlow
+        )));
         // outside tolerance — including the declare-zero attack
-        assert!(!ok(assert_declared(-1_000_000, 0, 10, StrategyError::BadDebtFlow)));
-        assert!(!ok(assert_declared(0, 1_000_000, 10, StrategyError::BadDebtFlow)));
-        assert!(!ok(assert_declared(1020, 1000, 10, StrategyError::BadDebtFlow)));
+        assert!(!ok(assert_declared(
+            -1_000_000,
+            0,
+            10,
+            StrategyError::BadDebtFlow
+        )));
+        assert!(!ok(assert_declared(
+            0,
+            1_000_000,
+            10,
+            StrategyError::BadDebtFlow
+        )));
+        assert!(!ok(assert_declared(
+            1020,
+            1000,
+            10,
+            StrategyError::BadDebtFlow
+        )));
         // small declared amounts use the absolute floor (interest accrual)
-        assert!(ok(assert_declared(5_000, 0, 10_000, StrategyError::BadDebtFlow)));
-        assert!(!ok(assert_declared(50_000, 0, 10_000, StrategyError::BadDebtFlow)));
+        assert!(ok(assert_declared(
+            5_000,
+            0,
+            10_000,
+            StrategyError::BadDebtFlow
+        )));
+        assert!(!ok(assert_declared(
+            50_000,
+            0,
+            10_000,
+            StrategyError::BadDebtFlow
+        )));
         // negative deltas
-        assert!(ok(assert_declared(-1000, -1000, 10, StrategyError::BadCollateralFlow)));
-        assert!(!ok(assert_declared(-2000, -1000, 10, StrategyError::BadCollateralFlow)));
+        assert!(ok(assert_declared(
+            -1000,
+            -1000,
+            10,
+            StrategyError::BadCollateralFlow
+        )));
+        assert!(!ok(assert_declared(
+            -2000,
+            -1000,
+            10,
+            StrategyError::BadCollateralFlow
+        )));
     }
 }

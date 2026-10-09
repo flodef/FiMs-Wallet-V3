@@ -3,19 +3,23 @@
 //
 // The worker holds a hot keypair (CUSTODIAL_KEYPAIR, a wrangler secret) that
 // is the mint authority of two Token-2022 mints:
-//   - FiMs Euro (FIMS_EURO_MINT) — backed 1:1 by EURC held in custody
-//   - FiMs USD  (FIMS_USD_MINT)  — backed 1:1 by USDG held in custody
+//   - FiMs Euro (FIMS_EURO_MINT) — backed by EURC held in custody
+//   - FiMs USD  (FIMS_USD_MINT)  — backed by USDG held in custody
 //
 // Deposit: the member sends backing (EURC/USDG) to the custody wallet; once
-// the transfer is verified on-chain (solana-rpc.ts), the custodial mints the
-// same units of the FiMs token to the member's ATA. Redeem: the member sends
-// the FiMs token back to custody; the custodial burns it and returns the
-// backing. The ledger records both in the BACKING symbol so members only ever
-// see EURC/USDC — the wrapped mint is an implementation detail.
+// the transfer is verified on-chain (solana-rpc.ts), the custodial mints
+// FiMs-token units priced at the NAV index (`tokens` table, EURF/USDF
+// symbol) net of the wrap fee to the member's ATA. Redeem: the member
+// sends the FiMs token back to custody; the custodial burns it and returns
+// backing priced at the same index net of the fee. The ledger records both
+// legs in the product symbol (EURF/USDF) so members track the product, not
+// the raw backing — the wrapped mint is an implementation detail.
 //
 // The custody wallet is also where the backing is placed for yield (Jupiter
 // Earn jlEURC / Kamino USDG) — those placements are operator actions done
 // with the same key, outside the request path.
+
+import { getBase58Encoder } from '@solana/codecs-strings'
 import {
   type Address,
   address,
@@ -115,33 +119,9 @@ function custodialSecretKey(): Uint8Array {
   if (!raw) throw new Error('CUSTODIAL_KEYPAIR is not configured')
   const bytes = raw.trim().startsWith('[')
     ? Uint8Array.from(JSON.parse(raw) as number[])
-    : Uint8Array.from(decodeBase58(raw.trim()))
+    : Uint8Array.from(getBase58Encoder().encode(raw.trim()))
   if (bytes.length !== 64) throw new Error('CUSTODIAL_KEYPAIR must be a 64-byte secret key')
   return bytes
-}
-
-const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-function decodeBase58(text: string): number[] {
-  const digits = [0]
-  for (const char of text) {
-    const value = BASE58_ALPHABET.indexOf(char)
-    if (value < 0) throw new Error('CUSTODIAL_KEYPAIR: invalid base58 character')
-    let carry = value
-    for (let i = 0; i < digits.length; i++) {
-      carry += (digits[i] ?? 0) * 58
-      digits[i] = carry & 0xff
-      carry >>= 8
-    }
-    while (carry) {
-      digits.push(carry & 0xff)
-      carry >>= 8
-    }
-  }
-  for (const char of text) {
-    if (char !== '1') break
-    digits.push(0)
-  }
-  return digits.reverse()
 }
 
 // Cache the signer per process — instructions and the fee payer must share
@@ -360,15 +340,10 @@ export async function custodialMint(
     ],
     { maxDebits: debits },
   )
-  // Best-effort float sweep right after minting — the backing just landed, so
-  // move the excess to the multisig vault now rather than waiting for the
-  // keeper. A failure must not fail the mint: the backing is already safe in
-  // custody and the next keeper pass sweeps it.
-  try {
-    await custodialSweep(product)
-  } catch {
-    // logged nowhere on purpose: sweep failures surface in backing-status.
-  }
+  // No in-request sweep: the keeper cron (`POST /fims/custodial/sweep`)
+  // moves the float excess on its own cadence — spending another ~30 s of
+  // confirmation inside a member-facing request is what made the whole
+  // flow timeout-prone. The backing is safe in custody until then.
   return signature
 }
 
@@ -490,7 +465,22 @@ export async function custodialBackingStatus(prices: Readonly<Record<string, num
     const { value: supply } = await rpcCall(() => rpc.getTokenSupply(config.mint).send())
     const float = await tokenBalance(custodyAta)
     const vaultBalance = vaultAta ? await tokenBalance(vaultAta).catch(() => 0n) : 0n
-    const backingTotal = float + vaultBalance
+    // Backing parked in the yield venue (jlEURC, Kamino collateral tokens)
+    // still backs the product — without it the monitor alerts "unbacked"
+    // whenever yield placement is active. The position token ≈ 1:1 backing
+    // (reads slightly less than the true total as it accrues — safe side).
+    let yieldBalance = 0n
+    const yieldAsset = process.env[`FIMS_${product === 'fims-eur' ? 'EUR' : 'USD'}_YIELD_ASSET`]
+    if (yieldAsset) {
+      try {
+        const yieldMint = address(yieldAsset)
+        const yieldProgram = await mintProgram(yieldMint)
+        yieldBalance = await tokenBalance(await ata(yieldMint, signer.address, yieldProgram))
+      } catch {
+        // an unset/unreachable yield position counts as zero, not as an alert
+      }
+    }
+    const backingTotal = float + vaultBalance + yieldBalance
     const supplyUnits = BigInt(supply.amount)
     const price = prices[config.symbol] ?? 0
     const required = price > 0 ? BigInt(Math.ceil(Number(supplyUnits) * price)) : 0n

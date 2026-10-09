@@ -17,6 +17,7 @@
 // CUSTODIAL_KEYPAIR). It can only drive whitelisted CPIs — the program's
 // post-conditions do the safety work, not this service.
 import { timingSafeEqual } from 'node:crypto'
+import { getBase58Encoder } from '@solana/codecs-strings'
 import {
   type Address,
   address,
@@ -35,8 +36,8 @@ import {
   type TransactionSigner,
 } from '@solana/kit'
 import { fetchMint, findAssociatedTokenPda, getCreateAssociatedTokenIdempotentInstruction } from '@solana-program/token'
-import { eq } from 'drizzle-orm'
-import { strategyOps } from './db/schema.js'
+import { and, eq, isNotNull, sql } from 'drizzle-orm'
+import { keeperLocks, strategyOps } from './db/schema.js'
 import type { Db } from './db/service.js'
 import { createBackendSigner } from './signer.js'
 
@@ -295,27 +296,7 @@ export async function memberDepositPda(member: Address, strategyIndex: number): 
 }
 
 export function addressToBytes(addr: Address): Uint8Array {
-  // base58 decode — mirrors decodeBase58 in custodial.ts
-  const digits = [0]
-  for (const char of addr) {
-    const value = B58.indexOf(char)
-    if (value < 0) throw new Error(`invalid base58 address: ${addr}`)
-    let carry = value
-    for (let i = 0; i < digits.length; i++) {
-      carry += (digits[i] ?? 0) * 58
-      digits[i] = carry & 0xff
-      carry >>= 8
-    }
-    while (carry) {
-      digits.push(carry & 0xff)
-      carry >>= 8
-    }
-  }
-  for (const char of addr) {
-    if (char !== '1') break
-    digits.push(0)
-  }
-  return Uint8Array.from(digits.reverse())
+  return Uint8Array.from(getBase58Encoder().encode(addr))
 }
 
 export async function vaultAta(mint: Address, tokenProgram: Address): Promise<Address> {
@@ -605,7 +586,13 @@ async function jupiterSwapInstruction(
   // The API may return the swap under `swapInstruction` or as the last entry.
   const swap = [...ixs].reverse().find((ix) => ix.accounts.some((a) => a.pubkey === vault && a.isSigner))
   if (!swap) throw new Error('swap-instructions returned no vault-signed instruction')
-  return { inner: swap, minOut: BigInt(quote.otherAmountThreshold ?? '0') }
+  // otherAmountThreshold is the slippage floor the program asserts on-chain —
+  // a quote missing it would swap "any amount back", which is not a quote at
+  // all but a donation to the pool.
+  if (!quote.otherAmountThreshold || BigInt(quote.otherAmountThreshold) === 0n) {
+    throw new Error('jupiter quote missing otherAmountThreshold — refusing to swap without a floor')
+  }
+  return { inner: swap, minOut: BigInt(quote.otherAmountThreshold) }
 }
 
 /** Kamino KTX deposit — returns the klend deposit instruction for the vault. */
@@ -640,11 +627,47 @@ export interface DelegatePassReport {
   skipped?: string
 }
 
+// A pass can outlive the 1-minute cron cadence — without a lock two isolates
+// would race the same deposits and double-issue/double-place. The TTL lease
+// self-heals: a crashed holder's lock expires instead of sticking forever.
+const KEEPER_LEASE_MS = 5 * 60 * 1000
+
+async function acquireKeeperLease(db: Db, name: string): Promise<string | null> {
+  const owner = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const until = new Date(Date.now() + KEEPER_LEASE_MS)
+  const rows = (
+    await db.execute(sql`
+      INSERT INTO keeper_locks (name, expires_at, owner) VALUES (${name}, ${until.toISOString()}, ${owner})
+      ON CONFLICT (name) DO UPDATE SET expires_at = ${until.toISOString()}, owner = ${owner}
+      WHERE keeper_locks.expires_at < NOW()
+      RETURNING name
+    `)
+  ).rows as { name: string }[]
+  return rows.length ? owner : null
+}
+
+async function releaseKeeperLease(db: Db, name: string, owner: string): Promise<void> {
+  await db
+    .update(keeperLocks)
+    .set({ expiresAt: new Date(0) })
+    .where(and(eq(keeperLocks.name, name), eq(keeperLocks.owner, owner)))
+}
+
 /** One delegate pass: issue share tokens for every recorded deposit, then
  *  place the collateral through the protocol pipeline. Issuance runs FIRST —
  *  the member's 1:1 payout is a program-level guarantee and must not wait on
  *  Jupiter/Kamino availability. */
 export async function runStrategyPass(db: Db): Promise<DelegatePassReport> {
+  const owner = await acquireKeeperLease(db, 'strategy-delegate')
+  if (!owner) return { deposits: [], skipped: 'another pass is running' }
+  try {
+    return await runStrategyPassUnlocked(db)
+  } finally {
+    await releaseKeeperLease(db, 'strategy-delegate', owner).catch(() => {})
+  }
+}
+
+async function runStrategyPassUnlocked(db: Db): Promise<DelegatePassReport> {
   const signer = await delegateSigner()
   const rpc = createSolanaRpc(rpcUrl())
   const state = await readStrategyState(rpc)
@@ -655,6 +678,47 @@ export async function runStrategyPass(db: Db): Promise<DelegatePassReport> {
 
   const deposits = await listPendingDeposits(rpc)
   const report: DelegatePassReport = { deposits: [] }
+
+  // Recover legs whose shares were issued but placement failed: the member
+  // already holds shares, so leaving the collateral unplaced is the failure
+  // mode — not a reason to skip forever. One retry per hour per leg, a few
+  // legs per pass so the queue drains without starving new deposits.
+  const staleFailed = await db.query.strategyOps.findMany({
+    limit: 5,
+    where: and(
+      eq(strategyOps.status, 'failed'),
+      isNotNull(strategyOps.issueSignature),
+      sql`${strategyOps.updatedAt} < NOW() - INTERVAL '1 hour'`,
+    ),
+  })
+  for (const op of staleFailed) {
+    const deposit = {
+      member: address(op.member),
+      pda: address(op.depositPda),
+      pending: BigInt(op.collateralAmount),
+      strategyIndex: op.strategyIndex,
+    } as PendingDeposit
+    const entry: DelegatePassReport['deposits'][number] = {
+      ...(op.issueSignature ? { issueSignature: op.issueSignature } : {}),
+      member: deposit.member,
+      pending: op.collateralAmount,
+      strategy: op.strategyIndex,
+    }
+    report.deposits.push(entry)
+    const strategy = state.strategies[op.strategyIndex]
+    if (!strategy) {
+      entry.error = `retry: unknown strategy index ${op.strategyIndex}`
+      await recordOp(db, deposit, 'failed', entry.error, op.issueSignature ?? undefined)
+      continue
+    }
+    try {
+      entry.opsSignatures = await placeCollateral(signer, strategy, op.strategyIndex, BigInt(op.collateralAmount))
+      await recordOp(db, deposit, 'placed', undefined, op.issueSignature ?? undefined, entry.opsSignatures.join(','))
+    } catch (error) {
+      entry.error = `placement retry: ${error instanceof Error ? error.message : error}`
+      await recordOp(db, deposit, 'failed', entry.error, op.issueSignature ?? undefined)
+    }
+  }
 
   for (const deposit of deposits) {
     const entry: DelegatePassReport['deposits'][number] = {

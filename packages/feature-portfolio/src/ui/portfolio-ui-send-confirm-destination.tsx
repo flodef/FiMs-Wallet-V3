@@ -69,6 +69,11 @@ export function PortfolioUiSendConfirmDestination({
         {recipientLabel ? <FieldDescription>{recipientLabel}</FieldDescription> : null}
         {lookalike ? <UiWarning>{t(($) => $.sendConfirmAddressLookalike)}</UiWarning> : null}
         {!lookalike && !recipientLabel ? <UiWarning>{t(($) => $.sendConfirmUnknownRecipient)}</UiWarning> : null}
+        {/* The demo wallet's mnemonic is public — its friendly label must
+            never read as "safe". */}
+        {destination === FIMS_DEMO_RECIPIENT ? (
+          <UiWarning>{t(($) => $.sendConfirmRecipientDemoWarning)}</UiWarning>
+        ) : null}
       </Field>
       <Field>
         <FieldLabel htmlFor={amountId}>{t(($) => $.sendInputAmountLabel)}</FieldLabel>

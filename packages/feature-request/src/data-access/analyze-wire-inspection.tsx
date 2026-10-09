@@ -1,4 +1,5 @@
 import type { Address } from '@solana/kit'
+import { FIMS_DEMO_RECIPIENT } from '@workspace/solana-client/fims-known-recipients'
 import { formatSimulationFailure } from '@workspace/solana-client/format-simulation-failure'
 import type { WireTransactionInspection } from '@workspace/solana-client/inspect-wire-transaction'
 import { programMap } from '@workspace/solana-client/program-map'
@@ -11,6 +12,7 @@ import { programMap } from '@workspace/solana-client/program-map'
 // account itself is handed over.
 
 export type WireInspectionWarningId =
+  | 'demoRecipient'
   | 'simulationFailed'
   | 'unverifiableChanges'
   | 'unresolvedAccounts'
@@ -137,6 +139,16 @@ export function analyzeWireInspection({
       detail: unknown.map((counterparty) => counterparty.address).join(', '),
       id: 'unknownRecipient',
       severity: 'warning',
+    })
+  }
+  // The demo wallet resolves to a friendly label — but its mnemonic is
+  // public, so "known" must never read as "safe".
+  const demo = counterparties.filter((counterparty) => counterparty.address === FIMS_DEMO_RECIPIENT)
+  if (demo.length) {
+    warnings.push({
+      detail: FIMS_DEMO_RECIPIENT,
+      id: 'demoRecipient',
+      severity: 'critical',
     })
   }
 

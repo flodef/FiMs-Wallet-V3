@@ -2,9 +2,9 @@
 import { Headers, type HttpServerRequest } from '@effect/platform'
 import { ed25519 } from '@noble/curves/ed25519'
 import { getBase58Encoder } from '@solana/codecs-strings'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'
-import { usedSignatures } from '../../db/schema.js'
+import { fimsSessions, usedSignatures } from '../../db/schema.js'
 import { DatabaseError, DatabaseService } from '../../db/service.js'
 
 export class AuthUnauthorized extends Schema.TaggedError<AuthUnauthorized>()('AuthUnauthorized', {
@@ -30,6 +30,11 @@ const sha256Hex = (text: string) =>
       .join(''),
   )
 
+const sha256HexBytes = async (data: Uint8Array) =>
+  Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data as BufferSource)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+
 // Canonical query serialization, signed along with the path. The client runs
 // the identical algorithm (packages/feature-fims/src/fims-canonical-query.ts):
 // decode each pair, sort by key then value, re-encode with URLSearchParams
@@ -38,6 +43,38 @@ export function canonicalizeQuery(searchParams: URLSearchParams): string {
   const pairs = [...searchParams.entries()]
   pairs.sort((a, b) => (a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : a[0] < b[0] ? -1 : 1))
   return new URLSearchParams(pairs).toString()
+}
+
+/**
+ * Bearer-session auth: `Authorization: Bearer <token>` resolves to the
+ * session's wallet address. Only the token hash is stored server-side, so
+ * a forged or database-leaked token is useless; expiry is enforced here.
+ */
+function verifyBearerSession(request: HttpServerRequest.HttpServerRequest) {
+  return Effect.gen(function* () {
+    const token = header(request, 'authorization').slice('Bearer '.length)
+    const tokenHash = yield* Effect.tryPromise({
+      catch: () => new AuthUnauthorized({ reason: 'malformed session token' }),
+      try: () => sha256HexBytes(new TextEncoder().encode(token)),
+    })
+    const { db } = yield* DatabaseService
+    const rows = yield* Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => db.select().from(fimsSessions).where(eq(fimsSessions.tokenHash, tokenHash)).limit(1),
+    })
+    const row = rows[0]
+    if (!row) return yield* Effect.fail(new AuthUnauthorized({ reason: 'unknown session token' }))
+    if (row.expiresAt.getTime() < Date.now())
+      return yield* Effect.fail(new AuthUnauthorized({ reason: 'session expired' }))
+    // Opportunistic touch — last_seen feeds session monitoring.
+    if (Math.random() < 0.05) {
+      yield* Effect.tryPromise({
+        catch: () => new DatabaseError({ cause: 'session touch failed' }),
+        try: () => db.update(fimsSessions).set({ lastSeenAt: new Date() }).where(eq(fimsSessions.tokenHash, tokenHash)),
+      }).pipe(Effect.ignoreLogged)
+    }
+    return row.address
+  })
 }
 
 /**
@@ -52,9 +89,18 @@ export function canonicalizeQuery(searchParams: URLSearchParams): string {
  * replayed against the real API; binding the canonical query stops a captured
  * GET signature from being replayed with swapped parameters; binding the body
  * hash stops a captured signature from being replayed with a swapped payload.
+ *
+ * Preferred auth is a bearer session minted by `createSession` — the signed
+ * path stays for compatibility but is only ever needed once per session.
  */
 export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
+    // A bearer session wins when present — and when present but invalid the
+    // request fails closed (no silent downgrade to signature auth).
+    if (header(request, 'authorization').startsWith('Bearer ')) {
+      return yield* verifyBearerSession(request)
+    }
+
     const address = header(request, 'x-fims-address')
     const ts = Number(header(request, 'x-fims-ts'))
     const sigHeader = header(request, 'x-fims-sig')
@@ -174,4 +220,162 @@ export function verifyAddressSignature(address: string, content: Uint8Array, sig
   } catch {
     return false
   }
+}
+
+// ---------------------------------------------------------------------------
+// Bearer sessions (SIWS sign-in — one signature, then `Authorization: Bearer`)
+// ---------------------------------------------------------------------------
+
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Canonical Sign-In-With-Solana message the client signs to mint a session.
+ * The server rebuilds it from the fields in the request body — the message
+ * text itself is never trusted (an injected statement/URI could otherwise
+ * turn the session signature into a consent for something else).
+ */
+export function fimsSessionMessage(host: string, address: string, nonce: string, issuedAt: string): string {
+  return (
+    `${host} wants you to sign in with your Solana account:\n` +
+    `${address}\n\n` +
+    'Signs you in to the FiMs API for 7 days. This does not authorize transactions.\n\n' +
+    `URI: ${host}\n` +
+    'Version: 1\n' +
+    'Chain ID: solana\n' +
+    `Nonce: ${nonce}\n` +
+    `Issued At: ${issuedAt}`
+  )
+}
+
+/**
+ * POST /fims/session: verify a fresh SIWS signature and mint a bearer token.
+ * `issuedAt` must be within the signature skew window (freshness = replay
+ * protection without a server-issued nonce round-trip), and the signature
+ * is burned in used_signatures so the same login cannot be replayed.
+ */
+export function createSession(
+  request: HttpServerRequest.HttpServerRequest,
+  body: { address: string; issuedAt: string; nonce: string; signature: string },
+) {
+  return Effect.gen(function* () {
+    const fail = (reason: string) => Effect.fail(new AuthUnauthorized({ reason }))
+    const issuedAt = Date.parse(body.issuedAt)
+    if (!Number.isFinite(issuedAt) || Math.abs(Date.now() - issuedAt) > MAX_SKEW_MS)
+      return yield* fail('stale sign-in timestamp')
+    if (!/^[a-zA-Z0-9]{16,64}$/.test(body.nonce)) return yield* fail('bad nonce')
+
+    const url = new URL(request.url, 'https://fims.local')
+    const host = header(request, 'host') || url.host
+    const decode = <T>(decodeFn: () => T) =>
+      Effect.try({ catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }), try: decodeFn })
+    const publicKey = yield* decode(() => Uint8Array.from(getBase58Encoder().encode(body.address)))
+    const signature = yield* decode(() => b64ToBytes(body.signature))
+    const valid = yield* Effect.try({
+      catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),
+      try: () =>
+        ed25519.verify(
+          signature,
+          new TextEncoder().encode(fimsSessionMessage(host, body.address, body.nonce, body.issuedAt)),
+          publicKey,
+        ),
+    })
+    if (!valid) return yield* fail('bad signature')
+
+    // Burn the sign-in signature — replaying it cannot mint a second session.
+    const { db } = yield* DatabaseService
+    const inserted = yield* Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => db.insert(usedSignatures).values({ signature: body.signature }).onConflictDoNothing().returning(),
+    })
+    if (!inserted.length) return yield* fail('signature already used')
+
+    const tokenBytes = new Uint8Array(32)
+    crypto.getRandomValues(tokenBytes)
+    const token = Array.from(tokenBytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS)
+    // Same input as verifyBearerSession: the token STRING, not the raw bytes.
+    const tokenHash = yield* Effect.tryPromise({
+      catch: () => new DatabaseError({ cause: 'token hashing failed' }),
+      try: () => sha256HexBytes(new TextEncoder().encode(token)),
+    })
+    yield* Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () =>
+        db.insert(fimsSessions).values({ address: body.address, expiresAt, lastSeenAt: new Date(), tokenHash }),
+    })
+    return { expiresAt, token }
+  })
+}
+
+/** DELETE /fims/session: revoke the bearer session carried in the request. */
+export function deleteSession(request: HttpServerRequest.HttpServerRequest) {
+  return Effect.gen(function* () {
+    const bearer = header(request, 'authorization')
+    if (!bearer.startsWith('Bearer ')) return yield* Effect.fail(new AuthUnauthorized({ reason: 'missing session' }))
+    const tokenHash = yield* Effect.tryPromise({
+      catch: () => new AuthUnauthorized({ reason: 'malformed session token' }),
+      try: () => sha256HexBytes(new TextEncoder().encode(bearer.slice('Bearer '.length))),
+    })
+    const { db } = yield* DatabaseService
+    yield* Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () => db.delete(fimsSessions).where(eq(fimsSessions.tokenHash, tokenHash)),
+    })
+    return 'session revoked'
+  })
+}
+
+/**
+ * Step-up auth for sensitive mutations (delete user, link/unlink address):
+ * on top of whatever auth authenticated the request, the wallet must sign a
+ * FRESH confirmation binding host + method + resource + body. A stolen
+ * bearer token alone can therefore not destroy or hijack a member account.
+ *   `fims-confirm\n{HOST}\n{METHOD}\n{PATHNAME[?CANONICAL_QUERY]}\n{TS_MS}\n{SHA256_HEX(BODY)}`
+ * sent as x-fims-confirm-ts / x-fims-confirm-sig.
+ */
+export function verifyFreshConfirmation(request: HttpServerRequest.HttpServerRequest, signer: string) {
+  return Effect.gen(function* () {
+    const fail = (reason: string) => Effect.fail(new AuthUnauthorized({ reason }))
+    const ts = Number(header(request, 'x-fims-confirm-ts'))
+    const sigHeader = header(request, 'x-fims-confirm-sig')
+    if (!sigHeader || !Number.isFinite(ts)) return yield* fail('missing confirmation signature')
+    if (Math.abs(Date.now() - ts) > MAX_SKEW_MS) return yield* fail('stale confirmation')
+
+    const url = new URL(request.url, 'https://fims.local')
+    const host = header(request, 'host') || url.host
+    const bodyText = yield* Effect.catchAll(request.text, () => Effect.succeed(''))
+    const bodyHash = yield* sha256Hex(bodyText)
+    const decode = <T>(decodeFn: () => T) =>
+      Effect.try({ catch: () => new AuthUnauthorized({ reason: 'malformed confirmation' }), try: decodeFn })
+    const publicKey = yield* decode(() => Uint8Array.from(getBase58Encoder().encode(signer)))
+    const signature = yield* decode(() => b64ToBytes(sigHeader))
+    const query = canonicalizeQuery(url.searchParams)
+    const resource = query ? `${url.pathname}?${query}` : url.pathname
+    const valid = yield* Effect.try({
+      catch: () => new AuthUnauthorized({ reason: 'malformed confirmation' }),
+      try: () =>
+        ed25519.verify(
+          signature,
+          new TextEncoder().encode(`fims-confirm\n${host}\n${request.method}\n${resource}\n${ts}\n${bodyHash}`),
+          publicKey,
+        ),
+    })
+    if (!valid) return yield* fail('bad confirmation signature')
+
+    // Burn the confirmation — a captured one cannot be replayed.
+    const { db } = yield* DatabaseService
+    const inserted = yield* Effect.tryPromise({
+      catch: (cause) => new DatabaseError({ cause }),
+      try: () =>
+        db
+          .insert(usedSignatures)
+          .values({ signature: `confirm:${sigHeader}` })
+          .onConflictDoNothing()
+          .returning(),
+    })
+    if (!inserted.length) return yield* fail('confirmation already used')
+    return undefined
+  })
 }

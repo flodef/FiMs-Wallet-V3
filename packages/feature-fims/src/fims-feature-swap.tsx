@@ -102,8 +102,10 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const quoteMint = strategyRoute ? strategyRoute.collateralMint : outputMint
 
   const quote = useJupiterQuote({
+    account,
     amount: swapAmount,
     inputMint,
+    network,
     outputMint: quoteMint,
     platformFeeBps: getFimsPlatformFeeBps(),
   })

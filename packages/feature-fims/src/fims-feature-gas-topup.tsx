@@ -56,14 +56,18 @@ export function FimsFeatureGasTopup() {
   // for gas.
   const target = deficit > 0n ? deficit : 10_000_000n
   const estimate = useJupiterQuote({
+    account,
     amount: target,
     inputMint: NATIVE_MINT,
+    network,
     outputMint: sourceMint || undefined,
   })
   const topupAmount = estimate.data ? BigInt(estimate.data.outAmount) : 0n
   const quote = useJupiterQuote({
+    account,
     amount: topupAmount,
     inputMint: sourceMint,
+    network,
     outputMint: NATIVE_MINT,
   })
   const [signature, setSignature] = useState('')

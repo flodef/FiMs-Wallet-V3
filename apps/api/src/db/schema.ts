@@ -117,6 +117,38 @@ export const usedSignatures = pgTable('used_signatures', {
   signature: text('signature').primaryKey(),
 })
 
+// Bearer sessions: minted by one SIWS signature (POST /fims/session), then
+// carried as `Authorization: Bearer` instead of a per-request signature.
+// Only sha256(token) is stored — a DB dump never leaks a usable token.
+// Sensitive mutations still require a fresh x-fims-confirm-* signature on
+// top of the session.
+export const fimsSessions = pgTable('fims_sessions', {
+  address: text('address').notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { mode: 'date' }),
+  tokenHash: text('token_hash').primaryKey(),
+})
+
+// Wrapped mint/redeem state machine — the pipeline is three commits (claim →
+// custodial mint → ledger row) that cannot be atomic, so progress is durable:
+// 'claimed' = slot reserved (a crashed mint leaves this stuck and blocks —
+// admin deletes the row to unblock, after checking the chain for a landed
+// custodial tx), 'minted' = on-chain step done, ledger replayable without
+// re-minting, 'recorded' = ledger row written (terminal).
+export const wrappedClaims = pgTable(
+  'wrapped_claims',
+  {
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    custodialSignature: text('custodial_signature'),
+    mint: text('mint').notNull(),
+    signature: text('signature').notNull(),
+    state: text('state').notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.signature, t.mint] })],
+)
+
 // Shared rate-limit counters: fixed-window hits per bucket ('mut:<ip>' or
 // 'read:<ip>'). Per-instance memory buckets (index.ts) cannot see other
 // serverless isolates — this table is the enforcement that survives
@@ -239,6 +271,16 @@ export const voteBallots = pgTable(
   },
   (t) => [primaryKey({ columns: [t.voteId, t.userId] })],
 )
+
+// TTL lease for the keeper: the 1-minute cron can overlap a slow pass (a
+// full placement takes longer than a minute), and neon-http cannot hold a
+// session-level advisory lock. Atomic compare-and-set: a pass only wins the
+// lease when the previous one expired — a crashed holder self-heals by TTL.
+export const keeperLocks = pgTable('keeper_locks', {
+  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+  name: text('name').primaryKey(),
+  owner: text('owner'),
+})
 
 // Keeper audit trail: one row per on-chain member_deposit PDA. The delegate
 // records share issuance (1:1 vs deposited collateral) and the placement

@@ -97,6 +97,7 @@
   "sendConfirmOperatingFee": "FiMs operating fee",
   "sendConfirmPreparingTransaction": "Preparing transaction...",
   "sendConfirmRecipientDemo": "FiMs demo wallet",
+  "sendConfirmRecipientDemoWarning": "FiMs demo wallet — PUBLIC KEYS: its mnemonic is published, anyone can drain whatever you send. Send only tokens you are willing to lose.",
   "sendConfirmRecipientTontine": "FiMs Tontine",
   "sendConfirmRecipientTreasury": "FiMs Treasury",
   "sendConfirmSimulatingTransaction": "Simulating transaction...",

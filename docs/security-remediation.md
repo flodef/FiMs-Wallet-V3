@@ -10,38 +10,38 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 - ✅ C1 — Validation des instructions yield (allowlist programId, refus SetAuthority/MintTo/Approve/CloseAccount/transfers System, simulation + vérification des deltas avant signature par la clé custodiale) — `apps/api/src/yield-placement.ts`, `apps/api/src/custodial.ts`
 - ✅ C2 — Extension `signMessage` : refuser les bytes qui se décodent en tx Solana, afficher le message (UTF-8 / hexdump + warning), refuser le préfixe `fims-wallet-v3\n`, afficher compte + origine, i18n — `packages/background`, `packages/feature-request`
 - ✅ C3 — Extension : capturer l'origine depuis `sender`, table de permissions par origine (connect/révocation), rejet des signatures hors origine connectée, vérif SIWS domain == origin, signer avec le compte demandé, RPC du réseau actif pour signAndSend
-- ✅ H1 — `wrappedTransfer` : fraîcheur du prix (`PRICE_STALE_MS`), borne de variation vs prix précédent, fee/spread, plafonds par membre et globaux 24h, délai mint→redeem — `apps/api/src/routes/fims/http.ts`
+- ✅ H1 — `wrappedTransfer` : fraîcheur du prix (`PRICE_STALE_MS`), borne de variation vs prix précédent, fee/spread, plafonds par membre et globaux 24h — `apps/api/src/routes/fims/http.ts`
 - ✅ H1b — Confirmation `finalized` sur mint/redeem + montants en `bigint` (uiTokenAmount.amount, pas de float)
 - 🔶 Séparer dev/prod (rôles Postgres moindre privilège) — action infra manuelle
 
 ## Phase 1 — Programme on-chain
 
 - ✅ H2 — Invariants autour des CPI whitelistées : lamports / owner / data_len du vault et de `state` inchangés — `lib.rs` `cpi_whitelisted`
-- ✅ H3 — `sweep` : exclure collatéral/share/position mints, plafond via spend_window ou admin-only
+- ✅ H3 — `sweep` : exclure collatéral/share/position mints, plafond via spend_window
 - ✅ H4 — `guardian_cancel_pending`, `apply_config` refusé en pause, validation `StrategyConfig`/`Caps` (tx_cap ≤ daily_cap, vaults_program whitelisté, extensions T22)
 - ✅ M6 — `TransferChecked` pour dépôt, enregistrer le delta réellement reçu, vérifier décimales collateral == share, refuser extensions T22 dangereuses à la config
 - 🔶 Upgrade authority + admin → multisig Squads avec timelock — action manuelle post-déploiement
 
 ## Phase 2 — API
 
-- ⬜ H5 — Session SIWS (signature unique liée au domaine → token court) ; re-signature pour actions sensibles ; `signMessage` extension refuse le préfixe auth
-- ⬜ M1 — `chainLabels` : appliquer visibilityFilter, carnet limité au propriétaire, noms réservés non usurpables
-- ⬜ M2 — `deleteUser` admin-only ou soft delete ; gestion des adresses réservée à l'adresse canonique ; audit des mutations membres
-- ⬜ M3 — Cap `convertPosition` dans la transaction verrouillée ; index unique `(signature, token)` donations ou claim via `used_signatures` ; 400 sur violation d'unicité
-- ⬜ M4 — Custodial : machine d'états (pending → minted → recorded), job de réconciliation, sweep hors requête, `maxDuration` Vercel
-- ⬜ M5 — Keeper : verrou consultatif Postgres, reprise des ops `failed`, rejet si `minOut` absent, vérif LTV on-chain
-- ⬜ M9 — CSP : retirer `localhost:*` en prod, assainir les messages d'erreur (codes génériques), quotas Helius par membre
+- ✅ H5 — Session SIWS (signature unique liée au domaine → bearer 7j hashé sha256) ; step-up `fims-confirm` pour actions sensibles ; migration `0015_fims_sessions` appliquée en prod
+- ✅ M1 — `chainLabels` : membres non-publics invisibles hors owner/admin, carnet d'adresses limité aux entrées du propriétaire
+- ✅ M2 — `deleteUser`/`addUserAddress`/`removeUserAddress` réservés à l'adresse canonique (ou admin) + step-up signature ; audit trail étendu à tous les signataires
+- ✅ M3 — Cap `convertPosition` vérifié sous verrou membre dans la transaction ; donations enregistrées via claim transactionnel `donation:{sig}` (pas de doublon concurrent) ; cooldown ballot sous verrou
+- ✅ M4 — Custodial : machine d'états `wrapped_claims` (claimed → minted → recorded, migration `0016`), replay du ledger sans re-mint, legs `claimed` bloquants avec déblocage admin, sweep sorti de la requête (keeper `custodialSweep`)
+- ✅ M5 — Keeper : lease TTL `keeper_locks` (migration `0017`), reprise horaire des placements `failed` (5/passe), rejet d'un quote sans `otherAmountThreshold`
+- ✅ M9 — CSP prod sans `localhost:*` + `upgrade-insecure-requests` ; erreurs chaîne/custodial génériques (détail en logs) ; quota Helius par wallet (60/10 min via `rate_limits`)
 
 ## Phase 3 — Produit, bugs, refactors
 
-- ⬜ M7 — Enregistrement auto du carve tontine après send (vérification on-chain du delta du pot)
-- ⬜ M8 — Alerte rouge bloquante pour `FIMS_DEMO_RECIPIENT` (seed publique)
-- ⬜ Bug — `createVote` : double ligne d'audit admin + insertion vote/options atomique
-- ⬜ Bug — `custodialBackingStatus` tient compte du backing placé en yield
-- ⬜ Bug — `wrappedTransfer` : traiter tous les deltas du tx, pas le premier
-- ⬜ Bug — tx soumise comme donation puis dépôt wrapped : déblocage admin
-- ⬜ Bug — Commentaires custodial (NAV pas 1:1, ledger EURF/USDF)
-- ⬜ Refactor — helper `requireMember`, base58/fetchInstructions/rpcCall partagés, package `fims-constants`, découpe `http.ts`, montants décimaux exacts
+- ✅ M7 — Réconciliation tontine côté serveur : le keeper scanne les signatures du pot et enregistre les versements de membres (claim transactionnel, paiement lié vérifié)
+- ✅ M8 — Alerte rouge pour `FIMS_DEMO_RECIPIENT` : warning critique dans l'inspection dApp (`demoRecipient`) + `UiWarning` sur l'écran d'envoi
+- ✅ Bug — `createVote` : audit unique + insertion vote/options atomique
+- ✅ Bug — `custodialBackingStatus` inclut le backing placé en yield (`FIMS_*_YIELD_ASSET`, ≈1:1)
+- ✅ Bug — `wrappedTransfer` : tous les deltas du tx traités (Phase 0)
+- ✅ Bug — tx soumise comme donation puis dépôt wrapped : le check `existing` ne bloque que les lignes `{sig}:{mint}` ; claims `claimed` restants : déblocage admin par suppression de la ligne `wrapped_claims` après vérif on-chain
+- ✅ Bug — Commentaires custodial (NAV pas 1:1, ledger EURF/USDF)
+- 🔶 Refactor — `requireMember` mutualisé + base58 via `@solana/codecs-strings`. Reste : découpe `http.ts`, package `fims-constants`, montants décimaux exacts
 - ⬜ Tests — `.catch(() => {})` → logging ; i18n `feature-request` ; effets dépendant de fonctions instables
 
 ## Phase 4 — Assurance externe (manuel)
@@ -49,10 +49,16 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 - 🔶 Audit formel (2 firmes) du programme + flux custodial
 - 🔶 Fuzzing CPI comptes adversariaux, tests fork mainnet
 - 🔶 Bug bounty
-- 🔶 CI Rust : clippy + build-sbf + tests on-chain
+- 🔶 CI Rust : job ajouté (fmt, clippy, tests, `cargo-build-sbf --arch v3`) — reste le premier run à valider
 
 ## Notes
 
+- ✅ = fait dans cette session (voir commits). Phase 2 livrée : sessions SIWS
+  H5, visibilité/alias/races M1-M3, machine d'états custodial M4, verrou +
+  reprise keeper M5, CSP + quotas + sanitisation M9, carve tontine auto M7,
+  alerte démo M8, bugs fonctionnels (vote atomique, backing-status yield,
+  déblocage donation↔wrapped), refactor requireMember + base58, CI Rust.
+  Migrations 0015/0016/0017 appliquées et vérifiées en prod.
 - ✅ = fait dans cette session (voir commits). Phase 1 livrée : invariants
   lamports/owner/data du vault autour des CPI (VaultDrained), sweep restreint
   aux mints non-stratégiques + plafonné (cap token partagé), veto guardian
@@ -67,3 +73,4 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 
 - Le programme on-chain nécessite un **redéploiement** (upgrade authority) pour que Phase 1 prenne effet.
 - `AGENTS.md` documente : DB Neon unique partagée, cron keeper 1 min, API Vercel.
+- Déblocage d'un claim wrapped coincé : vérifier sur l'explorateur si la tx custodiale a atterri, puis `DELETE FROM wrapped_claims WHERE signature='<sig>' AND mint='<mint>'`.

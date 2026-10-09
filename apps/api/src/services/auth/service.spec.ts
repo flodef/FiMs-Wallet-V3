@@ -5,7 +5,15 @@ import { Effect, Layer } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DatabaseService } from '../../db/service.ts'
-import { canonicalizeQuery, verifyAddressSignature, verifyWalletRequest } from './service.ts'
+import {
+  canonicalizeQuery,
+  createSession,
+  deleteSession,
+  fimsSessionMessage,
+  verifyAddressSignature,
+  verifyFreshConfirmation,
+  verifyWalletRequest,
+} from './service.ts'
 
 const privateKey = ed25519.utils.randomPrivateKey()
 const address = getBase58Decoder().decode(ed25519.getPublicKey(privateKey))
@@ -20,21 +28,58 @@ async function sha256Hex(text: string): Promise<string> {
 
 // In-memory stand-in for the used_signatures table: the first insert of a
 // signature returns a row, every subsequent one returns an empty conflict.
+// Also fakes fims_sessions (tokenHash → row) for the bearer-session paths.
 function makeReplayAwareDb() {
   const used = new Set<string>()
+  const sessions = new Map<string, { address: string; expiresAt: Date; lastSeenAt?: Date; tokenHash: string }>()
+  // Extract the plain value from a drizzle `eq(column, value)` condition.
+  const condValue = (cond: unknown) => {
+    const chunks = (cond as { queryChunks?: { value?: unknown }[] }).queryChunks ?? []
+    const hit = chunks.find((c) => typeof c?.value === 'string')
+    return hit?.value as string | undefined
+  }
   return {
+    delete: () => ({
+      where: async (cond: unknown) => {
+        sessions.delete(condValue(cond) ?? '')
+        return []
+      },
+    }),
     execute: async () => ({ rows: [] }),
     insert: () => ({
-      values: (row: { signature: string }) => ({
-        onConflictDoNothing: () => ({
-          returning: async () => {
-            if (used.has(row.signature)) {
-              return []
-            }
-            used.add(row.signature)
-            return [row]
+      values: (row: { signature?: string; tokenHash?: string }) => {
+        const apply = () => {
+          if (row.tokenHash) sessions.set(row.tokenHash, row as never)
+          return [row]
+        }
+        return {
+          onConflictDoNothing: () => ({
+            returning: async () => {
+              if (row.signature) {
+                if (used.has(row.signature)) return []
+                used.add(row.signature)
+              }
+              return apply()
+            },
+          }),
+          // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mimics drizzle's awaitable insert
+          then: (resolve: (v: unknown) => unknown) => Promise.resolve(apply()).then(resolve),
+        }
+      },
+    }),
+    select: () => ({
+      from: () => ({
+        where: (cond: unknown) => ({
+          limit: async () => {
+            const row = sessions.get(condValue(cond) ?? '')
+            return row ? [row] : []
           },
         }),
+      }),
+    }),
+    update: () => ({
+      set: () => ({
+        where: async () => [],
       }),
     }),
   }
@@ -322,6 +367,158 @@ describe('verify-address-signature', () => {
 
       // ASSERT
       expect(result).toBe(false)
+    })
+  })
+})
+
+// Bearer sessions: POST /fims/session mints a token from ONE SIWS signature;
+// subsequent requests authenticate with `Authorization: Bearer` instead of a
+// per-request signature. Sensitive actions still demand verifyFreshConfirmation.
+describe('fims-sessions', () => {
+  const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
+
+  async function sessionBody() {
+    const nonce = 'a1b2c3d4e5f6a7b8'
+    const issuedAt = new Date().toISOString()
+    const message = fimsSessionMessage(HOST, address, nonce, issuedAt)
+    const signature = b64(ed25519.sign(new TextEncoder().encode(message), privateKey))
+    return { address, issuedAt, nonce, signature }
+  }
+
+  const sessionRequest = (token?: string): HttpServerRequest.HttpServerRequest =>
+    ({
+      headers: { authorization: token ? `Bearer ${token}` : '', host: HOST },
+      method: 'GET',
+      text: Effect.succeed(''),
+      url: `https://${HOST}/fims/users`,
+    }) as unknown as HttpServerRequest.HttpServerRequest
+
+  const createRequest = (): HttpServerRequest.HttpServerRequest =>
+    ({
+      headers: { host: HOST },
+      method: 'POST',
+      text: Effect.succeed(''),
+      url: `https://${HOST}/fims/session`,
+    }) as unknown as HttpServerRequest.HttpServerRequest
+
+  describe('expected behavior', () => {
+    it('should mint a session from a valid SIWS signature and resolve the bearer token', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      const db = makeReplayAwareDb()
+
+      // ACT
+      const session = await run(createSession(createRequest(), await sessionBody()), db)
+      const signer = await run(verifyWalletRequest(sessionRequest(session.token)), db)
+
+      // ASSERT
+      expect(session.token).toHaveLength(64)
+      expect(signer).toBe(address)
+    })
+
+    it('should revoke the session on delete', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const db = makeReplayAwareDb()
+      const session = await run(createSession(createRequest(), await sessionBody()), db)
+
+      // ACT
+      const result = await run(deleteSession(sessionRequest(session.token)), db)
+
+      // ASSERT
+      expect(result).toBe('session revoked')
+    })
+
+    it('should accept a fresh confirmation signature on a sensitive mutation', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const db = makeReplayAwareDb()
+      const ts = Date.now()
+      const body = ''
+      const bodyHash = await sha256Hex(body)
+      const message = `fims-confirm\n${HOST}\nDELETE\n/fims/users/42\n${ts}\n${bodyHash}`
+      const request = {
+        headers: {
+          host: HOST,
+          'x-fims-confirm-sig': b64(ed25519.sign(new TextEncoder().encode(message), privateKey)),
+          'x-fims-confirm-ts': String(ts),
+        },
+        method: 'DELETE',
+        text: Effect.succeed(body),
+        url: `https://${HOST}/fims/users/42`,
+      } as unknown as HttpServerRequest.HttpServerRequest
+
+      // ACT & ASSERT
+      await expect(run(verifyFreshConfirmation(request, address), db)).resolves.toBeUndefined()
+    })
+  })
+
+  describe('unexpected behavior', () => {
+    beforeEach(() => {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('should reject an unknown bearer token', async () => {
+      // ARRANGE
+      expect.assertions(1)
+
+      // ACT & ASSERT
+      await expect(run(verifyWalletRequest(sessionRequest('deadbeef'.repeat(8))))).rejects.toThrow()
+    })
+
+    it('should reject a session mint replay (same SIWS signature twice)', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const db = makeReplayAwareDb()
+      const body = await sessionBody()
+      await run(createSession(createRequest(), body), db)
+
+      // ACT & ASSERT
+      await expect(run(createSession(createRequest(), body), db)).rejects.toThrow()
+    })
+
+    it('should reject a sign-in with a stale issuedAt', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const body = await sessionBody()
+      body.issuedAt = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      // Re-sign over the stale timestamp so only freshness fails.
+      body.signature = b64(
+        ed25519.sign(
+          new TextEncoder().encode(fimsSessionMessage(HOST, address, body.nonce, body.issuedAt)),
+          privateKey,
+        ),
+      )
+
+      // ACT & ASSERT
+      await expect(run(createSession(createRequest(), body))).rejects.toThrow()
+    })
+
+    it('should reject a confirmation signature replayed', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const db = makeReplayAwareDb()
+      const ts = Date.now()
+      const bodyHash = await sha256Hex('')
+      const message = `fims-confirm\n${HOST}\nDELETE\n/fims/users/42\n${ts}\n${bodyHash}`
+      const request = {
+        headers: {
+          host: HOST,
+          'x-fims-confirm-sig': b64(ed25519.sign(new TextEncoder().encode(message), privateKey)),
+          'x-fims-confirm-ts': String(ts),
+        },
+        method: 'DELETE',
+        text: Effect.succeed(''),
+        url: `https://${HOST}/fims/users/42`,
+      } as unknown as HttpServerRequest.HttpServerRequest
+      await run(verifyFreshConfirmation(request, address), db)
+
+      // ACT & ASSERT
+      await expect(run(verifyFreshConfirmation(request, address), db)).rejects.toThrow()
     })
   })
 })

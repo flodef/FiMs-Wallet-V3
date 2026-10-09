@@ -135,7 +135,7 @@ describe('build-deposit-ix', () => {
 
       // ASSERT — member, state, member ATA, vault, vault ATA, delegate,
       // share mint, member share ATA, member_deposit PDA, token programs, system/ATA
-      expect(ix.accounts).toHaveLength(13)
+      expect(ix.accounts).toHaveLength(14)
       expect(ix.accounts?.[0]).toMatchObject({ address: MEMBER, role: 3 })
       expect(ix.accounts?.[1]).toMatchObject({ address: await statePda(), role: 0 })
       expect(ix.accounts?.[3]).toMatchObject({ address: await vaultPda(), role: 1 })

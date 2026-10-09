@@ -186,6 +186,7 @@ const config: CSpellSettings = {
     'cripto',
     'mnemónica',
     'modifícalo',
+    'clippy',
     'multifirma',
     'rebalancear',
     'rebalanceo',

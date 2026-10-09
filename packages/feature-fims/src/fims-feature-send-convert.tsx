@@ -52,8 +52,8 @@ export function FimsFeatureSendConvert({
   const outputMint = outputSymbol ? (FIMS_KNOWN_MINTS[outputSymbol] as Address) : undefined
   const inputAmount = mint.mint === NATIVE_MINT ? uiAmountToBigInt(amount, 9) : uiAmountToBigInt(amount, mint.decimals)
   // Tontine carve: while the member owes the tontine, tontineRate of the sent
-  // units goes to the pot in a first transaction — the swap converts what
-  // remains and delivers it to the destination.
+  // units goes to the pot inside the same transaction — the swap converts
+  // what remains and delivers it to the destination.
   const { rates } = useFimsCurrency()
   const fimsTokens = useFimsTokens()
   const { member } = useFimsMember(account.publicKey, account)
@@ -73,8 +73,10 @@ export function FimsFeatureSendConvert({
     tontineRate: getFimsTontineRate(),
   })
   const quote = useJupiterQuote({
+    account,
     amount: inputAmount - tontineAmount,
     inputMint: mint.mint,
+    network,
     outputMint,
     platformFeeBps: getFimsPlatformFeeBps(),
   })

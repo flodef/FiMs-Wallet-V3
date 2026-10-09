@@ -114,7 +114,7 @@ describe('issueSharesIx', () => {
       )
 
       // ASSERT — caller, state, vault, memberDeposit, source, destination, token
-      expect(ix.accounts?.length).toBe(7)
+      expect(ix.accounts?.length).toBe(8)
       expect(ix.accounts?.[0]?.role).toBe(3) // READONLY_SIGNER
       expect(ix.accounts?.[3]?.address).toBe(depositPda)
       expect(ix.data?.length).toBe(16) // disc(8) + u64
