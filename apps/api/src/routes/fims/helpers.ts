@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, or, type SQLWrapper, sql } from 'drizzle-orm'
 import { Effect, Option } from 'effect'
 import {
   addressBook,
@@ -272,6 +272,26 @@ export const wrappedDailyCap = (scope: 'global' | 'member') =>
     scope === 'member' ? 'FIMS_WRAPPED_MEMBER_DAILY_UNITS' : 'FIMS_WRAPPED_GLOBAL_DAILY_UNITS',
     scope === 'member' ? 10_000 : 50_000,
   )
+
+// The price the last wrapped ledger row implied (|movement/amount| on the
+// latest deposit/withdrawal for the symbol) — the reference the rate-of-
+// change breaker compares the operator index against. Single implementation
+// shared by the live handler and the queued-redeem settle so the breaker
+// inputs cannot drift.
+// Structural — satisfied by both the HTTP (NeonHttp) and the transaction
+// (Neon serverless) drizzle handles so the helper works inside and outside
+// withTransaction.
+interface SqlExecutor {
+  execute: (query: SQLWrapper) => Promise<{ rows: unknown[] }>
+}
+export const lastImpliedWrappedPrice = async (db: SqlExecutor, symbol: string): Promise<number | undefined> =>
+  (
+    (
+      await db.execute(
+        sql`SELECT ABS(movement / amount)::float AS p FROM transactions WHERE token = ${symbol} AND type IN ('deposit', 'withdrawal') AND amount <> 0 ORDER BY date DESC LIMIT 1`,
+      )
+    ).rows as { p: number }[]
+  )[0]?.p
 // Bounds what a stolen member key can bleed through back-and-forth
 // conversions (each round-trip burns the fee). Generous enough to never
 // block a legitimate rebalance.

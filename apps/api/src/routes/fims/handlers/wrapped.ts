@@ -22,11 +22,20 @@ import { BadRequest, CustodialUnavailable, type WrappedTxBody } from '../api.js'
 import {
   addressLinkedToUser,
   insertFailed,
+  lastImpliedWrappedPrice,
   PRICE_STALE_MS,
   requireMember,
   wrappedDailyCap,
   wrappedPriceBreaker,
 } from '../helpers.js'
+
+// Sentinel thrown inside the claim transaction when another runner already
+// owns a leg — withTransaction aborts and rolls back, so fresh 'claimed'
+// inserts and any pending wins this transaction made never commit. A plain
+// `return { inFlight: true }` would COMMIT them and wedge legs as 'claimed'
+// with no executor (HTTP then reports inFlight, the keeper only scans
+// 'awaiting_liquidity' — manual admin unblock required).
+class WrappedClaimInFlight extends Error {}
 
 export const handleWrappedConfig = () =>
   Effect.gen(function* () {
@@ -164,13 +173,7 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
             reason: `stale price for ${config.symbol}: ${tokenRow.updatedAt.toISOString()}`,
           }),
         )
-      const lastImplied = (
-        (yield* withDb((db) =>
-          db.execute(
-            sql`SELECT ABS(movement / amount)::float AS p FROM transactions WHERE token = ${config.symbol} AND type IN ('deposit', 'withdrawal') AND amount <> 0 ORDER BY date DESC LIMIT 1`,
-          ),
-        )).rows as { p: number }[]
-      )[0]?.p
+      const lastImplied = yield* withDb((db) => lastImpliedWrappedPrice(db, config.symbol))
       if (lastImplied && Math.abs(price / lastImplied - 1) > wrappedPriceBreaker())
         return yield* Effect.fail(
           new CustodialUnavailable({
@@ -300,10 +303,14 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
             ),
           )
           .returning({ mint: wrappedClaims.mint })
-        if (!transitioned.length) return { inFlight: true } as const
+        if (!transitioned.length) throw new WrappedClaimInFlight()
       }
       return { fresh: executable, replay } as const
-    })
+    }).pipe(
+      Effect.catchTag('DatabaseError', (error) =>
+        error.cause instanceof WrappedClaimInFlight ? Effect.succeed({ inFlight: true } as const) : Effect.fail(error),
+      ),
+    )
     if ('inFlight' in claimOutcome)
       return yield* Effect.fail(
         new BadRequest({ reason: 'this transfer is already being processed — retry in a minute' }),

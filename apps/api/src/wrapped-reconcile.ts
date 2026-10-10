@@ -15,7 +15,7 @@
 // overlapping keeper tick. The keeper lease is only a cheaper outer gate.
 
 import { address as solAddress } from '@solana/kit'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import {
   custodialAddress,
   custodialRedeem,
@@ -27,7 +27,7 @@ import {
 import { tokens, transactions, wrappedClaims } from './db/schema.js'
 import type { Db } from './db/service.js'
 import { getFimsFeeRate } from './fee-config.js'
-import { PRICE_STALE_MS, wrappedPriceBreaker } from './routes/fims/helpers.js'
+import { lastImpliedWrappedPrice, PRICE_STALE_MS, wrappedPriceBreaker } from './routes/fims/helpers.js'
 import { fetchDonationTransaction } from './solana-rpc.js'
 import { formatTokenUnits } from './solana-util.js'
 import { withKeeperLease } from './strategy-delegate.js'
@@ -76,13 +76,7 @@ async function settleQueuedRedeems(db: Db): Promise<{ attempted: number; settled
       )[0]
       const price = tokenRow?.value ?? 0
       if (price <= 0 || !tokenRow || Date.now() - tokenRow.updatedAt.getTime() > PRICE_STALE_MS) continue
-      const lastImplied = (
-        (
-          await db.execute(
-            sql`SELECT ABS(movement / amount)::float AS p FROM transactions WHERE token = ${config.symbol} AND type IN ('deposit', 'withdrawal') AND amount <> 0 ORDER BY date DESC LIMIT 1`,
-          )
-        ).rows as { p: number }[]
-      )[0]?.p
+      const lastImplied = await lastImpliedWrappedPrice(db, config.symbol)
       if (lastImplied && Math.abs(price / lastImplied - 1) > wrappedPriceBreaker()) {
         console.warn(
           `queued redeem ${claim.signature}:${claim.mint} held by price breaker ` +
@@ -142,12 +136,12 @@ async function settleQueuedRedeems(db: Db): Promise<{ attempted: number; settled
 
       const productAmount = Number(productUnits) / 1e6
       const movement = price * productAmount
-      await db.transaction(async (tx) => {
+      const recorded = await db.transaction(async (tx) => {
         // Flip the claim to 'recorded' FIRST — the update is empty when
         // another path (e.g. a concurrent user retry) already recorded the
         // leg, and then the ledger insert must not happen: it would
         // duplicate the row (`transactions.signature` has no unique key).
-        const recorded = await tx
+        const flipped = await tx
           .update(wrappedClaims)
           .set({ state: 'recorded', updatedAt: new Date() })
           .where(
@@ -158,7 +152,7 @@ async function settleQueuedRedeems(db: Db): Promise<{ attempted: number; settled
             ),
           )
           .returning({ mint: wrappedClaims.mint })
-        if (!recorded.length) return
+        if (!flipped.length) return false
         await tx.insert(transactions).values({
           address: fetched.payer,
           amount: formatTokenUnits(-productUnits, 6),
@@ -170,8 +164,11 @@ async function settleQueuedRedeems(db: Db): Promise<{ attempted: number; settled
           type: 'withdrawal',
           userId: member.id,
         })
+        return true
       })
-      settled += 1
+      // A lost recorded flip means a concurrent path owns the ledger write —
+      // the claim is settled either way, but not by THIS runner.
+      if (recorded) settled += 1
     } catch (error) {
       // One bad claim must not stall the queue — it retries next tick.
       console.error(`queued redeem ${claim.signature}:${claim.mint} failed`, error)

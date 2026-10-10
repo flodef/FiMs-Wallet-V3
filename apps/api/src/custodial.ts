@@ -250,6 +250,13 @@ export async function assertCustodySimulation(wire: string, custody: Address, gu
   }
   if (value.err) throw new Error(`custody simulation failed: ${JSON.stringify(value.err)}`)
   const accounts = value.accounts ?? []
+  // A truncated accounts array would silently skip the tail of the watched
+  // list — fail closed on RPC-contract drift instead of half-inspecting.
+  if (accounts.length !== 1 + watched.length + extraAccounts.length) {
+    throw new Error(
+      `custody simulation returned ${accounts.length} accounts, expected ${1 + watched.length + extraAccounts.length}`,
+    )
+  }
   const walletAccount = accounts[0]
   if (!walletAccount || `${walletAccount.owner}` !== SYSTEM_PROGRAM_ADDRESS) {
     throw new Error('custody simulation changed the wallet owner')
