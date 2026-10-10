@@ -60,6 +60,7 @@ interface ParsedTransaction {
       accountKeys: { pubkey: string; signer?: boolean }[] | string[]
     }
   }
+  version?: number | 'legacy'
 }
 
 async function fetchParsedTransaction(
@@ -72,8 +73,9 @@ async function fetchParsedTransaction(
       id: 1,
       jsonrpc: '2.0',
       method: 'getTransaction',
-      // v0 is the newest wire version — anything newer must not parse.
-      params: [signature, { commitment, encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }],
+      // v1 is the newest wire version the app emits (Jupiter builds for
+      // local signers) — anything newer must not be credited.
+      params: [signature, { commitment, encoding: 'jsonParsed', maxSupportedTransactionVersion: 1 }],
     }),
     headers: { 'content-type': 'application/json' },
     method: 'POST',
@@ -82,7 +84,13 @@ async function fetchParsedTransaction(
     throw new Error(`solana rpc failed: ${res.status}`)
   }
   const json = (await res.json()) as { result?: ParsedTransaction | null }
-  return json.result ?? null
+  const tx = json.result ?? null
+  // Fail closed on a wire version above what this parser understands — an
+  // unknown layout could shift the balance/delta reads the credit relies on.
+  if (tx && tx.version !== undefined && tx.version !== 'legacy' && tx.version > 1) {
+    throw new Error(`unsupported transaction version ${tx.version} on ${signature}`)
+  }
+  return tx
 }
 
 function parseDonation(tx: ParsedTransaction, tontine: string): VerifiedDonationTx | null {

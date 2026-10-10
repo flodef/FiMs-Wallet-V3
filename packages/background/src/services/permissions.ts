@@ -19,7 +19,9 @@ const GRANT_TTL_MS = 90 * 24 * 60 * 60 * 1000
 
 export interface GrantedOrigin {
   address: string
-  connectedAt: number
+  // Optional: grants persisted before the TTL existed have no timestamp —
+  // readers must treat a missing one as already expired.
+  connectedAt?: number | undefined
 }
 
 type ConnectedOrigins = Record<string, GrantedOrigin>
@@ -51,7 +53,11 @@ export async function grantedAddress(origin: string): Promise<string | null> {
   const origins = await readOrigins()
   const grant = origins[origin]
   if (!grant) return null
-  if (Date.now() - grant.connectedAt > GRANT_TTL_MS) {
+  // Grants written before `connectedAt` existed carry undefined →
+  // `Date.now() - undefined` is NaN and never trips the TTL. Treat them as
+  // expired immediately: the site must connect again, which also re-stamps
+  // the field.
+  if (Date.now() - (grant.connectedAt ?? 0) > GRANT_TTL_MS) {
     delete origins[origin]
     await writeOrigins(origins)
     return null

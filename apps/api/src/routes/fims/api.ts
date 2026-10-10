@@ -258,7 +258,13 @@ export const LinkUserAddressBody = Schema.Struct({
   signature: Schema.optional(Schema.String),
 })
 
-const TokenUnits = Schema.Union(Schema.Number, Schema.String)
+// Exact-decimal unit amounts travel as number or numeric string — a
+// non-numeric string would pass validation then explode on the `numeric`
+// column insert (500 instead of a clean 400).
+const TokenUnits = Schema.Union(
+  Schema.Number.pipe(Schema.filter((n) => Number.isFinite(n), { message: () => 'expected a finite number' })),
+  Schema.String.pipe(Schema.pattern(/^-?\d+(\.\d+)?$/)),
+)
 
 export const CreateTransactionBody = Schema.Struct({
   address: Schema.String,

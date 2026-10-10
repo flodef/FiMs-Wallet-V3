@@ -58,7 +58,9 @@ export async function fetchProviderInstructions(url: string, payload: Record<str
 export function formatTokenUnits(raw: bigint, decimals: number): string {
   const negative = raw < 0n
   const digits = (negative ? -raw : raw).toString().padStart(decimals + 1, '0')
-  const whole = digits.slice(0, -decimals) || '0'
+  // slice(0, -0) is slice(0, 0) — decimals = 0 needs the whole string, not
+  // '' → '0'.
+  const whole = decimals ? digits.slice(0, -decimals) || '0' : digits
   const frac = decimals ? digits.slice(-decimals).replace(/0+$/, '') : ''
   return `${negative ? '-' : ''}${whole}${frac ? `.${frac}` : ''}`
 }
