@@ -18,7 +18,7 @@ Légende : ⬜ à faire · ✅ fait · 🔶 partiel / action manuelle requise
 
 - ✅ H2 — Invariants autour des CPI whitelistées : lamports / owner / data_len du vault et de `state` inchangés — `lib.rs` `cpi_whitelisted`
 - ✅ H3 — `sweep` : exclure collatéral/share/position mints, plafond via spend_window
-- ✅ H4 — `guardian_cancel_pending`, `apply_config` refusé en pause, validation `StrategyConfig`/`Caps` (tx_cap ≤ daily_cap, vaults_program whitelisté, extensions T22)
+- ✅ H4 — `guardian_cancel_pending` + veto, validation `StrategyConfig`/`Caps` (tx_cap ≤ daily_cap, vaults_program whitelisté, extensions T22). `apply_config` s'applique **en pause** — par design : la rotation delegate/admin timelockée doit pouvoir s'appliquer pendant le gel d'un delegate compromis
 - ✅ M6 — `TransferChecked` pour dépôt, enregistrer le delta réellement reçu, vérifier décimales collateral == share, refuser extensions T22 dangereuses à la config
 - 🔶 Upgrade authority + admin → multisig Squads avec timelock — action manuelle post-déploiement
 

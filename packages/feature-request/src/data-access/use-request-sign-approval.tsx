@@ -82,7 +82,7 @@ export function useRequestSignApproval(): RequestSignApproval {
     if (result.type === 'approve') {
       await approvalActionMutation
         .mutateAsync(result.action)
-        .catch((error) => console.warn('request: reject failed', error))
+        .catch((error) => console.warn('request: approve failed', error))
       return
     }
 

@@ -217,15 +217,26 @@ describe('assertSafeYieldInstructions', () => {
         : AccountRole.READONLY,
   })
 
-  async function transferChecked(source: string, mint: string, authority: string): Promise<Instruction> {
+  async function transferChecked(
+    source: string,
+    mint: string,
+    authority: string,
+    destination = '9LUr1oUuecMEm3zc8XezRPmoyQRXZuRt1bk6mv8t2BD9',
+  ): Promise<Instruction> {
     const data = new Uint8Array(10)
     data[0] = 12
     return {
-      accounts: [meta(source), meta(mint), meta('9LUr1oUuecMEm3zc8XezRPmoyQRXZuRt1bk6mv8t2BD9'), meta(authority)],
+      accounts: [meta(source), meta(mint), meta(destination), meta(authority)],
       data,
       programAddress: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
     }
   }
+
+  const venueIx = (accounts: string[]): Instruction => ({
+    accounts: accounts.map((account) => meta(account)),
+    data: new Uint8Array(10),
+    programAddress: JUPITER_LEND as never,
+  })
 
   describe('expected behavior', () => {
     it('should accept a TransferChecked sourcing the custody ATA of its mint', async () => {
@@ -237,10 +248,32 @@ describe('assertSafeYieldInstructions', () => {
         owner: SIGNER,
         tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
       })
-      const ix = await transferChecked(source, mint, SIGNER)
+      // Destination pinned to the custody ATA itself — always allowed.
+      const ix = await transferChecked(source, mint, SIGNER, source)
 
       // ACT
       const result = await assertSafeYieldInstructions('jupiter-earn', [ix], SIGNER)
+
+      // ASSERT
+      expect(result).toBeUndefined()
+    })
+
+    it('should accept a TransferChecked credited to a venue-referenced account', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const mint = 'HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr'
+      const [source] = await findAssociatedTokenPda({
+        mint: mint as never,
+        owner: SIGNER,
+        tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
+      })
+      // The reserve account must appear in the venue program's metas —
+      // that's what pins the destination as legitimate.
+      const reserve = '9LUr1oUuecMEm3zc8XezRPmoyQRXZuRt1bk6mv8t2BD9'
+      const ix = await transferChecked(source, mint, SIGNER, reserve)
+
+      // ACT
+      const result = await assertSafeYieldInstructions('jupiter-earn', [venueIx([reserve]), ix], SIGNER)
 
       // ASSERT
       expect(result).toBeUndefined()
@@ -297,6 +330,21 @@ describe('assertSafeYieldInstructions', () => {
 
       // ACT & ASSERT
       await expect(assertSafeYieldInstructions('jupiter-earn', [ix], SIGNER)).rejects.toThrow('non-custody source')
+    })
+
+    it('should reject a TransferChecked credited to an unconstrained destination', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const mint = 'HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr'
+      const [source] = await findAssociatedTokenPda({
+        mint: mint as never,
+        owner: SIGNER,
+        tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as never,
+      })
+      const ix = await transferChecked(source, mint, SIGNER, 'DK4244TRxk9FAVccJ4cpEYje5j5nFVa9XGygoovxo37k')
+
+      // ACT & ASSERT
+      await expect(assertSafeYieldInstructions('jupiter-earn', [ix], SIGNER)).rejects.toThrow('non-venue destination')
     })
 
     it('should reject a TransferChecked signed by another authority', async () => {

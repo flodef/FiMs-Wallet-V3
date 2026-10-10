@@ -330,9 +330,10 @@ Aucun.
 ## 7. Contrôles positifs (déjà solides — ne pas régresser)
 
 - **On-chain** : invariants lamports/owner/data_len autour des CPI, `TransferChecked` + delta
-  réel, sweep borné aux mints non-stratégiques + cap partagé, veto guardian + pause bloquant
-  `apply_config`, timelock 48 h config, rolling-window caps (implémentation bucket horaire
-  correcte), PDA seeds vérifiés.
+  réel, sweep borné aux mints non-stratégiques + cap partagé, veto guardian
+  (`guardian_cancel_pending`), timelock 48 h config — `apply_config` s'applique **en pause**
+  intentionnellement (la rotation delegate/admin doit pouvoir s'appliquer pendant le gel),
+  rolling-window caps (implémentation bucket horaire correcte), PDA seeds vérifiés.
 - **API** : sessions hashées (pas de token en clair), step-up signature fraîche + anti-rejeu
   `used_signatures`, machine d'états `wrapped_claims` transactionnelle, lease keeper avec TTL,
   simulation custodiale + allowlist structurelle yield, caps wrapped/journaliers (quand les envs

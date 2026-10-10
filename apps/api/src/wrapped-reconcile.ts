@@ -61,7 +61,22 @@ async function settleQueuedRedeems(db: Db): Promise<{ attempted: number; settled
       const config = product ? wrappedProductConfig(product as FimsWrappedProduct) : null
       if (!product || !config) continue
       const member = (await memberLinkedTo(db, fetched.payer))[0]
-      if (!member) continue
+      if (!member) {
+        // The payer no longer maps to a member — the ledger row can never
+        // be written, so this claim would retry forever. Mark it
+        // 'abandoned': it stops scanning and stays admin-visible.
+        await db
+          .update(wrappedClaims)
+          .set({ state: 'abandoned', updatedAt: new Date() })
+          .where(
+            and(
+              eq(wrappedClaims.signature, claim.signature),
+              eq(wrappedClaims.mint, claim.mint),
+              eq(wrappedClaims.state, 'awaiting_liquidity'),
+            ),
+          )
+        continue
+      }
 
       // Re-price at settlement time: the member locked product units at
       // deposit, the backing paid out tracks the current index (same fee).

@@ -82,6 +82,9 @@ export async function yieldPositionAta(product: FimsWrappedProduct, wallet: Addr
 //      the source must be the custody ATA of the very mint in the
 //      instruction — the provider can only move custody's own tokens of the
 //      mint it declares, never mint, burn, approve, or touch other accounts.
+//      The destination is pinned to the same custody ATA or to an account
+//      the venue program itself references (its reserves) — never an
+//      arbitrary wallet.
 //
 // The simulation guard in custodial.ts then re-checks the final balance
 // deltas of the whole composed transaction.
@@ -123,6 +126,15 @@ export async function assertSafeYieldInstructions(
   wallet: Address,
 ): Promise<void> {
   const allowed = allowedPrograms(type)
+  // Accounts the venue program references (its reserves/receipts) — a
+  // TransferChecked destination may be the custody ATA for that mint or one
+  // of these. Without the pin, a compromised provider could transfer
+  // custody's backing straight to an attacker account.
+  const venueAccounts = new Set(
+    instructions
+      .filter((ix) => `${ix.programAddress}` === VENUE_PROGRAM[type])
+      .flatMap((ix) => (ix.accounts ?? []).map((account) => account.address)),
+  )
   for (const [index, ix] of instructions.entries()) {
     const program = `${ix.programAddress}`
     if (program === SYSTEM_PROGRAM || !allowed.has(program)) {
@@ -141,8 +153,9 @@ export async function assertSafeYieldInstructions(
       // TransferChecked metas: [source, mint, destination, authority, ...]
       const source = ix.accounts?.[0]?.address
       const mint = ix.accounts?.[1]?.address
+      const destination = ix.accounts?.[2]?.address
       const authority = ix.accounts?.[3]?.address
-      if (!source || !mint || authority !== wallet) {
+      if (!source || !mint || !destination || authority !== wallet) {
         throw new Error(`yield instruction ${index} has malformed TransferChecked metas`)
       }
       const [custodyAta] = await findAssociatedTokenPda({
@@ -152,6 +165,9 @@ export async function assertSafeYieldInstructions(
       })
       if (source !== custodyAta) {
         throw new Error(`yield instruction ${index} debits a non-custody source ${source}`)
+      }
+      if (destination !== custodyAta && !venueAccounts.has(destination)) {
+        throw new Error(`yield instruction ${index} credits a non-venue destination ${destination}`)
       }
     }
   }

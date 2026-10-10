@@ -82,11 +82,14 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
     // Only wrapped ledger rows ({sig}:{mint}) count as "already processed":
     // a transaction can ALSO appear as a donation row (same signature, no
     // suffix) when it carried a tontine carve — that must not block the mint.
+    // Scoped to THIS member's rows — an unscoped hit would leak another
+    // member's wrapped legs (wrapped signatures are enumerable from the
+    // custody wallet's on-chain history) before the payer-link check runs.
     const existing = yield* withDb((db) =>
       db
         .select()
         .from(transactions)
-        .where(like(transactions.signature, `${signature}:%`)),
+        .where(and(like(transactions.signature, `${signature}:%`), eq(transactions.userId, member.id))),
     )
     if (existing.length) {
       return { custodialSignature: '', transactions: existing }
@@ -233,7 +236,14 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
       // ledger write — a retried mint could double-credit the member, so it
       // blocks until an admin verifies the chain and unblocks the row.
       if (existing.some((claim) => claim.state === 'claimed')) return { inFlight: true } as const
-      const replay = prepared.filter((row) => byMint.get(row.delta.mint)?.state === 'minted')
+      // 'minted' legs retry only the ledger write — carry the signature
+      // their earlier custodial call produced into the response.
+      const replay = prepared
+        .filter((row) => byMint.get(row.delta.mint)?.state === 'minted')
+        .map((row) => ({
+          ...row,
+          custodialSignature: byMint.get(row.delta.mint)?.custodialSignature ?? undefined,
+        }))
       // 'awaiting_liquidity' legs were already vetted (signature, caps) but
       // could not settle for lack of float — they retry execution here and
       // in the keeper pass without re-counting the daily caps.
@@ -328,7 +338,7 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
         db
           .select()
           .from(transactions)
-          .where(like(transactions.signature, `${signature}:%`)),
+          .where(and(like(transactions.signature, `${signature}:%`), eq(transactions.userId, member.id))),
       )
       return { custodialSignature: '', transactions: rows }
     }
@@ -416,12 +426,12 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
     }
     if (!rows.length) {
       // Every leg was recorded by a concurrent path — the rows exist, just
-      // not written by this request.
+      // not written by this request (still scoped to the caller's rows).
       const existing = yield* withDb((db) =>
         db
           .select()
           .from(transactions)
-          .where(like(transactions.signature, `${signature}:%`)),
+          .where(and(like(transactions.signature, `${signature}:%`), eq(transactions.userId, member.id))),
       )
       if (existing.length) return { custodialSignature, transactions: existing }
       return yield* Effect.fail(insertFailed())

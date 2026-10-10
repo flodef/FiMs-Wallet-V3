@@ -1,5 +1,5 @@
 import { HttpServerRequest } from '@effect/platform'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { Effect, type Schema } from 'effect'
 import { tokens, transactions, usedSignatures, users } from '../../../db/schema.js'
 import { withDb, withTransaction } from '../../../db/service.js'
@@ -17,9 +17,15 @@ export const handleRecordDonation = ({ payload }: { payload: Schema.Schema.Type<
     yield* requireNotDemo(signer)
     const member = yield* requireMember(signer)
     // Idempotent: a retry of the same signature returns what was
-    // already recorded instead of double-counting the donation.
+    // already recorded instead of double-counting the donation. Scoped to
+    // THIS member's rows — an unscoped hit would leak another member's
+    // donation (signatures are enumerable from the pot's on-chain history)
+    // before the payer-link check runs.
     const existing = yield* withDb((db) =>
-      db.select().from(transactions).where(eq(transactions.signature, payload.signature)),
+      db
+        .select()
+        .from(transactions)
+        .where(and(eq(transactions.signature, payload.signature), eq(transactions.userId, member.id))),
     )
     if (existing.length) return existing
 
@@ -60,7 +66,10 @@ export const handleRecordDonation = ({ payload }: { payload: Schema.Schema.Type<
         .onConflictDoNothing()
         .returning()
       if (!claim.length) return null
-      const committed = await tx.select().from(transactions).where(eq(transactions.signature, payload.signature))
+      const committed = await tx
+        .select()
+        .from(transactions)
+        .where(and(eq(transactions.signature, payload.signature), eq(transactions.userId, member.id)))
       if (committed.length) return committed
       return tx
         .insert(transactions)
@@ -85,9 +94,13 @@ export const handleRecordDonation = ({ payload }: { payload: Schema.Schema.Type<
         .returning()
     })
     if (rows === null) {
-      // Someone else recorded it — serve what they wrote.
+      // Someone else recorded it — serve what they wrote (still scoped:
+      // another member's same-signature rows are not this caller's to see).
       const committed = yield* withDb((db) =>
-        db.select().from(transactions).where(eq(transactions.signature, payload.signature)),
+        db
+          .select()
+          .from(transactions)
+          .where(and(eq(transactions.signature, payload.signature), eq(transactions.userId, member.id))),
       )
       if (committed.length) return committed
       return yield* Effect.fail(new BadRequest({ reason: 'donation recording in flight — retry in a few seconds' }))
