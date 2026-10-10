@@ -38,25 +38,33 @@ export const withDb = <A>(run: (db: Db) => Promise<A>) =>
   })
 
 // Interactive transactions need a session, which the stateless neon-http
-// driver cannot do: a Pool (WebSocket) is opened for the duration of the
-// request and always closed. The callback must return plain values — thrown
-// errors abort the transaction and surface as DatabaseError, so callers
-// signal expected failures with a discriminated result instead.
+// driver cannot do — `db.transaction` on the `Db` handle throws
+// "No transactions support in neon-http driver". A Pool (WebSocket) is
+// opened for the duration of the request and always closed. The callback
+// must return plain values — thrown errors abort the transaction. Plain
+// (non-Effect) callers like the keeper use this directly; HTTP handlers go
+// through `withTransaction`, which signals expected failures with a
+// discriminated result instead of throwing.
+export const runTransaction = async <A>(run: (db: TxDb) => Promise<A>): Promise<A> => {
+  const url = process.env['DATABASE_URL']
+  if (!url) throw new DatabaseNotConfigured()
+  const pool = new Pool({ connectionString: url })
+  try {
+    return await drizzleWs(pool, { schema }).transaction(run)
+  } finally {
+    await pool.end()
+  }
+}
+
 export const withTransaction = <A>(run: (db: TxDb) => Promise<A>) =>
   Effect.gen(function* () {
-    const url = process.env['DATABASE_URL']
-    if (!url) {
+    // Keep the dedicated tag on the error channel — endpoints map it to
+    // 503; a DatabaseError cause would surface as 500.
+    if (!process.env['DATABASE_URL']) {
       return yield* Effect.fail(new DatabaseNotConfigured())
     }
     return yield* Effect.tryPromise({
       catch: (cause) => new DatabaseError({ cause }),
-      try: async () => {
-        const pool = new Pool({ connectionString: url })
-        try {
-          return await drizzleWs(pool, { schema }).transaction(run)
-        } finally {
-          await pool.end()
-        }
-      },
+      try: () => runTransaction(run),
     }).pipe(Effect.tapError((error) => Effect.logError('database error', error.cause)))
   })

@@ -126,6 +126,13 @@
       "tag": "0017_keeper_locks",
       "version": "7",
       "when": 1791551056373
+    },
+    {
+      "breakpoints": true,
+      "idx": 18,
+      "tag": "0018_wrapped_claim_caps",
+      "version": "7",
+      "when": 1791673447365
     }
   ],
   "version": "7"

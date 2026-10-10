@@ -134,7 +134,9 @@ export async function inspectWireTransaction(
         // silently empties every instruction and disables all
         // instruction-level guards.
         message.instructionPayloads.map((payload, index) => ({
-          accountIndices: payload.instructionAccountIndices,
+          // `?? []` like the legacy branch — a missing field must not throw,
+          // the empty index list fails closed via hasUnresolvedAccounts.
+          accountIndices: payload.instructionAccountIndices ?? [],
           data: payload.instructionData ?? new Uint8Array(),
           // A missing header must not resolve to account 0: point the
           // program index outside the loaded list so the instruction

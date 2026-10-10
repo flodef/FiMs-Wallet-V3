@@ -250,17 +250,29 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
       const pending = prepared.filter((row) => byMint.get(row.delta.mint)?.state === 'awaiting_liquidity')
       const fresh = prepared.filter((row) => !byMint.has(row.delta.mint))
       // Caps only gate NEW legs — replaying a minted leg's ledger row must
-      // never be refused (the units are already on-chain).
+      // never be refused (the units are already on-chain). Ledger rows are
+      // UNIONed with committed-but-unrecorded claims (awaiting/claimed/
+      // minted): without the claims side, a member could queue a cap-max
+      // redeem then immediately mint again — the queued units would be
+      // invisible to every later cap check.
       const symbols = fresh.map((row) => row.symbol)
       if (symbols.length) {
         const memberUnits = (
           await tx.execute(
-            sql`SELECT COALESCE(SUM(ABS(amount)), 0)::float AS units FROM transactions WHERE user_id = ${member.id} AND ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'`,
+            sql`SELECT COALESCE(SUM(units), 0)::float AS units FROM (
+              SELECT ABS(amount)::float AS units FROM transactions WHERE user_id = ${member.id} AND ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'
+              UNION ALL
+              SELECT ABS(product_units)::float AS units FROM wrapped_claims WHERE user_id = ${member.id} AND state IN ('awaiting_liquidity', 'claimed', 'minted') AND updated_at >= NOW() - INTERVAL '24 hours'
+            ) window_units`,
           )
         ).rows as { units: number }[]
         const globalUnits = (
           await tx.execute(
-            sql`SELECT COALESCE(SUM(ABS(amount)), 0)::float AS units FROM transactions WHERE ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'`,
+            sql`SELECT COALESCE(SUM(units), 0)::float AS units FROM (
+              SELECT ABS(amount)::float AS units FROM transactions WHERE ${inArray(transactions.token, symbols)} AND type IN ('deposit', 'withdrawal') AND date >= NOW() - INTERVAL '24 hours'
+              UNION ALL
+              SELECT ABS(product_units)::float AS units FROM wrapped_claims WHERE state IN ('awaiting_liquidity', 'claimed', 'minted') AND updated_at >= NOW() - INTERVAL '24 hours'
+            ) window_units`,
           )
         ).rows as { units: number }[]
         const requested = fresh.reduce((sum, row) => sum + Number(row.productUnits) / 1e6, 0)
@@ -272,32 +284,53 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
       // Liquidity gate (redeem only): without a yield venue the float alone
       // must cover the withdrawal — a shortfall queues the claim instead of
       // wedging it as 'claimed' forever (audit M-4). The claim was already
-      // vetted; the keeper settles it once liquidity is topped up.
+      // vetted; the keeper settles it once liquidity is topped up. The gate
+      // is per-product: only legs of a short product queue — a EURF
+      // shortfall must not delay a USDF leg.
+      let freshToClaim = fresh
+      let pendingToClaim = pending
       const executable = [...fresh, ...pending]
       if (direction === 'redeem' && executable.length) {
         const needed = new Map<FimsWrappedProduct, bigint>()
         for (const row of executable) {
           needed.set(row.product, (needed.get(row.product) ?? 0n) + row.backingUnits)
         }
+        const shortProducts = new Set<FimsWrappedProduct>()
         for (const [product, units] of needed) {
-          const available = liquidity.get(product) ?? 0n
-          if (units > available) {
-            for (const row of fresh) {
-              await tx
-                .insert(wrappedClaims)
-                .values({ mint: row.delta.mint, signature, state: 'awaiting_liquidity' })
-                .onConflictDoNothing()
-            }
-            // A fresh leg queueing must not wedge a minted leg's ledger
-            // write — settle the replay, leave the queue for the keeper.
-            return replay.length ? ({ fresh: [], replay } as const) : ({ queued: product } as const)
+          if (units > (liquidity.get(product) ?? 0n)) shortProducts.add(product)
+        }
+        if (shortProducts.size) {
+          for (const row of fresh.filter((row) => shortProducts.has(row.product))) {
+            await tx
+              .insert(wrappedClaims)
+              .values({
+                mint: row.delta.mint,
+                productUnits: formatTokenUnits(row.productUnits, 6),
+                signature,
+                state: 'awaiting_liquidity',
+                userId: member.id,
+              })
+              .onConflictDoNothing()
+          }
+          freshToClaim = fresh.filter((row) => !shortProducts.has(row.product))
+          pendingToClaim = pending.filter((row) => !shortProducts.has(row.product))
+          // A fresh leg queueing must not wedge a minted leg's ledger write
+          // — settle the replay, leave the queue for the keeper.
+          if (!freshToClaim.length && !pendingToClaim.length && !replay.length) {
+            return { queued: [...shortProducts].join(', ') } as const
           }
         }
       }
-      for (const row of fresh) {
-        await tx.insert(wrappedClaims).values({ mint: row.delta.mint, signature, state: 'claimed' })
+      for (const row of freshToClaim) {
+        await tx.insert(wrappedClaims).values({
+          mint: row.delta.mint,
+          productUnits: formatTokenUnits(row.productUnits, 6),
+          signature,
+          state: 'claimed',
+          userId: member.id,
+        })
       }
-      for (const row of pending) {
+      for (const row of pendingToClaim) {
         // State-predicated transition: the keeper's queued-redeem settle
         // moves the same row awaiting_liquidity → claimed outside this
         // lock — if it won, our update is empty and we must NOT proceed
@@ -315,7 +348,7 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
           .returning({ mint: wrappedClaims.mint })
         if (!transitioned.length) throw new WrappedClaimInFlight()
       }
-      return { fresh: executable, replay } as const
+      return { fresh: [...freshToClaim, ...pendingToClaim], replay } as const
     }).pipe(
       Effect.catchTag('DatabaseError', (error) =>
         error.cause instanceof WrappedClaimInFlight ? Effect.succeed({ inFlight: true } as const) : Effect.fail(error),

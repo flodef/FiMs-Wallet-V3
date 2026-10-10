@@ -144,9 +144,14 @@ export const wrappedClaims = pgTable(
     createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
     custodialSignature: text('custodial_signature'),
     mint: text('mint').notNull(),
+    // Committed volume for the rolling-24h caps — queued/claimed/minted
+    // legs have no ledger row yet, so without these columns a member could
+    // queue cap-max redeems back-to-back and blow the daily limits.
+    productUnits: numeric('product_units', { mode: 'string' }),
     signature: text('signature').notNull(),
     state: text('state').notNull(),
     updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
   },
   (t) => [primaryKey({ columns: [t.signature, t.mint] })],
 )

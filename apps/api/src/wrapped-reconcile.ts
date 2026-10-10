@@ -25,7 +25,7 @@ import {
   wrappedProductConfig,
 } from './custodial.js'
 import { tokens, transactions, wrappedClaims } from './db/schema.js'
-import type { Db } from './db/service.js'
+import { type Db, runTransaction } from './db/service.js'
 import { getFimsFeeRate } from './fee-config.js'
 import { lastImpliedWrappedPrice, PRICE_STALE_MS, wrappedPriceBreaker } from './routes/fims/helpers.js'
 import { fetchDonationTransaction } from './solana-rpc.js'
@@ -151,7 +151,7 @@ async function settleQueuedRedeems(db: Db): Promise<{ attempted: number; settled
 
       const productAmount = Number(productUnits) / 1e6
       const movement = price * productAmount
-      const recorded = await db.transaction(async (tx) => {
+      const recorded = await runTransaction(async (tx) => {
         // Flip the claim to 'recorded' FIRST — the update is empty when
         // another path (e.g. a concurrent user retry) already recorded the
         // leg, and then the ledger insert must not happen: it would

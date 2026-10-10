@@ -5,7 +5,7 @@
 // the chain is the source of truth, the API call a fast path.
 import { eq, sql } from 'drizzle-orm'
 import { tokens, transactions, usedSignatures, userAddresses, users } from './db/schema.js'
-import type { Db } from './db/service.js'
+import { type Db, runTransaction } from './db/service.js'
 import { FIMS_TONTINE_ADDRESS } from './fims-constants.js'
 import { fetchDonationTransaction } from './solana-rpc.js'
 import { formatTokenUnits } from './solana-util.js'
@@ -69,7 +69,7 @@ export async function reconcileTontineDonations(db: Db): Promise<{ recorded: num
     const member = (await memberLinkedTo(db, fetched.payer))[0]
     // Not a member's gift — external senders stay unrecorded (no ledger owner).
     if (!member) continue
-    const claimed = await db.transaction(async (tx) => {
+    const claimed = await runTransaction(async (tx) => {
       const claim = await tx
         .insert(usedSignatures)
         .values({ signature: `donation:${signature}` })
