@@ -5,7 +5,9 @@
 export function envFloat(name: string, fallback: number): number {
   const raw = process.env[name]
   if (raw === undefined) return fallback
-  const value = Number.parseFloat(raw)
+  // Strict Number(), not parseFloat — '0.1junk' must throw, not truncate.
+  const trimmed = raw.trim()
+  const value = trimmed === '' ? Number.NaN : Number(trimmed)
   if (!Number.isFinite(value)) {
     throw new Error(`env ${name}: expected a number, got ${JSON.stringify(raw)}`)
   }
@@ -15,7 +17,7 @@ export function envFloat(name: string, fallback: number): number {
 export function envInt(name: string, fallback: number): number {
   const raw = process.env[name]
   if (raw === undefined) return fallback
-  const value = Number(raw)
+  const value = raw.trim() === '' ? Number.NaN : Number(raw)
   if (!Number.isInteger(value)) {
     throw new Error(`env ${name}: expected an integer, got ${JSON.stringify(raw)}`)
   }
@@ -25,6 +27,9 @@ export function envInt(name: string, fallback: number): number {
 export function envBigint(name: string, fallback: bigint): bigint {
   const raw = process.env[name]
   if (raw === undefined) return fallback
+  if (raw.trim() === '') {
+    throw new Error(`env ${name}: expected an integer, got ${JSON.stringify(raw)}`)
+  }
   try {
     return BigInt(raw)
   } catch {

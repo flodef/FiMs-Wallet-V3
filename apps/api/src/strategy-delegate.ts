@@ -634,20 +634,29 @@ async function releaseKeeperLease(db: Db, name: string, owner: string): Promise<
     .where(and(eq(keeperLocks.name, name), eq(keeperLocks.owner, owner)))
 }
 
+// Soft mutex for keeper-only jobs. Returns null when another isolate holds
+// the lease — the caller skips its run this tick. Note the lease only
+// serializes keeper work: anything else that can move the same rows still
+// needs its own atomic transition.
+export async function withKeeperLease<T>(db: Db, name: string, fn: () => Promise<T>): Promise<T | null> {
+  const owner = await acquireKeeperLease(db, name)
+  if (!owner) return null
+  try {
+    return await fn()
+  } finally {
+    await releaseKeeperLease(db, name, owner).catch((error) =>
+      console.warn('keeper lease release failed — lease expires on its TTL', error),
+    )
+  }
+}
+
 /** One delegate pass: issue share tokens for every recorded deposit, then
  *  place the collateral through the protocol pipeline. Issuance runs FIRST —
  *  the member's 1:1 payout is a program-level guarantee and must not wait on
  *  Jupiter/Kamino availability. */
 export async function runStrategyPass(db: Db): Promise<DelegatePassReport> {
-  const owner = await acquireKeeperLease(db, 'strategy-delegate')
-  if (!owner) return { deposits: [], skipped: 'another pass is running' }
-  try {
-    return await runStrategyPassUnlocked(db)
-  } finally {
-    await releaseKeeperLease(db, 'strategy-delegate', owner).catch((error) =>
-      console.warn('keeper lease release failed — lease expires on its TTL', error),
-    )
-  }
+  const result = await withKeeperLease(db, 'strategy-delegate', () => runStrategyPassUnlocked(db))
+  return result ?? { deposits: [], skipped: 'another pass is running' }
 }
 
 async function runStrategyPassUnlocked(db: Db): Promise<DelegatePassReport> {

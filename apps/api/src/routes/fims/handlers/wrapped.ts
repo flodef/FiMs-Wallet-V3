@@ -196,6 +196,24 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
       })
     }
 
+    // Liquidity snapshot BEFORE the member lock — `redeemLiquidity` is
+    // several RPC round-trips and must not run inside `withTransaction`
+    // while the FOR UPDATE row lock serializes this member's wrapped ops.
+    // A stale answer is harmless: too-low liquidity only queues a claim the
+    // keeper retries, and a stale "enough" just fails custodialRedeem.
+    const liquidity = new Map<FimsWrappedProduct, bigint>()
+    if (direction === 'redeem') {
+      for (const product of new Set(prepared.map((row) => row.product))) {
+        liquidity.set(
+          product,
+          yield* Effect.tryPromise({
+            catch: () => new CustodialUnavailable({ reason: 'custodial liquidity check failed' }),
+            try: () => redeemLiquidity(product),
+          }),
+        )
+      }
+    }
+
     // State machine, not a blind mint: wrapped_claims records each leg's
     // progress (claimed → minted → recorded). A crash mid-flight leaves a
     // durable mark a retry can resume from instead of re-minting or
@@ -249,7 +267,7 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
           needed.set(row.product, (needed.get(row.product) ?? 0n) + row.backingUnits)
         }
         for (const [product, units] of needed) {
-          const available = await redeemLiquidity(product)
+          const available = liquidity.get(product) ?? 0n
           if (units > available) {
             for (const row of fresh) {
               await tx
@@ -257,7 +275,9 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
                 .values({ mint: row.delta.mint, signature, state: 'awaiting_liquidity' })
                 .onConflictDoNothing()
             }
-            return { queued: product } as const
+            // A fresh leg queueing must not wedge a minted leg's ledger
+            // write — settle the replay, leave the queue for the keeper.
+            return replay.length ? ({ fresh: [], replay } as const) : ({ queued: product } as const)
           }
         }
       }
@@ -265,10 +285,22 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
         await tx.insert(wrappedClaims).values({ mint: row.delta.mint, signature, state: 'claimed' })
       }
       for (const row of pending) {
-        await tx
+        // State-predicated transition: the keeper's queued-redeem settle
+        // moves the same row awaiting_liquidity → claimed outside this
+        // lock — if it won, our update is empty and we must NOT proceed
+        // (the other runner owns the on-chain payout now).
+        const transitioned = await tx
           .update(wrappedClaims)
           .set({ state: 'claimed', updatedAt: new Date() })
-          .where(and(eq(wrappedClaims.signature, signature), eq(wrappedClaims.mint, row.delta.mint)))
+          .where(
+            and(
+              eq(wrappedClaims.signature, signature),
+              eq(wrappedClaims.mint, row.delta.mint),
+              eq(wrappedClaims.state, 'awaiting_liquidity'),
+            ),
+          )
+          .returning({ mint: wrappedClaims.mint })
+        if (!transitioned.length) return { inFlight: true } as const
       }
       return { fresh: executable, replay } as const
     })
@@ -310,12 +342,26 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
             ? custodialMint(row.product, solAddress(tx.payer), row.productUnits, row.backingUnits)
             : custodialRedeem(row.product, solAddress(tx.payer), row.productUnits, row.backingUnits),
       })
-      yield* withDb((db) =>
+      const mintedTransition = yield* withDb((db) =>
         db
           .update(wrappedClaims)
           .set({ custodialSignature, state: 'minted', updatedAt: new Date() })
-          .where(and(eq(wrappedClaims.signature, signature), eq(wrappedClaims.mint, row.delta.mint))),
+          .where(
+            and(
+              eq(wrappedClaims.signature, signature),
+              eq(wrappedClaims.mint, row.delta.mint),
+              // State-predicated: our claim must still be 'claimed' — an
+              // empty update means another path owns the row now, and the
+              // recorded guard below must not write its ledger row.
+              eq(wrappedClaims.state, 'claimed'),
+            ),
+          )
+          .returning({ mint: wrappedClaims.mint }),
       )
+      if (!mintedTransition.length) {
+        console.error(`wrapped claim ${signature}:${row.delta.mint} moved unexpectedly after custodial ${direction}`)
+        continue
+      }
       minted.push({ ...row, custodialSignature })
     }
 
@@ -326,7 +372,23 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
       const productAmount = Number(row.productUnits) / 1e6
       const movement = row.price * productAmount
       const inserted = yield* withTransaction(async (dbTx) => {
-        const ledger = await dbTx
+        // Flip the claim to 'recorded' FIRST — the update is empty when
+        // another path already recorded the leg (e.g. a concurrent keeper
+        // settle), and then the ledger insert must not happen: it would
+        // duplicate the row (`transactions.signature` has no unique key).
+        const recorded = await dbTx
+          .update(wrappedClaims)
+          .set({ state: 'recorded', updatedAt: new Date() })
+          .where(
+            and(
+              eq(wrappedClaims.signature, signature),
+              eq(wrappedClaims.mint, row.delta.mint),
+              eq(wrappedClaims.state, 'minted'),
+            ),
+          )
+          .returning({ mint: wrappedClaims.mint })
+        if (!recorded.length) return []
+        return await dbTx
           .insert(transactions)
           .values({
             address: tx.payer,
@@ -341,16 +403,22 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
             userId: member.id,
           })
           .returning()
-        await dbTx
-          .update(wrappedClaims)
-          .set({ state: 'recorded', updatedAt: new Date() })
-          .where(and(eq(wrappedClaims.signature, signature), eq(wrappedClaims.mint, row.delta.mint)))
-        return ledger
       })
       custodialSignature = row.custodialSignature ?? custodialSignature
       rows.push(...inserted)
     }
-    if (!rows.length) return yield* Effect.fail(insertFailed())
+    if (!rows.length) {
+      // Every leg was recorded by a concurrent path — the rows exist, just
+      // not written by this request.
+      const existing = yield* withDb((db) =>
+        db
+          .select()
+          .from(transactions)
+          .where(like(transactions.signature, `${signature}:%`)),
+      )
+      if (existing.length) return { custodialSignature, transactions: existing }
+      return yield* Effect.fail(insertFailed())
+    }
     return { custodialSignature, transactions: rows }
   })
 }

@@ -49,6 +49,7 @@ interface ParsedTransaction {
   blockTime?: number | null
   meta: {
     err: unknown
+    fee?: number
     postBalances: number[]
     postTokenBalances: TokenBalance[]
     preBalances: number[]
@@ -98,10 +99,13 @@ function parseDonation(tx: ParsedTransaction, tontine: string): VerifiedDonation
   // Source-side totals: how much LEFT accounts owned by the payer, per mint.
   // `keys[0]` funds the fee from lamports index 0; SPL sources are every
   // token balance owned by the payer that shrank across the transaction.
+  // The fee is subtracted from the lamports count — it is a cost, not a
+  // transfer the payer funded, and counting it would let a third-party-
+  // funded credit up to the fee amount still attribute to the payer.
   const spentByPayer = new Map<string, bigint>()
   const payerPreLamports = BigInt(tx.meta.preBalances[0] ?? 0)
   const payerPostLamports = BigInt(tx.meta.postBalances[0] ?? 0)
-  spentByPayer.set('SOL', payerPreLamports - payerPostLamports)
+  spentByPayer.set('SOL', payerPreLamports - payerPostLamports - BigInt(tx.meta.fee ?? 0))
   const splSpent = new Map<string, bigint>()
   for (const bal of tx.meta.preTokenBalances) {
     if (bal.owner === payer) {

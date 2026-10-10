@@ -11,7 +11,7 @@ import {
   heliusApiKeys,
   normalizeGtfaTransaction,
 } from '../../../helius.js'
-import { isAdminAddress, verifyWalletRequest } from '../../../services/auth/service.js'
+import { AuthForbidden, isAdminAddress, verifyWalletRequest } from '../../../services/auth/service.js'
 import { ChainUnavailable, RateLimited } from '../api.js'
 import { addressLinkedToUser } from '../helpers.js'
 
@@ -194,7 +194,7 @@ const assertChainAddressAllowed = (signer: string, target: string) =>
       return [member[0].address, ...aliases.map((row) => row.address)]
     })
     if (!linked.includes(target)) {
-      return yield* Effect.fail(new RateLimited({ reason: 'chain reads are limited to your linked addresses' }))
+      return yield* Effect.fail(new AuthForbidden({ address: signer }))
     }
   })
 

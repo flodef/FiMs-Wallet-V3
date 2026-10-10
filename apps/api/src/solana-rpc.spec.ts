@@ -50,6 +50,36 @@ describe('fetchDonationTransaction', () => {
       expect(fetch).toHaveBeenCalledTimes(1)
     })
 
+    it('should not attribute a lamport credit funded only by the fee', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      vi.mocked(fetch).mockResolvedValueOnce(
+        rpcResponse({
+          blockTime: null,
+          meta: {
+            err: null,
+            // Payer's balance drops by exactly the fee — the 1 000 lamports
+            // credited to the pot came from a different account.
+            fee: 5_000,
+            postBalances: [9_995_000, 5_001_000],
+            postTokenBalances: [],
+            preBalances: [10_000_000, 5_000_000],
+            preTokenBalances: [],
+          },
+          transaction: { message: { accountKeys: [{ pubkey: PAYER, signer: true }, { pubkey: TONTINE }] } },
+        }),
+      )
+
+      // ACT
+      const result = await fetchDonationTransaction('sig', TONTINE)
+
+      // ASSERT — spent-by-payer minus the fee is zero: the 1 000-lamport
+      // credit must not be attributed to keys[0].
+      expect(result?.deltas).toEqual([
+        { amount: 0.000001, decimals: 9, mint: 'SOL', payerSourced: false, rawAmount: 1_000n },
+      ])
+    })
+
     it('should flag a delta funded by an unrelated wallet as not payer-sourced', async () => {
       // ARRANGE
       expect.assertions(2)

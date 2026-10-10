@@ -26,7 +26,11 @@ import {
   appendTransactionMessageInstructions,
   createSolanaRpc,
   createTransactionMessage,
+  getAddressEncoder,
   getBase64EncodedWireTransaction,
+  getBase64Encoder,
+  getCompiledTransactionMessageDecoder,
+  getTransactionDecoder,
   type Instruction,
   pipe,
   type Signature,
@@ -182,9 +186,11 @@ function accountDataBase64(data: unknown): string | undefined {
 // extension area): delegate/close-authority/state sit at fixed offsets. A
 // simulated instruction that changes any of them — approve, set-authority,
 // freeze — is a custody take-over even when the balance does not move.
+const TOKEN_OWNER_RANGE: [number, number] = [32, 64]
 const TOKEN_DELEGATE_RANGE: [number, number] = [72, 108] // option tag + pubkey
 const TOKEN_STATE_OFFSET = 108 // 1 = initialized, 2 = frozen
 const TOKEN_CLOSE_AUTHORITY_RANGE: [number, number] = [129, 165]
+const TOKEN_PROGRAM_OWNERS = new Set<string>([`${TOKEN_PROGRAM_ADDRESS}`, `${TOKEN_2022_PROGRAM_ADDRESS}`])
 
 function accountSlice(data: string | undefined, [from, to]: [number, number]): string | undefined {
   if (!data) return undefined
@@ -212,10 +218,25 @@ export async function assertCustodySimulation(wire: string, custody: Address, gu
     }
   }
   const { value: preLamports } = await rpcCall(() => rpc.getBalance(custody).send())
+
+  // Accounts a transaction may CREATE for custody mid-flight are a blind
+  // spot if only pre-existing accounts are watched: a whitelisted CPI could
+  // mint a custody-owned ATA carrying a delegate or a foreign close
+  // authority (H-1 residual). Decode the wire message and request post-state
+  // for every static account so new custody token accounts get checked too.
+  // Custodial transactions never use address lookup tables — refuse one
+  // rather than half-inspect it.
+  const transaction = getTransactionDecoder().decode(getBase64Encoder().encode(wire))
+  const message = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes)
+  if ('addressTableLookups' in message && (message.addressTableLookups ?? []).length > 0) {
+    throw new Error('custody simulation cannot inspect a transaction using address lookup tables')
+  }
+  const watchedSet = new Set<string>([...watched.map(String), `${custody}`])
+  const extraAccounts = message.staticAccounts.filter((accountAddress) => !watchedSet.has(accountAddress))
   const response = await rpcCall(() =>
     rpc
       .simulateTransaction(wire as never, {
-        accounts: { addresses: [custody, ...watched], encoding: 'base64' },
+        accounts: { addresses: [custody, ...watched, ...extraAccounts], encoding: 'base64' },
         commitment: 'confirmed',
         encoding: 'base64',
         replaceRecentBlockhash: true,
@@ -274,6 +295,32 @@ export async function assertCustodySimulation(wire: string, custody: Address, gu
     const allowed = guard.maxDebits?.get(accountAddress) ?? 0n
     if (debit > allowed) {
       throw new Error(`custody simulation debits ${debit} from ${accountAddress} (allowed ${allowed})`)
+    }
+  }
+
+  // Accounts the transaction creates for custody mid-flight: any post-state
+  // token account owned by custody that was NOT in the pre-set must carry a
+  // clean authority set — no delegate, no foreign close authority, not
+  // frozen. A whitelisted program could otherwise plant a drain vector on a
+  // freshly-created ATA the pre-state enumeration could not see.
+  const custodyBytes = getAddressEncoder().encode(custody)
+  const custodySlice = btoa(String.fromCharCode(...custodyBytes))
+  const zeroSlice = btoa(String.fromCharCode(...new Uint8Array(36)))
+  for (let i = 0; i < extraAccounts.length; i++) {
+    const account = accounts[watched.length + 1 + i]
+    if (!account || !TOKEN_PROGRAM_OWNERS.has(`${account.owner}`)) continue
+    const postData = accountDataBase64(account.data)
+    if (!postData || accountSlice(postData, TOKEN_OWNER_RANGE) !== custodySlice) continue
+    const accountAddress = extraAccounts[i] as Address
+    if (accountSlice(postData, TOKEN_DELEGATE_RANGE) !== zeroSlice) {
+      throw new Error(`custody simulation created token account ${accountAddress} with a delegate`)
+    }
+    if (accountSlice(postData, TOKEN_CLOSE_AUTHORITY_RANGE) !== zeroSlice) {
+      throw new Error(`custody simulation created token account ${accountAddress} with a foreign close authority`)
+    }
+    const postBytes = Uint8Array.from(atob(postData), (char) => char.charCodeAt(0))
+    if (postBytes.length > TOKEN_STATE_OFFSET && postBytes[TOKEN_STATE_OFFSET] === 2) {
+      throw new Error(`custody simulation created frozen token account ${accountAddress}`)
     }
   }
 }

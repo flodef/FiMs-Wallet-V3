@@ -444,7 +444,7 @@ Statut au commit « audit-2 fixes » — ✅ implémenté + vérifié, 🟡 impl
 - ✅ **M-1** — `RATE_LIMIT_IP_HEADER` : un seul header de confiance (défaut `x-vercel-forwarded-for`), fallback `unknown` partagé
 - ✅ **M-2** — Buckets mémoire bornés (éviction LRU au-delà de 10k) ; le reste est ops (edge limiting)
 - ✅ **M-3** — Purge opportuniste des sessions expirées dans `verifyBearerSession`
-- ✅ **M-4** — État `awaiting_liquidity` : redeem sans float → claim en file (caps déjà validés), retry via `processQueuedRedeems` dans le tick keeper ; float-check désactivé quand un venue yield est configuré
+- ✅ **M-4** — État `awaiting_liquidity` : redeem sans float → claim en file (caps déjà validés), retry via `processQueuedRedeems` dans le tick keeper ; float-check désactivé quand un venue yield est configuré. Settlement atomique : `UPDATE … WHERE state=` à chaque transition (claim → minted → recorded, recorded posé AVANT l'insert ledger — pas de double-settle ni de doublon ledger), lease keeper `wrapped-redeem`, breaker prix appliqué au settle comme au chemin live
 - ✅ **M-5** — `ConfigChange::Admin` timelocké (variant 7, index borsh préservés), `propose_admin` supprimé, `accept_admin` finalise — vérifié on-chain (PoC)
 - ✅ **M-6** — `Pubkey::default()` rejeté pour Treasury/Delegate/Admin au `schedule_config` — PoC
 - ✅ **M-7** — Décision documentée : le warning existant couvre déjà l'attaque offline (« brute-force it offline, and a 4-digit PIN falls in seconds ») ; argon2 sur 10⁴ combinaisons < 10× de gain — pas de nouvelle dep crypto ; mitigation réelle = longueur recommandée + device-binding futur

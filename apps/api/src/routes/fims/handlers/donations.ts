@@ -34,7 +34,7 @@ export const handleRecordDonation = ({ payload }: { payload: Schema.Schema.Type<
     // making it the payer's gift (audit H-3).
     const deltas = fetched.deltas.filter((delta) => delta.payerSourced)
     if (!deltas.length)
-      return yield* Effect.fail(new BadRequest({ reason: 'transaction credited the tontine from an unrelated wallet' }))
+      return yield* Effect.fail(new BadRequest({ reason: 'transaction did not credit the tontine from your wallet' }))
     // The fee payer must belong to the signer: recording someone
     // else's gift under your own name would inflate your vote weight
     // and erase your debt for free.

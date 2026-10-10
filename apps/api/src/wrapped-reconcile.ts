@@ -4,9 +4,18 @@
 // claim — not a fresh user request — is the authorization to burn+pay out.
 // Each tick re-derives the leg from the on-chain deposit transaction at the
 // CURRENT operator price and settles it when liquidity is available.
+//
+// Concurrency: two runners must never settle the same claim (the second
+// custodialRedeem would pay backing out twice — the shared product ATA
+// always holds enough pending units for a second burn to succeed). All
+// retryable checks run first while the row still says 'awaiting_liquidity';
+// the irreversible payout is gated by an UPDATE … WHERE
+// state='awaiting_liquidity' that wins exactly once per claim — against a
+// user retry (the HTTP path moves the same transition) and against an
+// overlapping keeper tick. The keeper lease is only a cheaper outer gate.
 
 import { address as solAddress } from '@solana/kit'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import {
   custodialAddress,
   custodialRedeem,
@@ -18,14 +27,20 @@ import {
 import { tokens, transactions, wrappedClaims } from './db/schema.js'
 import type { Db } from './db/service.js'
 import { getFimsFeeRate } from './fee-config.js'
-import { PRICE_STALE_MS } from './routes/fims/helpers.js'
+import { PRICE_STALE_MS, wrappedPriceBreaker } from './routes/fims/helpers.js'
 import { fetchDonationTransaction } from './solana-rpc.js'
 import { formatTokenUnits } from './solana-util.js'
+import { withKeeperLease } from './strategy-delegate.js'
 import { memberLinkedTo } from './tontine-reconcile.js'
 
 const BATCH_LIMIT = 20
 
 export async function processQueuedRedeems(db: Db): Promise<{ attempted: number; settled: number }> {
+  const report = await withKeeperLease(db, 'wrapped-redeem', () => settleQueuedRedeems(db))
+  return report ?? { attempted: 0, settled: 0 }
+}
+
+async function settleQueuedRedeems(db: Db): Promise<{ attempted: number; settled: number }> {
   const claims = await db
     .select()
     .from(wrappedClaims)
@@ -50,6 +65,9 @@ export async function processQueuedRedeems(db: Db): Promise<{ attempted: number;
 
       // Re-price at settlement time: the member locked product units at
       // deposit, the backing paid out tracks the current index (same fee).
+      // The settlement must pass the SAME circuit breakers the live handler
+      // applies — a queued claim must not settle at a price the user path
+      // would refuse.
       const tokenRow = (
         await db
           .select({ updatedAt: tokens.updatedAt, value: tokens.value })
@@ -58,6 +76,20 @@ export async function processQueuedRedeems(db: Db): Promise<{ attempted: number;
       )[0]
       const price = tokenRow?.value ?? 0
       if (price <= 0 || !tokenRow || Date.now() - tokenRow.updatedAt.getTime() > PRICE_STALE_MS) continue
+      const lastImplied = (
+        (
+          await db.execute(
+            sql`SELECT ABS(movement / amount)::float AS p FROM transactions WHERE token = ${config.symbol} AND type IN ('deposit', 'withdrawal') AND amount <> 0 ORDER BY date DESC LIMIT 1`,
+          )
+        ).rows as { p: number }[]
+      )[0]?.p
+      if (lastImplied && Math.abs(price / lastImplied - 1) > wrappedPriceBreaker()) {
+        console.warn(
+          `queued redeem ${claim.signature}:${claim.mint} held by price breaker ` +
+            `(index moved ${(Math.abs(price / lastImplied - 1) * 100).toFixed(1)}%)`,
+        )
+        continue
+      }
 
       const priceScaled = BigInt(Math.round(price * 1e9))
       const feeScaled = BigInt(Math.round((1 - getFimsFeeRate()) * 1e9))
@@ -67,17 +99,66 @@ export async function processQueuedRedeems(db: Db): Promise<{ attempted: number;
 
       if (backingUnits > (await redeemLiquidity(product))) continue
 
+      // Every retryable check passed: atomically take the claim BEFORE the
+      // irreversible on-chain payout. The row transitions
+      // awaiting_liquidity → claimed exactly once, so a concurrent user
+      // retry or keeper tick that also matched is skipped. (If this runner
+      // then dies before or during custodialRedeem, the claim stays
+      // 'claimed' — the same safe wedge as the HTTP path, unblocked by an
+      // admin after checking the chain.)
+      const transition = await db
+        .update(wrappedClaims)
+        .set({ state: 'claimed', updatedAt: new Date() })
+        .where(
+          and(
+            eq(wrappedClaims.signature, claim.signature),
+            eq(wrappedClaims.mint, claim.mint),
+            eq(wrappedClaims.state, 'awaiting_liquidity'),
+          ),
+        )
+        .returning({ mint: wrappedClaims.mint })
+      if (!transition.length) continue
+
       // Same claim → 'minted' → 'recorded' progression as the live handler:
       // the ledger write replays idempotently if the process dies between.
       const custodialSignature = await custodialRedeem(product, solAddress(fetched.payer), productUnits, backingUnits)
-      await db
+      const mintedTransition = await db
         .update(wrappedClaims)
         .set({ custodialSignature, state: 'minted', updatedAt: new Date() })
-        .where(and(eq(wrappedClaims.signature, claim.signature), eq(wrappedClaims.mint, claim.mint)))
+        .where(
+          and(
+            eq(wrappedClaims.signature, claim.signature),
+            eq(wrappedClaims.mint, claim.mint),
+            eq(wrappedClaims.state, 'claimed'),
+          ),
+        )
+        .returning({ mint: wrappedClaims.mint })
+      if (!mintedTransition.length) {
+        // Our own claim should still be 'claimed' — if it moved, something
+        // else is driving this row: do NOT write the ledger entry.
+        console.error(`queued redeem ${claim.signature}:${claim.mint} claim moved unexpectedly before ledger write`)
+        continue
+      }
 
       const productAmount = Number(productUnits) / 1e6
       const movement = price * productAmount
       await db.transaction(async (tx) => {
+        // Flip the claim to 'recorded' FIRST — the update is empty when
+        // another path (e.g. a concurrent user retry) already recorded the
+        // leg, and then the ledger insert must not happen: it would
+        // duplicate the row (`transactions.signature` has no unique key).
+        const recorded = await tx
+          .update(wrappedClaims)
+          .set({ state: 'recorded', updatedAt: new Date() })
+          .where(
+            and(
+              eq(wrappedClaims.signature, claim.signature),
+              eq(wrappedClaims.mint, claim.mint),
+              eq(wrappedClaims.state, 'minted'),
+            ),
+          )
+          .returning({ mint: wrappedClaims.mint })
+        if (!recorded.length) return
         await tx.insert(transactions).values({
           address: fetched.payer,
           amount: formatTokenUnits(-productUnits, 6),
@@ -89,10 +170,6 @@ export async function processQueuedRedeems(db: Db): Promise<{ attempted: number;
           type: 'withdrawal',
           userId: member.id,
         })
-        await tx
-          .update(wrappedClaims)
-          .set({ state: 'recorded', updatedAt: new Date() })
-          .where(and(eq(wrappedClaims.signature, claim.signature), eq(wrappedClaims.mint, claim.mint)))
       })
       settled += 1
     } catch (error) {
