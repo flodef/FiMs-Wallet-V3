@@ -11,9 +11,16 @@ async function fillImportMnemonic(page: Page) {
   }
 }
 
+// The index page groups entry paths into expandable option cards: 'I already
+// have a wallet' opens a card whose inner action navigates to the import form.
+async function navigateToImport(page: Page) {
+  await page.getByRole('button', { name: 'I already have a wallet' }).click()
+  await page.getByRole('button', { name: 'Import my 12 words' }).click()
+}
+
 export async function importExistingWallet(page: Page) {
   await page.goto('')
-  await page.getByRole('link', { name: 'I already have a wallet' }).click()
+  await navigateToImport(page)
   await fillImportMnemonic(page)
 
   await page.getByRole('button', { name: 'Import wallet' }).click()
@@ -23,11 +30,12 @@ export async function importExistingWallet(page: Page) {
 
 export async function importExistingWalletUnsecured(page: Page) {
   await page.goto('')
-  await page.getByRole('link', { name: 'I already have a wallet' }).click()
+  await navigateToImport(page)
   await fillImportMnemonic(page)
 
   await page.getByText('Advanced protection').click()
-  await page.getByRole('radio', { name: 'Unsecured' }).click()
+  // ToggleGroupItem renders a plain <button aria-pressed>, not a radio.
+  await page.getByRole('button', { name: 'Unsecured' }).click()
   await page.getByLabel(/confirm this wallet will not be protected/).fill('UNSECURED')
   await page.getByRole('button', { name: 'Import wallet' }).click()
   await expect(page.getByRole('heading', { name: 'Create app password' })).toBeHidden()
