@@ -136,8 +136,11 @@ export const fimsSessions = pgTable('fims_sessions', {
 // custodial mint → ledger row) that cannot be atomic, so progress is durable:
 // 'claimed' = slot reserved (a crashed mint leaves this stuck and blocks —
 // admin deletes the row to unblock, after checking the chain for a landed
-// custodial tx), 'minted' = on-chain step done, ledger replayable without
-// re-minting, 'recorded' = ledger row written (terminal).
+// custodial tx; ONLY 'claimed' rows may be deleted — deleting a 'minted' row
+// would re-run a payout that already landed), 'minted' = on-chain step done,
+// ledger replayable without re-minting, 'recorded' = ledger row written
+// (terminal). 'abandoned' = payer no longer resolves to a member (terminal,
+// admin-visible).
 export const wrappedClaims = pgTable(
   'wrapped_claims',
   {

@@ -16,7 +16,7 @@ import {
 } from '@solana/kit'
 import { getTransferSolInstruction, SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
 import { getTransferCheckedInstruction, TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { inspectWireTransaction } from '../src/inspect-wire-transaction.ts'
 import type { SolanaClient } from '../src/solana-client.ts'
 
@@ -82,6 +82,26 @@ describe('inspect-wire-transaction', () => {
       expect(tokenIx?.data[0]).toBe(TOKEN_TRANSFER_CHECKED_DISCRIMINATOR)
       expect(result.feePayer).toBe(signer.address)
       expect(result.instructions.every((ix) => !ix.hasUnresolvedAccounts)).toBe(true)
+    })
+  })
+
+  describe('unexpected behavior', () => {
+    beforeEach(() => {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('should throw on an undecodable wire transaction instead of half-inspecting', async () => {
+      // ARRANGE
+      expect.assertions(1)
+
+      // ACT & ASSERT — a tx the decoder cannot parse must fail closed: a
+      // partially-decoded inspection would let a malformed dApp tx slip
+      // past the instruction-level guards.
+      await expect(inspectWireTransaction(stubClient(), 'not-a-transaction')).rejects.toThrow()
     })
   })
 })
