@@ -57,7 +57,7 @@ export class FimsWallet implements Wallet {
     return {
       [SolanaSignAndSendTransaction]: {
         signAndSendTransaction,
-        supportedTransactionVersions: ['legacy', 0],
+        supportedTransactionVersions: ['legacy', 0, 1],
         version: this.version,
       },
       [SolanaSignIn]: {
@@ -70,7 +70,7 @@ export class FimsWallet implements Wallet {
       },
       [SolanaSignTransaction]: {
         signTransaction,
-        supportedTransactionVersions: ['legacy', 0],
+        supportedTransactionVersions: ['legacy', 0, 1],
         version: this.version,
       },
       [StandardConnect]: {

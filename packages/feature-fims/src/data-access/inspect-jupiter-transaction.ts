@@ -156,12 +156,15 @@ export function assertJupiterTransactionSafe({
   const walletSolChange =
     inspection.simulation.solBalanceChanges.find((change) => change.address === account)?.change ?? 0n
 
-  // Post-state invariants on token accounts the wallet owned before the
-  // transaction: ownership hand-over, leftover delegates, foreign close
-  // authorities, and destroys. A legit wSOL unwrap destroys the account but
-  // sends its lamports back to the wallet — anything else is a drain.
+  // Post-state invariants on token accounts the wallet owns — before OR
+  // after the transaction: ownership hand-over, leftover delegates, foreign
+  // close authorities, and destroys. An account created mid-transaction for
+  // the wallet (a fresh ATA) is covered too: a crafted tx could otherwise
+  // plant a delegate or foreign close authority on it at creation and drain
+  // it later. A legit wSOL unwrap destroys the account but sends its
+  // lamports back to the wallet — anything else is a drain.
   for (const row of inspection.simulation.tokenAccounts) {
-    if (row.ownerBefore !== account) {
+    if (row.ownerBefore !== account && row.ownerAfter !== account) {
       continue
     }
     if (row.destroyed) {

@@ -1,3 +1,4 @@
+import { SolanaSignTransaction, type SolanaSignTransactionFeature } from '@solana/wallet-standard-features'
 import { getWallets } from '@wallet-standard/app'
 import { StandardConnect, type StandardConnectFeature } from '@wallet-standard/features'
 import type { Account } from '@workspace/db/account/account'
@@ -11,6 +12,26 @@ export function useDetectedWallets() {
   return getWallets()
     .get()
     .filter((wallet) => wallet.name !== SELF_WALLET_NAME)
+}
+
+// Highest transaction version the account's signer can handle: a connected
+// account is capped by what its wallet advertises, while local keypairs sign
+// through kit v8 which builds and signs v1 natively. A watched account never
+// signs — report the more widely supported v0.
+export function getAccountTransactionVersion(account: Account): 0 | 1 {
+  if (account.type === 'Watched') {
+    return 0
+  }
+  if (account.type !== 'Connected') {
+    return 1
+  }
+  const wallet = getWallets()
+    .get()
+    .find((w) => w.name === account.externalWallet)
+  const feature = wallet?.features[SolanaSignTransaction] as
+    | SolanaSignTransactionFeature[typeof SolanaSignTransaction]
+    | undefined
+  return feature?.supportedTransactionVersions?.includes(1) ? 1 : 0
 }
 
 // Resolves the wallet-standard signer for a 'Connected' account: finds the

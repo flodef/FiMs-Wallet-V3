@@ -5,6 +5,7 @@ import {
   getBase64Encoder,
   getCompiledTransactionMessageDecoder,
   getTransactionDecoder,
+  type ReadonlyUint8Array,
   type Transaction,
 } from '@solana/kit'
 import { tryCatch } from '@workspace/core/try-catch'
@@ -25,7 +26,7 @@ import type { SolanaClient } from './solana-client.ts'
 
 export interface WireInstruction {
   accountAddresses: (Address | undefined)[]
-  data: Uint8Array
+  data: ReadonlyUint8Array
   // An account index that does not resolve inside the loaded account list:
   // the instruction's intent cannot be verified and callers must refuse it.
   hasUnresolvedAccounts: boolean
@@ -122,25 +123,23 @@ export async function inspectWireTransaction(
 
   const instructions =
     message.version === 'legacy' || message.version === 0
-      ? (
-          message as unknown as {
-            instructions: { accountIndices: readonly number[]; data?: Uint8Array; programAddressIndex: number }[]
-          }
-        ).instructions.map((ix) => ({
-          accountIndices: ix.accountIndices,
+      ? message.instructions.map((ix) => ({
+          accountIndices: ix.accountIndices ?? [],
           data: ix.data ?? new Uint8Array(),
           programAddressIndex: ix.programAddressIndex,
         }))
-      : (
-          message as unknown as {
-            instructionPayloads: { data?: Uint8Array; instructionAccountIndices: readonly number[] }[]
-          }
-        ).instructionPayloads.map((payload, index) => ({
+      : // v1 splits each instruction: `instructionHeaders[i]` carries the
+        // program index, `instructionPayloads[i]` the account indices and the
+        // data — named `instructionData`, NOT `data`. Reading `payload.data`
+        // silently empties every instruction and disables all
+        // instruction-level guards.
+        message.instructionPayloads.map((payload, index) => ({
           accountIndices: payload.instructionAccountIndices,
-          data: payload.data ?? new Uint8Array(),
-          programAddressIndex:
-            (message as unknown as { instructionHeaders: { programAccountIndex: number }[] }).instructionHeaders[index]
-              ?.programAccountIndex ?? 0,
+          data: payload.instructionData ?? new Uint8Array(),
+          // A missing header must not resolve to account 0: point the
+          // program index outside the loaded list so the instruction
+          // reports hasUnresolvedAccounts and every caller fails closed.
+          programAddressIndex: message.instructionHeaders[index]?.programAccountIndex ?? allAccounts.length,
         }))
 
   const programIds = [...new Set(instructions.map((ix) => allAccounts[ix.programAddressIndex]).filter(Boolean))]

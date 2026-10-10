@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@solana/kit": "catalog:",
+    "@solana/wallet-standard-features": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@wallet-standard/app": "1.1.0",
     "@wallet-standard/core": "catalog:",

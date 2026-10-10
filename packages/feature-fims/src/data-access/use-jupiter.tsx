@@ -234,6 +234,7 @@ export function useJupiterQuote({
       'fims',
       'jupiter-quote',
       account.publicKey,
+      getAccountTransactionVersion(account),
       network.id,
       inputMint,
       outputMint,
