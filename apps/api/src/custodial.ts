@@ -43,9 +43,10 @@ import {
   getTransferCheckedInstruction,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '@solana-program/token-2022'
+import { envBigint } from './env.js'
 import { createBackendSigner } from './signer.js'
 import { rpcCall, rpcUrl, tokenBalance } from './solana-util.js'
-import { yieldInstructions } from './yield-placement.js'
+import { yieldConfigured, yieldInstructions, yieldPositionAta } from './yield-placement.js'
 
 // Mainnet backing mints. Overridable via env so devnet can point at test
 // mints created by scripts/create-fims-mints.ts.
@@ -177,17 +178,36 @@ function accountDataBase64(data: unknown): string | undefined {
   return undefined
 }
 
-async function assertCustodySimulation(wire: string, custody: Address, guard: CustodyGuard): Promise<void> {
+// SPL token account layout (shared by Token and Token-2022 up to the
+// extension area): delegate/close-authority/state sit at fixed offsets. A
+// simulated instruction that changes any of them — approve, set-authority,
+// freeze — is a custody take-over even when the balance does not move.
+const TOKEN_DELEGATE_RANGE: [number, number] = [72, 108] // option tag + pubkey
+const TOKEN_STATE_OFFSET = 108 // 1 = initialized, 2 = frozen
+const TOKEN_CLOSE_AUTHORITY_RANGE: [number, number] = [129, 165]
+
+function accountSlice(data: string | undefined, [from, to]: [number, number]): string | undefined {
+  if (!data) return undefined
+  const bytes = Uint8Array.from(atob(data), (char) => char.charCodeAt(0))
+  if (bytes.length < to) return undefined
+  return btoa(String.fromCharCode(...bytes.slice(from, to)))
+}
+
+// Exported for tests — the guard is pure over stubbed JSON-RPC responses.
+export async function assertCustodySimulation(wire: string, custody: Address, guard: CustodyGuard): Promise<void> {
   const rpc = createSolanaRpc(rpcUrl())
   // Enumerate every custody token account — the set the guard must protect.
-  const pre = new Map<Address, bigint>()
+  // Pre-state keeps the FULL account data so delegate/close-authority/state
+  // bytes can be diffed after simulation, not just the balance.
+  const pre = new Map<Address, { amount: bigint; data: string | undefined; owner: string }>()
   const watched: Address[] = []
   for (const programId of [TOKEN_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS]) {
     const { value } = await rpcCall(() =>
       rpc.getTokenAccountsByOwner(custody, { programId }, { encoding: 'base64' }).send(),
     )
     for (const { pubkey, account } of value) {
-      pre.set(pubkey, tokenAccountAmount(accountDataBase64(account.data)))
+      const data = accountDataBase64(account.data)
+      pre.set(pubkey, { amount: tokenAccountAmount(data), data, owner: `${account.owner}` })
       watched.push(pubkey)
     }
   }
@@ -220,13 +240,40 @@ async function assertCustodySimulation(wire: string, custody: Address, guard: Cu
     throw new Error(`custody simulation spends ${lamportDebit} lamports (max ${maxLamports})`)
   }
   for (let i = 0; i < watched.length; i++) {
+    const accountAddress = watched[i] as Address
     const account = accounts[i + 1]
-    if (!account) continue // absent from simulation → unchanged
-    const debit = (pre.get(watched[i] as Address) ?? 0n) - tokenAccountAmount(accountDataBase64(account.data))
+    const before = pre.get(accountAddress)
+    // A watched account ABSENT from the post-simulation is not "unchanged" —
+    // the transaction may have closed it (CloseAccount drains lamports to an
+    // arbitrary destination while the token balance reads as untouched).
+    // Treating null as unchanged was the H-1 blind spot: fail closed.
+    if (!account) throw new Error(`custody simulation closed or removed token account ${accountAddress}`)
+    // The account must still be owned by the SAME token program — an owner
+    // reassignment hands the funds to an arbitrary program.
+    if (`${account.owner}` !== before?.owner) {
+      throw new Error(`custody simulation changed the owner of ${accountAddress}`)
+    }
+    const postData = accountDataBase64(account.data)
+    // Delegate, freeze-state and close-authority must not move: an approved
+    // delegate or a close authority survives this transaction and can drain
+    // or lock the account afterwards.
+    if (
+      accountSlice(postData, TOKEN_DELEGATE_RANGE) !== accountSlice(before?.data, TOKEN_DELEGATE_RANGE) ||
+      accountSlice(postData, TOKEN_CLOSE_AUTHORITY_RANGE) !== accountSlice(before?.data, TOKEN_CLOSE_AUTHORITY_RANGE)
+    ) {
+      throw new Error(`custody simulation changed delegate or close authority on ${accountAddress}`)
+    }
+    if (postData && before?.data) {
+      const postBytes = Uint8Array.from(atob(postData), (char) => char.charCodeAt(0))
+      if (postBytes.length > TOKEN_STATE_OFFSET && postBytes[TOKEN_STATE_OFFSET] === 2) {
+        throw new Error(`custody simulation froze token account ${accountAddress}`)
+      }
+    }
+    const debit = (before?.amount ?? 0n) - tokenAccountAmount(postData)
     if (debit <= 0n) continue
-    const allowed = guard.maxDebits?.get(watched[i] as Address) ?? 0n
+    const allowed = guard.maxDebits?.get(accountAddress) ?? 0n
     if (debit > allowed) {
-      throw new Error(`custody simulation debits ${debit} from ${watched[i]} (allowed ${allowed})`)
+      throw new Error(`custody simulation debits ${debit} from ${accountAddress} (allowed ${allowed})`)
     }
   }
 }
@@ -363,8 +410,7 @@ const FLOAT_DEFAULT_UNITS = 200n
 
 export function floatTarget(product: FimsWrappedProduct): bigint {
   const config = wrappedProductConfig(product)
-  const raw = process.env[FLOAT_ENV[product]]
-  const units = raw !== undefined ? BigInt(raw) : FLOAT_DEFAULT_UNITS
+  const units = envBigint(FLOAT_ENV[product], FLOAT_DEFAULT_UNITS)
   return units * (config?.units ?? 1_000_000n)
 }
 
@@ -430,6 +476,7 @@ export interface BackingStatusRow {
   product: FimsWrappedProduct
   supply: string
   vault: string
+  yieldUnreadable: boolean
 }
 
 // For the monitor cron: the backing must cover the whole wrapped supply at
@@ -456,6 +503,7 @@ export async function custodialBackingStatus(prices: Readonly<Record<string, num
     // whenever yield placement is active. The position token ≈ 1:1 backing
     // (reads slightly less than the true total as it accrues — safe side).
     let yieldBalance = 0n
+    let yieldUnreadable = false
     const yieldAsset = process.env[`FIMS_${product === 'fims-eur' ? 'EUR' : 'USD'}_YIELD_ASSET`]
     if (yieldAsset) {
       try {
@@ -463,13 +511,19 @@ export async function custodialBackingStatus(prices: Readonly<Record<string, num
         const yieldProgram = await mintProgram(yieldMint)
         yieldBalance = await tokenBalanceOf(await ata(yieldMint, signer.address, yieldProgram))
       } catch {
-        // an unset/unreachable yield position counts as zero, not as an alert
+        // An unreadable position counts as zero for health (alert side), but
+        // is flagged so monitors can tell "RPC down" from "unbacked" (L-9).
+        yieldUnreadable = true
       }
     }
     const backingTotal = float + vaultBalance + yieldBalance
     const supplyUnits = BigInt(supply.amount)
     const price = prices[config.symbol] ?? 0
-    const required = price > 0 ? BigInt(Math.ceil(Number(supplyUnits) * price)) : 0n
+    // Exact scaled arithmetic (L-8): Number(supply) loses digits beyond 2^53,
+    // which could round `required` DOWN and report a false "healthy". Scale
+    // the price to 1e9 and ceil-divide — always errs toward requiring MORE
+    // backing, never less.
+    const required = price > 0 ? (supplyUnits * BigInt(Math.ceil(price * 1e9)) + 999_999_999n) / 1_000_000_000n : 0n
     rows.push({
       backingTotal: backingTotal.toString(),
       float: float.toString(),
@@ -478,9 +532,28 @@ export async function custodialBackingStatus(prices: Readonly<Record<string, num
       product,
       supply: supplyUnits.toString(),
       vault: vaultBalance.toString(),
+      yieldUnreadable,
     })
   }
   return rows
+}
+
+// Backing units a redeem can actually source right now: the custody float
+// plus, when a yield venue is configured, the position balance it can
+// withdraw from. Below the float target, every unit above `float` still
+// needs a venue withdrawal inside the redeem transaction.
+export async function redeemLiquidity(product: FimsWrappedProduct): Promise<bigint> {
+  const config = wrappedProductConfig(product)
+  if (!config) throw new Error(`${product} mint is not configured`)
+  const signer = await custodialSigner()
+  const backingProgram = await mintProgram(config.backingMint)
+  const backingCustodyAta = await ata(config.backingMint, signer.address, backingProgram)
+  let available = await tokenBalanceOf(backingCustodyAta)
+  if (yieldConfigured(product)) {
+    const positionAta = await yieldPositionAta(product, signer.address).catch(() => null)
+    if (positionAta) available += await tokenBalanceOf(positionAta).catch(() => 0n)
+  }
+  return available
 }
 
 // Burn `productUnits` of the product token held by custody and return
@@ -499,7 +572,11 @@ export async function custodialRedeem(
   const custodyAta = await ata(config.mint, signer.address, TOKEN_2022_PROGRAM_ADDRESS)
   const backingCustodyAta = await ata(config.backingMint, signer.address, backingProgram)
   const destinationAta = await ata(config.backingMint, owner, backingProgram)
-  if (backingVault()) {
+  // With a yield venue configured, the withdraw instructions inside the
+  // transaction pull `backingUnits` into the float first — the float alone
+  // does not need to cover the redeem (audit M-4). Without a venue the
+  // float is the only source and a shortfall must queue, not silently fail.
+  if (backingVault() && !yieldConfigured(product)) {
     const float = await tokenBalanceOf(backingCustodyAta)
     if (backingUnits > float) {
       throw new Error(

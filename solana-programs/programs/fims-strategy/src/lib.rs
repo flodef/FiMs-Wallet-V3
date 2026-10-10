@@ -25,8 +25,9 @@ declare_id!("AtmC4gPAEZ1r4fD698mDaCpGEC5WZN5f4z55zscsdVmS");
 //   * `sweep` can only pay the hardcoded treasury
 //   * a compromised delegate key can therefore not route funds to itself:
 //     every direction of flow is asserted, not assumed
-//   * governance: timelocked admin changes, two-step admin transfer,
-//     a guardian role that can pause (but not unpause) for fast response
+//   * governance: every dangerous change — including admin rotation — goes
+//     through the 48h timelock; a guardian role can pause (but not unpause)
+//     and veto a pending change for fast incident response
 // ---------------------------------------------------------------------------
 
 // SPL Token program and Associated Token Account program — hardcoded so the
@@ -841,9 +842,21 @@ pub mod fims_strategy {
             } => {
                 require!(tx_lamports <= daily_lamports, StrategyError::BadConfig);
             }
-            _ => {}
+            ConfigChange::Treasury { treasury } => {
+                require!(*treasury != Pubkey::default(), StrategyError::BadConfig);
+            }
+            ConfigChange::Delegate { delegate } => {
+                require!(*delegate != Pubkey::default(), StrategyError::BadConfig);
+            }
+            ConfigChange::Admin { admin } => {
+                require!(*admin != Pubkey::default(), StrategyError::BadConfig);
+            }
         }
         let state = &mut ctx.accounts.state;
+        // One pending change at a time: silently overwriting a scheduled
+        // change hides it from monitors watching eta/event pairs (L-5).
+        // The admin retracts their own pending via admin_cancel_pending.
+        require!(state.pending.is_none(), StrategyError::PendingExists);
         let eta = Clock::get()?
             .unix_timestamp
             .saturating_add(ADMIN_TIMELOCK_SECS);
@@ -891,16 +904,23 @@ pub mod fims_strategy {
                 state.strategies = strategies;
             }
             ConfigChange::MintPairs { pairs } => state.allowed_mint_pairs = pairs,
+            // The handover is only PROPOSED here — the new admin must still
+            // sign accept_admin. Routing through the 48h timelock (M-5)
+            // closes the instant-takeover path a compromised admin key had.
+            ConfigChange::Admin { admin } => {
+                state.proposed_admin = Some(admin);
+                emit!(AdminProposed { new_admin: admin });
+            }
         }
         emit!(ConfigApplied {});
         Ok(())
     }
 
-    /// Two-step admin handover: losing the key is recoverable, grabbing it
-    /// without the accept signature is not.
-    pub fn propose_admin(ctx: Context<AdminOnly>, new_admin: Pubkey) -> Result<()> {
-        ctx.accounts.state.proposed_admin = Some(new_admin);
-        emit!(AdminProposed { new_admin });
+    /// Retract a self-scheduled change — the admin's own escape from
+    /// `pending.is_none()` without needing the guardian's veto.
+    pub fn admin_cancel_pending(ctx: Context<AdminOnly>) -> Result<()> {
+        ctx.accounts.state.pending = None;
+        emit!(PendingCanceled {});
         Ok(())
     }
 
@@ -1554,6 +1574,11 @@ pub enum ConfigChange {
     MintPairs {
         pairs: Vec<MintPair>,
     },
+    // Appended last: borsh encodes the variant index, so inserting earlier
+    // would renumber every existing variant.
+    Admin {
+        admin: Pubkey,
+    },
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -1973,6 +1998,8 @@ pub enum StrategyError {
     TipTooLarge,
     #[msg("tip below the required minimum — deposits fund the keeper")]
     TipTooSmall,
+    #[msg("a config change is already scheduled")]
+    PendingExists,
     #[msg("payout exceeds the member's recorded deposit")]
     InsufficientDeposit,
     #[msg("min_out below the pair's deviation bound")]

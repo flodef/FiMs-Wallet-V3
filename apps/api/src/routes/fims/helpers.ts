@@ -12,6 +12,7 @@ import {
   votes,
 } from '../../db/schema.js'
 import { DatabaseError, type DatabaseNotConfigured, type DatabaseService, withDb } from '../../db/service.js'
+import { envFloat } from '../../env.js'
 import { AuthForbidden, isAdminAddress, requireNotDemo } from '../../services/auth/service.js'
 import { BadRequest, RateLimited } from './api.js'
 
@@ -262,11 +263,14 @@ export const PRICE_STALE_MS = 10 * 60 * 1000
 // may not jump more than this fraction away from the last ledger-implied
 // price, and rolling-24h caps bound mint+redeem volume in product units —
 // per member and globally. All overridable via env for ops tuning.
-export const wrappedPriceBreaker = () => Number.parseFloat(process.env['FIMS_WRAPPED_PRICE_BREAKER'] ?? '0.1')
+// Parsed via envFloat: a malformed override throws (fail closed) rather than
+// producing NaN — every NaN comparison is false, which would silently disable
+// the breaker and both caps.
+export const wrappedPriceBreaker = () => envFloat('FIMS_WRAPPED_PRICE_BREAKER', 0.1)
 export const wrappedDailyCap = (scope: 'global' | 'member') =>
-  Number.parseFloat(
-    process.env[scope === 'member' ? 'FIMS_WRAPPED_MEMBER_DAILY_UNITS' : 'FIMS_WRAPPED_GLOBAL_DAILY_UNITS'] ??
-      (scope === 'member' ? '10000' : '50000'),
+  envFloat(
+    scope === 'member' ? 'FIMS_WRAPPED_MEMBER_DAILY_UNITS' : 'FIMS_WRAPPED_GLOBAL_DAILY_UNITS',
+    scope === 'member' ? 10_000 : 50_000,
   )
 // Bounds what a stolen member key can bleed through back-and-forth
 // conversions (each round-trip burns the fee). Generous enough to never

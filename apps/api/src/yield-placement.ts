@@ -11,10 +11,11 @@
 //
 // Kamino needs the OnReMarket market + reserve addresses as env config;
 // Jupiter Earn only needs the backing mint (already in product config).
-import { AccountRole, type Address, address, type Instruction } from '@solana/kit'
+import { AccountRole, type Address, address, createSolanaRpc, type Instruction } from '@solana/kit'
 import { findAssociatedTokenPda } from '@solana-program/token'
 import type { FimsWrappedProduct, WrappedProductConfig } from './custodial.js'
-import { fetchProviderInstructions } from './solana-util.js'
+import { envList } from './env.js'
+import { fetchProviderInstructions, rpcCall, rpcUrl } from './solana-util.js'
 
 const JUPITER_EARN_API = () => process.env['JUPITER_EARN_API'] ?? 'https://api.jup.ag/lend/v1/earn'
 const KAMINO_KTX_API = () => process.env['KAMINO_KTX_API'] ?? 'https://api.kamino.finance/ktx'
@@ -37,6 +38,30 @@ type YieldType = 'jupiter-earn' | 'kamino'
 function yieldType(product: FimsWrappedProduct): YieldType | null {
   const value = process.env[PRODUCT_YIELD[product].typeEnv]
   return value === 'jupiter-earn' || value === 'kamino' ? value : null
+}
+
+// Whether the product places backing in a yield venue — when set, a redeem
+// can pull liquidity from the position instead of relying on the float.
+export function yieldConfigured(product: FimsWrappedProduct): boolean {
+  return yieldType(product) !== null
+}
+
+// The custody-owned token account holding the yield position for this
+// product (the FIMS_*_YIELD_ASSET env) — null when yield is not configured.
+export async function yieldPositionAta(product: FimsWrappedProduct, wallet: Address): Promise<Address | null> {
+  const raw = process.env[`FIMS_${product === 'fims-eur' ? 'EUR' : 'USD'}_YIELD_ASSET`]
+  if (!raw || !yieldConfigured(product)) return null
+  const rpc = createSolanaRpc(rpcUrl())
+  const yieldMint = address(raw)
+  const { value } = await rpcCall(() => rpc.getAccountInfo(yieldMint, { encoding: 'base64' }).send())
+  if (!value) return null
+  return (
+    await findAssociatedTokenPda({
+      mint: yieldMint,
+      owner: wallet,
+      tokenProgram: address(value.owner),
+    })
+  )[0]
 }
 
 // ---------------------------------------------------------------------------
@@ -75,10 +100,9 @@ const VENUE_PROGRAM: Record<YieldType, string> = {
 const TRANSFER_CHECKED_DISCRIMINATOR = 12
 
 function allowedPrograms(type: YieldType): Set<string> {
-  const extra = (process.env['FIMS_YIELD_EXTRA_PROGRAMS'] ?? '')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
+  // Every extra entry must parse as a real address — a typo'd program id
+  // throws (fail closed) instead of silently widening the allowlist.
+  const extra = envList('FIMS_YIELD_EXTRA_PROGRAMS', (entry) => void address(entry))
   return new Set([
     ATA_PROGRAM,
     COMPUTE_BUDGET_PROGRAM,

@@ -10,7 +10,12 @@ import { browser } from '@wxt-dev/browser'
 // Persisted in extension-local storage so grants survive service-worker
 // restarts. The grant records WHICH account the site saw: a request asking to
 // sign with a different account is rejected.
+//
+// Grants expire: an indefinite grant means a site connected once, years ago,
+// still has silent signing reach if its front-end is compromised later
+// (audit L-6). 90 days balances "connected wallet" UX against staleness.
 const STORAGE_KEY = 'fimsConnectedOrigins'
+const GRANT_TTL_MS = 90 * 24 * 60 * 60 * 1000
 
 export interface GrantedOrigin {
   address: string
@@ -41,9 +46,17 @@ export async function revokeOrigin(origin: string): Promise<void> {
 }
 
 // The account this origin is allowed to see/sign with, or null when the site
-// never connected (or was disconnected).
+// never connected, was disconnected, or the grant expired.
 export async function grantedAddress(origin: string): Promise<string | null> {
-  return (await readOrigins())[origin]?.address ?? null
+  const origins = await readOrigins()
+  const grant = origins[origin]
+  if (!grant) return null
+  if (Date.now() - grant.connectedAt > GRANT_TTL_MS) {
+    delete origins[origin]
+    await writeOrigins(origins)
+    return null
+  }
+  return grant.address
 }
 
 export async function listGrants(): Promise<ConnectedOrigins> {

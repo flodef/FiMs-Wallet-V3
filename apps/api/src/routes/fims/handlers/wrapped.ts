@@ -9,6 +9,7 @@ import {
   type FimsWrappedProduct,
   productForBackingMint,
   productForWrappedMint,
+  redeemLiquidity,
   wrappedProductConfig,
 } from '../../../custodial.js'
 import { tokens, transactions, users, wrappedClaims } from '../../../db/schema.js'
@@ -102,7 +103,9 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
         delta,
         product: direction === 'deposit' ? productForBackingMint(delta.mint) : productForWrappedMint(delta.mint),
       }))
-      .filter((entry) => entry.product != null)
+      // Minting irreversible units requires the payer to have funded the
+      // deposit leg — not a third party riding the same tx (audit H-3).
+      .filter((entry) => entry.product != null && entry.delta.payerSourced)
     if (!matches.length)
       return yield* Effect.fail(
         new BadRequest({
@@ -210,6 +213,10 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
       // blocks until an admin verifies the chain and unblocks the row.
       if (existing.some((claim) => claim.state === 'claimed')) return { inFlight: true } as const
       const replay = prepared.filter((row) => byMint.get(row.delta.mint)?.state === 'minted')
+      // 'awaiting_liquidity' legs were already vetted (signature, caps) but
+      // could not settle for lack of float — they retry execution here and
+      // in the keeper pass without re-counting the daily caps.
+      const pending = prepared.filter((row) => byMint.get(row.delta.mint)?.state === 'awaiting_liquidity')
       const fresh = prepared.filter((row) => !byMint.has(row.delta.mint))
       // Caps only gate NEW legs — replaying a minted leg's ledger row must
       // never be refused (the units are already on-chain).
@@ -231,16 +238,51 @@ export function wrappedTransfer(signature: string, direction: 'deposit' | 'redee
         if (Number(globalUnits[0]?.units ?? 0) + requested > wrappedDailyCap('global'))
           return { limited: 'global daily wrapped limit exceeded' } as const
       }
+      // Liquidity gate (redeem only): without a yield venue the float alone
+      // must cover the withdrawal — a shortfall queues the claim instead of
+      // wedging it as 'claimed' forever (audit M-4). The claim was already
+      // vetted; the keeper settles it once liquidity is topped up.
+      const executable = [...fresh, ...pending]
+      if (direction === 'redeem' && executable.length) {
+        const needed = new Map<FimsWrappedProduct, bigint>()
+        for (const row of executable) {
+          needed.set(row.product, (needed.get(row.product) ?? 0n) + row.backingUnits)
+        }
+        for (const [product, units] of needed) {
+          const available = await redeemLiquidity(product)
+          if (units > available) {
+            for (const row of fresh) {
+              await tx
+                .insert(wrappedClaims)
+                .values({ mint: row.delta.mint, signature, state: 'awaiting_liquidity' })
+                .onConflictDoNothing()
+            }
+            return { queued: product } as const
+          }
+        }
+      }
       for (const row of fresh) {
         await tx.insert(wrappedClaims).values({ mint: row.delta.mint, signature, state: 'claimed' })
       }
-      return { fresh, replay } as const
+      for (const row of pending) {
+        await tx
+          .update(wrappedClaims)
+          .set({ state: 'claimed', updatedAt: new Date() })
+          .where(and(eq(wrappedClaims.signature, signature), eq(wrappedClaims.mint, row.delta.mint)))
+      }
+      return { fresh: executable, replay } as const
     })
     if ('inFlight' in claimOutcome)
       return yield* Effect.fail(
         new BadRequest({ reason: 'this transfer is already being processed — retry in a minute' }),
       )
     if ('limited' in claimOutcome) return yield* Effect.fail(new BadRequest({ reason: claimOutcome.limited }))
+    if ('queued' in claimOutcome)
+      return yield* Effect.fail(
+        new CustodialUnavailable({
+          reason: `${claimOutcome.queued} redeem queued — liquidity is being provisioned and it will settle automatically`,
+        }),
+      )
     const { fresh, replay } = claimOutcome
     if (!fresh.length && !replay.length) {
       const rows = yield* withDb((db) =>

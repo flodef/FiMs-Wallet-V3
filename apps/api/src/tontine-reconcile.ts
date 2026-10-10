@@ -32,7 +32,7 @@ async function listPotSignatures(): Promise<string[]> {
 
 // Same linked-address resolution the HTTP handlers use — duplicated rather
 // than imported to keep the reconcile free of route dependencies.
-const memberLinkedTo = (db: Db, address: string) =>
+export const memberLinkedTo = (db: Db, address: string) =>
   db
     .select({ id: users.id })
     .from(users)
@@ -62,7 +62,10 @@ export async function reconcileTontineDonations(db: Db): Promise<{ recorded: num
       .where(eq(transactions.signature, signature))
     if (seen.length) continue
     const fetched = await fetchDonationTransaction(signature, FIMS_TONTINE_ADDRESS).catch(() => null)
-    if (!fetched?.deltas.length) continue
+    if (!fetched) continue
+    // Only payer-funded legs count toward a member's donation (audit H-3).
+    const deltas = fetched.deltas.filter((delta) => delta.payerSourced)
+    if (!deltas.length) continue
     const member = (await memberLinkedTo(db, fetched.payer))[0]
     // Not a member's gift — external senders stay unrecorded (no ledger owner).
     if (!member) continue
@@ -79,7 +82,7 @@ export async function reconcileTontineDonations(db: Db): Promise<{ recorded: num
         .where(eq(transactions.signature, signature))
       if (committed.length) return false
       await tx.insert(transactions).values(
-        fetched.deltas.map((delta) => {
+        deltas.map((delta) => {
           const symbol = symbolOf(delta.mint)
           const movement = symbol ? (priceOf(symbol) ?? 0) * delta.amount : 0
           return {

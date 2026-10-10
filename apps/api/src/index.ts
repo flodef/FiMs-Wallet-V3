@@ -18,19 +18,18 @@ const RATE_LIMIT_MUTATION_MAX = 120 // requests per window per IP on mutations
 
 const buckets = new Map<string, { count: number; resetAt: number }>()
 
-// Prefer headers the edge sets and the client cannot forge:
-// cf-connecting-ip on Cloudflare, x-vercel-forwarded-for / x-real-ip on
-// Vercel. Plain x-forwarded-for is the last resort — it is client-spoofable
-// when no edge stamps it, but it only shifts a fake identity into its own
-// rate-limit bucket.
-function clientIp(request: Request): string {
-  return (
-    request.headers.get('cf-connecting-ip') ??
-    request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ??
-    request.headers.get('x-real-ip') ??
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    'unknown'
-  )
+// Read exactly ONE edge-stamped header — never a client-mergeable fallback
+// chain. A header the platform does not overwrite is attacker-controlled, so
+// trusting several means the first spoofable one wins (M-1: spoofed IP =
+// infinite fresh buckets + rate_limits table pollution).
+//   RATE_LIMIT_IP_HEADER env selects the header the deployed edge guarantees
+//   (e.g. "cf-connecting-ip" when Cloudflare fronts Vercel). Default is
+//   x-vercel-forwarded-for, stamped by the Vercel platform itself. Absent or
+//   empty → "unknown": every unidentified caller shares one bucket, so a
+//   misconfigured edge rate-limits itself rather than letting attackers roam.
+function clientIp(request: Request, env: Record<string, string | undefined>): string {
+  const header = env['RATE_LIMIT_IP_HEADER'] ?? 'x-vercel-forwarded-for'
+  return request.headers.get(header.toLowerCase())?.split(',')[0]?.trim() || 'unknown'
 }
 
 function isRateLimitedMemory(key: string, max: number): boolean {
@@ -42,6 +41,13 @@ function isRateLimitedMemory(key: string, max: number): boolean {
     if (buckets.size > 10_000) {
       for (const [key2, value] of buckets) {
         if (value.resetAt <= now) buckets.delete(key2)
+      }
+      // If every bucket is still fresh (e.g. forged-IP flood before the edge
+      // strips it), evict oldest-first so the map stays bounded — a slightly
+      // under-counted bucket beats unbounded memory growth on an isolate.
+      for (const key2 of buckets.keys()) {
+        if (buckets.size <= 10_000) break
+        if (key2 !== key) buckets.delete(key2)
       }
     }
     return false
@@ -102,7 +108,7 @@ function withSecurityHeaders(response: Response): Response {
 // only the env carrier differs (worker bindings vs process.env).
 export async function handleRequest(request: Request, env: Record<string, string | undefined>) {
   const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(request.method)
-  const key = `${mutation ? 'mut' : 'read'}:${clientIp(request)}`
+  const key = `${mutation ? 'mut' : 'read'}:${clientIp(request, env)}`
   const max = mutation ? RATE_LIMIT_MUTATION_MAX : RATE_LIMIT_MAX
   const limited = mutation
     ? ((await isRateLimitedShared(key, max, env['DATABASE_URL'] ?? process.env['DATABASE_URL'])) ??

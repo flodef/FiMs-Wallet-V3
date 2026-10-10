@@ -28,9 +28,13 @@ export const handleRecordDonation = ({ payload }: { payload: Schema.Schema.Type<
       try: () => fetchDonationTransaction(payload.signature, FIMS_TONTINE_ADDRESS),
     })
     if (!fetched)
-      return yield* Effect.fail(new BadRequest({ reason: 'transaction not found, failed, or not confirmed' }))
-    if (!fetched.deltas.length)
-      return yield* Effect.fail(new BadRequest({ reason: 'transaction did not credit the tontine wallet' }))
+      return yield* Effect.fail(new BadRequest({ reason: 'transaction not found, failed, or not finalized' }))
+    // Only deltas the fee payer actually FUNDED can be attributed to them —
+    // a third party may credit the pot inside the same transaction without
+    // making it the payer's gift (audit H-3).
+    const deltas = fetched.deltas.filter((delta) => delta.payerSourced)
+    if (!deltas.length)
+      return yield* Effect.fail(new BadRequest({ reason: 'transaction credited the tontine from an unrelated wallet' }))
     // The fee payer must belong to the signer: recording someone
     // else's gift under your own name would inflate your vote weight
     // and erase your debt for free.
@@ -61,7 +65,7 @@ export const handleRecordDonation = ({ payload }: { payload: Schema.Schema.Type<
       return tx
         .insert(transactions)
         .values(
-          fetched.deltas.map((delta) => {
+          deltas.map((delta) => {
             const symbol = symbolOf(delta.mint)
             const movement = symbol ? (priceOf(symbol) ?? 0) * delta.amount : 0
             return {

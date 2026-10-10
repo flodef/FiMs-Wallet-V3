@@ -74,6 +74,13 @@ function verifyBearerSession(request: HttpServerRequest.HttpServerRequest) {
         try: () => db.update(fimsSessions).set({ lastSeenAt: new Date() }).where(eq(fimsSessions.tokenHash, tokenHash)),
       }).pipe(Effect.ignoreLogged)
     }
+    // Same cadence: purge dead sessions so the table stays audit-meaningful.
+    if (Math.random() < 0.02) {
+      yield* Effect.tryPromise({
+        catch: () => new DatabaseError({ cause: 'session purge failed' }),
+        try: () => db.execute(sql`DELETE FROM fims_sessions WHERE expires_at < NOW() - INTERVAL '1 day'`),
+      }).pipe(Effect.ignoreLogged)
+    }
     return row.address
   })
 }
@@ -167,11 +174,18 @@ export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest
 
 /**
  * Optional auth for reads: no auth headers → anonymous (Option.none).
- * Headers present but invalid → Unauthorized (fail closed).
+ * Any credential present but invalid → Unauthorized (fail closed). This
+ * includes a bearer session: an expired/unknown token must NOT silently
+ * downgrade the caller to anonymous, or a revoked-but-cached token keeps
+ * "working" and connected users silently see the anonymous view (H-4).
  */
 export function optionalWalletRequest(request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
-    if (!header(request, 'x-fims-address') && !header(request, 'x-fims-sig')) return Option.none<string>()
+    const hasCredentials =
+      !!header(request, 'x-fims-address') ||
+      !!header(request, 'x-fims-sig') ||
+      header(request, 'authorization').startsWith('Bearer ')
+    if (!hasCredentials) return Option.none<string>()
     return Option.some(yield* verifyWalletRequest(request))
   })
 }

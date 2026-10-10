@@ -32,6 +32,7 @@ export const handleChainHistory = ({
     const request = yield* HttpServerRequest.HttpServerRequest
     const signer = yield* verifyWalletRequest(request)
     yield* consumeChainQuota(signer)
+    yield* assertChainAddressAllowed(signer, urlParams.address)
     const keys = yield* heliusKeysOrFail
     const limit = Math.min(Math.max(1, Math.floor(urlParams.limit ?? 100)), 100)
     const page = yield* Effect.tryPromise({
@@ -53,6 +54,7 @@ export const handleChainAssets = ({ urlParams }: { urlParams: { address: string 
     const request = yield* HttpServerRequest.HttpServerRequest
     const signer = yield* verifyWalletRequest(request)
     yield* consumeChainQuota(signer)
+    yield* assertChainAddressAllowed(signer, urlParams.address)
     const keys = yield* heliusKeysOrFail
     const assets = yield* Effect.tryPromise({
       catch: chainUnavailable,
@@ -168,6 +170,31 @@ const consumeChainQuota = (signer: string) =>
       return yield* Effect.fail(
         new RateLimited({ reason: `chain read quota exceeded (${CHAIN_READS_PER_WINDOW} per 10 minutes)` }),
       )
+    }
+  })
+
+// The proxy burns a PAID Helius budget — arbitrary addresses would make the
+// API a free indexer for anyone holding a member key (audit M-8). Members may
+// only query their own linked wallets plus protocol addresses the product
+// legitimately displays (tontine pot, treasury). Admins stay unrestricted.
+const CHAIN_PUBLIC_TARGETS = new Set([FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS])
+const assertChainAddressAllowed = (signer: string, target: string) =>
+  Effect.gen(function* () {
+    if (isAdminAddress(signer) || CHAIN_PUBLIC_TARGETS.has(target)) return
+    const linked = yield* withDb(async (db) => {
+      const member = await db
+        .select({ address: users.address, id: users.id })
+        .from(users)
+        .where(addressLinkedToUser(signer))
+      if (!member[0]) return []
+      const aliases = await db
+        .select({ address: userAddresses.address })
+        .from(userAddresses)
+        .where(eq(userAddresses.userId, member[0].id))
+      return [member[0].address, ...aliases.map((row) => row.address)]
+    })
+    if (!linked.includes(target)) {
+      return yield* Effect.fail(new RateLimited({ reason: 'chain reads are limited to your linked addresses' }))
     }
   })
 

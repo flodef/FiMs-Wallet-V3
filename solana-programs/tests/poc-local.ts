@@ -319,6 +319,41 @@ async function main() {
     [payer],
     'apply_config before 48h timelock',
   )
+  // One pending change at a time: a second schedule while the first is still
+  // pending is refused — the admin retracts via admin_cancel_pending.
+  await trySend(
+    [
+      new TransactionInstruction({
+        data: Buffer.concat([disc('schedule_config'), cfgArgs]),
+        keys: stateKeys(payer.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [payer],
+    'schedule_config while another change is pending',
+  )
+  await send(
+    [
+      new TransactionInstruction({
+        data: disc('admin_cancel_pending'),
+        keys: stateKeys(payer.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [payer],
+    'admin_cancel_pending (retract own schedule)',
+  )
+  await trySend(
+    [
+      new TransactionInstruction({
+        data: disc('admin_cancel_pending'),
+        keys: stateKeys(member.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [member],
+    'admin_cancel_pending by non-admin',
+  )
 
   // 3. payout (SOL) ------------------------------------------------------------
   const payoutIx = (dest: PublicKey, amount: bigint) =>
@@ -579,33 +614,40 @@ async function main() {
     'apply_config after guardian veto',
   )
 
-  // two-step admin handover
-  const proposeIx = Buffer.concat([disc('propose_admin'), newAdmin.publicKey.toBuffer()])
+  // Admin handover is timelocked like every dangerous change (M-5):
+  // ConfigChange::Admin (variant 7) schedules the rotation, apply_config
+  // records the proposal, the new admin's accept_admin signature finalizes.
+  const adminCfg = Buffer.concat([Buffer.from([7]), newAdmin.publicKey.toBuffer()])
   await send(
-    [new TransactionInstruction({ data: proposeIx, keys: stateKeys(payer.publicKey, true), programId: PROGRAM_ID })],
-    [payer],
-    'propose_admin → newAdmin',
-  )
-  await trySend(
     [
       new TransactionInstruction({
-        data: disc('accept_admin'),
-        keys: [
-          { isSigner: true, isWritable: false, pubkey: payer.publicKey },
-          { isSigner: false, isWritable: true, pubkey: statePda },
-        ],
+        data: Buffer.concat([disc('schedule_config'), adminCfg]),
+        keys: stateKeys(payer.publicKey, true),
         programId: PROGRAM_ID,
       }),
     ],
     [payer],
-    'accept_admin by old admin',
+    'schedule_config (Admin handover)',
+  )
+  // The instant propose_admin path is gone — the discriminator no longer
+  // resolves to an instruction.
+  await trySend(
+    [
+      new TransactionInstruction({
+        data: Buffer.concat([disc('propose_admin'), newAdmin.publicKey.toBuffer()]),
+        keys: stateKeys(payer.publicKey, true),
+        programId: PROGRAM_ID,
+      }),
+    ],
+    [payer],
+    'instant propose_admin removed',
   )
   await send(
     [SystemProgram.transfer({ fromPubkey: payer.publicKey, lamports: 10_000_000, toPubkey: newAdmin.publicKey })],
     [payer],
-    'fund newAdmin',
+    'fund newAdmin (fees)',
   )
-  await send(
+  await trySend(
     [
       new TransactionInstruction({
         data: disc('accept_admin'),
@@ -617,36 +659,40 @@ async function main() {
       }),
     ],
     [newAdmin],
-    'accept_admin by proposed admin',
-  )
-  // old admin is no longer admin
-  await trySend([pauseIx(payer.publicKey, true)], [payer], 'old admin set_paused')
-  // rotate back for cleanliness
-  await send(
-    [
-      new TransactionInstruction({
-        data: Buffer.concat([disc('propose_admin'), payer.publicKey.toBuffer()]),
-        keys: stateKeys(newAdmin.publicKey, true),
-        programId: PROGRAM_ID,
-      }),
-    ],
-    [newAdmin],
-    'propose_admin → back to payer',
+    'accept_admin before apply_config (no proposal yet)',
   )
   await send(
     [
       new TransactionInstruction({
-        data: disc('accept_admin'),
-        keys: [
-          { isSigner: true, isWritable: false, pubkey: payer.publicKey },
-          { isSigner: false, isWritable: true, pubkey: statePda },
-        ],
+        data: disc('admin_cancel_pending'),
+        keys: stateKeys(payer.publicKey, true),
         programId: PROGRAM_ID,
       }),
     ],
     [payer],
-    'accept_admin → payer restored',
+    'admin_cancel_pending (drop admin rotation)',
   )
+
+  // Zero/default addresses are rejected at schedule time — a typo'd treasury
+  // or delegate would burn sweeps or freeze the keeper (M-6).
+  const defaultKey = PublicKey.default.toBuffer()
+  for (const [variant, label] of [
+    [2, 'Treasury'],
+    [3, 'Delegate'],
+    [7, 'Admin'],
+  ] as const) {
+    await trySend(
+      [
+        new TransactionInstruction({
+          data: Buffer.concat([disc('schedule_config'), Buffer.from([variant]), defaultKey]),
+          keys: stateKeys(payer.publicKey, true),
+          programId: PROGRAM_ID,
+        }),
+      ],
+      [payer],
+      `schedule_config ${label} = default pubkey`,
+    )
+  }
 
   // 9. delegate-only ops are still delegate-only --------------------------------
   await send(

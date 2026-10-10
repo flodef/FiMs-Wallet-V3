@@ -6,6 +6,7 @@ import { DatabaseError, DatabaseService } from '../../../db/service.js'
 import { AuthUnauthorized } from '../../../services/auth/service.js'
 import { cronAuthorized, runStrategyPass, strategyHealth } from '../../../strategy-delegate.js'
 import { reconcileTontineDonations } from '../../../tontine-reconcile.js'
+import { processQueuedRedeems } from '../../../wrapped-reconcile.js'
 import { ChainUnavailable } from '../api.js'
 
 export const handleStrategyStatus = () =>
@@ -47,6 +48,12 @@ export const handleStrategyDelegateRun = () =>
       catch: () => new ChainUnavailable({ reason: 'reconcile failed' }),
       try: () => reconcileTontineDonations(db),
     }).pipe(Effect.catchAll((error) => Effect.logWarning('tontine reconcile failed', error)))
+    // Settle queued redeems on the same tick — a member whose withdrawal
+    // found no float gets paid as soon as liquidity is topped up.
+    yield* Effect.tryPromise({
+      catch: () => new ChainUnavailable({ reason: 'queued redeem failed' }),
+      try: () => processQueuedRedeems(db),
+    }).pipe(Effect.catchAll((error) => Effect.logWarning('queued redeem settle failed', error)))
     // Surface per-deposit failures as 503 so cron-job.org alerts —
     // the full detail stays in the strategy_ops table.
     const failed = report.deposits.filter((d) => d.error)

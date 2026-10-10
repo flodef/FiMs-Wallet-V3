@@ -39,6 +39,7 @@ import { fetchMint, findAssociatedTokenPda, getCreateAssociatedTokenIdempotentIn
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import { keeperLocks, strategyOps } from './db/schema.js'
 import type { Db } from './db/service.js'
+import { envInt } from './env.js'
 import { createBackendSigner } from './signer.js'
 import { fetchProviderInstructions, rpcCall, rpcUrl, tokenBalance } from './solana-util.js'
 
@@ -64,9 +65,9 @@ export async function mintTokenProgram(rpc: ReturnType<typeof createSolanaRpc>, 
 const JUPITER_API = () => process.env['JUPITER_API'] ?? 'https://lite-api.jup.ag'
 const KAMINO_KTX_API = () => process.env['KAMINO_KTX_API'] ?? 'https://api.kamino.finance/ktx'
 // Fraction of collateral value borrowed per deposit, in bps (default 50%).
-const targetLtvBps = () => Number(process.env['STRATEGY_LTV_BPS'] ?? '5000')
+const targetLtvBps = () => envInt('STRATEGY_LTV_BPS', 5000)
 // Pending deposits older than this make /strategy/status return unhealthy.
-const alertAgeSecs = () => Number(process.env['STRATEGY_ALERT_SECS'] ?? '900')
+const alertAgeSecs = () => envInt('STRATEGY_ALERT_SECS', 900)
 const kaminoMarket = () => process.env['STRATEGY_KAMINO_MARKET'] ?? process.env['FIMS_USD_YIELD_MARKET']
 const kaminoReserve = () => process.env['STRATEGY_KAMINO_RESERVE'] ?? process.env['FIMS_USD_YIELD_RESERVE']
 

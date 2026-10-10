@@ -1,6 +1,6 @@
 import { HttpServerRequest } from '@effect/platform'
 import { and, asc, eq, getTableColumns, ilike, sql } from 'drizzle-orm'
-import { Effect, type Schema } from 'effect'
+import { Effect, Option, type Schema } from 'effect'
 import { userAddresses, users } from '../../../db/schema.js'
 import { withDb } from '../../../db/service.js'
 import {
@@ -41,6 +41,7 @@ export const handleUsers = ({
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const signer = yield* optionalWalletRequest(request)
+    const signerAddress = Option.getOrNull(signer)
     const { limit, offset } = pageParams(urlParams)
     return yield* withDb((db) =>
       db
@@ -54,6 +55,16 @@ export const handleUsers = ({
           >`array_prepend(${users.address}, coalesce((select array_agg(${userAddresses.address}) from ${userAddresses} where ${userAddresses.userId} = ${users.id}), '{}'))`.as(
             'addresses',
           ),
+          // A member's intended risk allocation is personal finance info:
+          // only the member (any linked wallet) and admins see it — the
+          // public directory does not need it (audit L-4).
+          riskTarget: sql<number | null>`case when ${
+            signerAddress === null
+              ? sql`false`
+              : isAdminAddress(signerAddress)
+                ? sql`true`
+                : addressLinkedToUser(signerAddress)
+          } then ${users.riskTarget} else null end`.as('risk_target'),
         })
         .from(users)
         .where(
@@ -78,6 +89,12 @@ export const handleCreateUser = ({ payload }: { payload: Schema.Schema.Type<type
     // allowed to register its own row during the guided tour.
     if (signer !== payload.address) {
       yield* requireAdmin(signer)
+    }
+    // An admin address must never become a member identity: the same key
+    // would then pass both requireAdmin and requireMember, blurring the
+    // ops/community separation (audit M-10).
+    if (isAdminAddress(payload.address)) {
+      return yield* Effect.fail(new BadRequest({ reason: 'admin addresses cannot be member identities' }))
     }
     // Display names are unique across members — same rule as
     // updateUser. Without it, self-registration could squat another
@@ -127,6 +144,10 @@ export const handleUpdateUser = ({
     const isAdmin = isAdminAddress(signer)
     if (!isAdmin && (payload.address !== undefined || payload.isPro !== undefined)) {
       return yield* Effect.fail(new AuthForbidden({ address: signer }))
+    }
+    // Same admin∩member collision guard as createUser (audit M-10).
+    if (payload.address !== undefined && isAdminAddress(payload.address)) {
+      return yield* Effect.fail(new BadRequest({ reason: 'admin addresses cannot be member identities' }))
     }
     // The daily edit allowance covers identity fields only — the
     // rebalance target is a preference and stays freely editable.
@@ -206,6 +227,11 @@ export const handleAddUserAddress = ({
       if (!payload.signature) return yield* Effect.fail(new BadRequest({ reason: 'missing link consent signature' }))
       if (!verifyAddressSignature(payload.address, linkAddressMessage(path.id, payload.address), payload.signature))
         return yield* Effect.fail(new BadRequest({ reason: 'invalid link consent signature' }))
+    }
+    // Admin keys authenticate ops; they must not double as member aliases
+    // (audit M-10).
+    if (isAdminAddress(payload.address)) {
+      return yield* Effect.fail(new BadRequest({ reason: 'admin addresses cannot be linked to a member' }))
     }
     // A canonical users.address already identifies a member: it can
     // never become an alias (resolution would be ambiguous).

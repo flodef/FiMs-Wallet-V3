@@ -17,6 +17,7 @@ describe('fetchDonationTransaction', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
 
   describe('expected behavior', () => {
@@ -42,9 +43,84 @@ describe('fetchDonationTransaction', () => {
 
       // ASSERT
       expect(result?.payer).toBe(PAYER)
-      expect(result?.deltas).toEqual([{ amount: 1, decimals: 9, mint: 'SOL', rawAmount: 1_000_000_000n }])
+      expect(result?.deltas).toEqual([
+        { amount: 1, decimals: 9, mint: 'SOL', payerSourced: true, rawAmount: 1_000_000_000n },
+      ])
       expect(result?.blockTime).toEqual(new Date(1_700_000_000_000))
       expect(fetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('should flag a delta funded by an unrelated wallet as not payer-sourced', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      vi.mocked(fetch).mockResolvedValueOnce(
+        rpcResponse({
+          blockTime: null,
+          meta: {
+            err: null,
+            postBalances: [5_000_000_000],
+            postTokenBalances: [
+              {
+                accountIndex: 2,
+                mint: MINT,
+                owner: TONTINE,
+                uiTokenAmount: { amount: '1500000', decimals: 6 },
+              },
+            ],
+            preBalances: [5_000_000_000],
+            preTokenBalances: [
+              {
+                accountIndex: 2,
+                mint: MINT,
+                owner: TONTINE,
+                uiTokenAmount: { amount: '500000', decimals: 6 },
+              },
+            ],
+          },
+          transaction: { message: { accountKeys: [PAYER, 'other', 'tontine-ata'] } },
+        }),
+      )
+
+      // ACT
+      const result = await fetchDonationTransaction('sig', TONTINE)
+
+      // ASSERT
+      expect(result?.payer).toBe(PAYER)
+      expect(result?.deltas).toEqual([
+        { amount: 1, decimals: 6, mint: MINT, payerSourced: false, rawAmount: 1_000_000n },
+      ])
+    })
+
+    it('should mark a token delta payer-sourced when a payer-owned account shrank', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      vi.mocked(fetch).mockResolvedValueOnce(
+        rpcResponse({
+          blockTime: null,
+          meta: {
+            err: null,
+            postBalances: [],
+            postTokenBalances: [
+              { accountIndex: 1, mint: MINT, owner: PAYER, uiTokenAmount: { amount: '0', decimals: 6 } },
+              { accountIndex: 2, mint: MINT, owner: TONTINE, uiTokenAmount: { amount: '1500000', decimals: 6 } },
+            ],
+            preBalances: [],
+            preTokenBalances: [
+              { accountIndex: 1, mint: MINT, owner: PAYER, uiTokenAmount: { amount: '1500000', decimals: 6 } },
+              { accountIndex: 2, mint: MINT, owner: TONTINE, uiTokenAmount: { amount: '500000', decimals: 6 } },
+            ],
+          },
+          transaction: { message: { accountKeys: [PAYER, 'payer-ata', 'tontine-ata'] } },
+        }),
+      )
+
+      // ACT
+      const result = await fetchDonationTransaction('sig', TONTINE)
+
+      // ASSERT
+      expect(result?.deltas).toEqual([
+        { amount: 1, decimals: 6, mint: MINT, payerSourced: true, rawAmount: 1_000_000n },
+      ])
     })
 
     it('should sum token balance deltas of accounts owned by the tontine', async () => {
@@ -83,7 +159,61 @@ describe('fetchDonationTransaction', () => {
 
       // ASSERT
       expect(result?.payer).toBe(PAYER)
-      expect(result?.deltas).toEqual([{ amount: 1, decimals: 6, mint: MINT, rawAmount: 1_000_000n }])
+      expect(result?.deltas).toEqual([
+        { amount: 1, decimals: 6, mint: MINT, payerSourced: false, rawAmount: 1_000_000n },
+      ])
+    })
+
+    it('should cross-check a second provider when FIMS_VERIFY_RPC_URL is set', async () => {
+      // ARRANGE
+      expect.assertions(2)
+      vi.stubEnv('FIMS_VERIFY_RPC_URL', 'https://verify.rpc.example')
+      const body = {
+        blockTime: null,
+        meta: {
+          err: null,
+          postBalances: [],
+          postTokenBalances: [
+            { accountIndex: 2, mint: MINT, owner: TONTINE, uiTokenAmount: { amount: '1', decimals: 6 } },
+          ],
+          preBalances: [],
+          preTokenBalances: [],
+        },
+        transaction: { message: { accountKeys: [PAYER, 'other', 'ata'] } },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(rpcResponse(body)).mockResolvedValueOnce(rpcResponse(body))
+
+      // ACT
+      const result = await fetchDonationTransaction('sig', TONTINE)
+
+      // ASSERT
+      expect(fetch).toHaveBeenCalledTimes(2)
+      expect(result?.deltas).toHaveLength(1)
+    })
+
+    it('should throw when the two providers disagree', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      vi.stubEnv('FIMS_VERIFY_RPC_URL', 'https://verify.rpc.example')
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(
+          rpcResponse({
+            meta: {
+              err: null,
+              postBalances: [],
+              postTokenBalances: [
+                { accountIndex: 2, mint: MINT, owner: TONTINE, uiTokenAmount: { amount: '1', decimals: 6 } },
+              ],
+              preBalances: [],
+              preTokenBalances: [],
+            },
+            transaction: { message: { accountKeys: [PAYER] } },
+          }),
+        )
+        .mockResolvedValueOnce(rpcResponse(null))
+
+      // ACT & ASSERT
+      await expect(fetchDonationTransaction('sig', TONTINE)).rejects.toThrow('providers disagree')
     })
 
     it('should ignore token balance movements not owned by the tontine', async () => {
