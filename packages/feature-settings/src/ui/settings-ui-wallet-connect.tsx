@@ -19,7 +19,7 @@ import { useState } from 'react'
 // wallet-standard wallet gets a Connect button. Connected accounts are
 // grouped under a dedicated wallet row and sign through the external
 // wallet — no keys are imported.
-export function SettingsUiWalletConnect() {
+export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => void } = {}) {
   const { t } = useTranslation('settings')
   const wallets = useWalletLive()
   const accounts = useAccountsLive()
@@ -70,6 +70,7 @@ export function SettingsUiWalletConnect() {
         })
       }
       toastSuccess(t(($) => $.walletConnectSuccess))
+      onConnected?.()
     } catch (error) {
       toastError(`${error}`)
     } finally {

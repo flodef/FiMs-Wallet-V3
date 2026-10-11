@@ -45,6 +45,20 @@ export function OnboardingFeatureIndex({ redirectTo }: { redirectTo: string }) {
     }
   }, [firstExternal, activeAccountId, setActiveAccountId])
 
+  // A successful connect goes straight to the app — but only once an
+  // account is active, otherwise the root loader bounces back here.
+  const [pendingNav, setPendingNav] = useState(false)
+  useEffect(() => {
+    if (!pendingNav || !firstExternal) {
+      return
+    }
+    if (!activeAccountId) {
+      setActiveAccountId(firstExternal.id).catch((error) => console.warn('onboarding: activate failed', error))
+      return
+    }
+    void navigate(redirectTo)
+  }, [pendingNav, firstExternal, activeAccountId, setActiveAccountId, navigate, redirectTo])
+
   return (
     <div className="flex flex-col items-center gap-6">
       <div className="flex flex-col items-center space-y-2">
@@ -84,7 +98,7 @@ export function OnboardingFeatureIndex({ redirectTo }: { redirectTo: string }) {
                 {t(($) => $.indexOptionExternalGuide)}
               </p>
               <div className="mt-3">
-                <SettingsUiWalletConnect />
+                <SettingsUiWalletConnect onConnected={() => setPendingNav(true)} />
               </div>
               {externalConnected ? (
                 <Button className="mt-3 w-full" onClick={() => navigate(redirectTo)}>
