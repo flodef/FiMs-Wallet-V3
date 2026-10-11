@@ -75,7 +75,7 @@
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "bundlemon": "3.1.0",
-    "cspell": "10.0.0",
+    "cspell": "10.3.6",
     "drizzle-kit": "catalog:",
     "editorconfig-checker": "7.0.0",
     "lefthook": "2.1.6",
