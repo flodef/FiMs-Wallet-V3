@@ -3,7 +3,7 @@
     "@hookform/resolvers": "catalog:",
     "@solana/kit": "catalog:",
     "@wallet-standard/core": "catalog:",
-    "@wallet-standard/features": "1.1.0",
+    "@wallet-standard/features": "1.1.1",
     "@workspace/context-react": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/db-react": "workspace:*",
