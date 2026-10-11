@@ -16,6 +16,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
+import { UiTextCopyButton } from '@workspace/ui/components/ui-text-copy-button'
 import { UiTextCopyIcon } from '@workspace/ui/components/ui-text-copy-icon'
 import { UiTooltip } from '@workspace/ui/components/ui-tooltip'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
@@ -34,9 +35,19 @@ function providerName(provider: FimsWithdrawalProviderId): string {
   return provider === 'other' ? '' : FIMS_WITHDRAWAL_PROVIDER_LABELS[provider]
 }
 
-// Letter-circle standing in for a brand logo — external image assets would
-// leak the user's off-ramps through load requests anyway.
+const PROVIDER_LOGO_SRC: Record<Exclude<FimsWithdrawalProviderId, 'other'>, string> = {
+  coinbase: '/exchanges/coinbase.svg',
+  jupiter: '/exchanges/jupiter.svg',
+  nexo: '/exchanges/nexo.svg',
+}
+
+// Brand logos are bundled assets — loading them remotely would leak the
+// user's off-ramps through image requests. Custom providers get a letter
+// circle instead.
 function ProviderLogo({ name, provider }: { name: string; provider: FimsWithdrawalProviderId }) {
+  if (provider !== 'other') {
+    return <img alt="" className="size-8 shrink-0" src={PROVIDER_LOGO_SRC[provider]} />
+  }
   return (
     <span
       aria-hidden
@@ -57,7 +68,7 @@ export function SettingsFeatureGeneralWithdrawal() {
   const [provider, setExchangeProvider] = useSetting('withdrawExchangeProvider')
   const [exchangeAddress, setExchangeAddress] = useSetting('withdrawExchangeAddress')
   const [spendAddress, setSpendAddress] = useSetting('withdrawJupiterSpend')
-  const [editing, setEditing] = useState<FimsWithdrawalDestination | 'new' | null>(null)
+  const [editing, setEditing] = useState<FimsWithdrawalDestination | 'new' | 'signup' | null>(null)
   const [showCompare, setShowCompare] = useState(false)
 
   // One-time migration of the legacy single-address settings into the list.
@@ -134,6 +145,9 @@ export function SettingsFeatureGeneralWithdrawal() {
             <Button onClick={() => setEditing('new')} variant="outline">
               <UiIcon icon="add" /> {t(($) => $.pageGeneralWithdrawalAdd)}
             </Button>
+            <Button onClick={() => setEditing('signup')} variant="outline">
+              {t(($) => $.pageGeneralWithdrawalCreate)}
+            </Button>
             <Button onClick={() => setShowCompare((show) => !show)} variant="ghost">
               {t(($) => $.pageGeneralWithdrawalCompareToggle)}
             </Button>
@@ -141,6 +155,8 @@ export function SettingsFeatureGeneralWithdrawal() {
 
           {showCompare ? <SettingsUiWithdrawalCompare /> : null}
         </div>
+      ) : editing === 'signup' ? (
+        <SignupPicker onDone={() => setEditing(null)} />
       ) : (
         <WithdrawalForm
           destination={editing === 'new' ? null : editing}
@@ -148,6 +164,63 @@ export function SettingsFeatureGeneralWithdrawal() {
           upsert={upsert}
         />
       )}
+    </div>
+  )
+}
+
+const SIGNUP_GUIDE_KEYS: Record<
+  Exclude<FimsWithdrawalProviderId, 'other'>,
+  'pageGeneralWithdrawalGuideCoinbase' | 'pageGeneralWithdrawalGuideJupiter' | 'pageGeneralWithdrawalGuideNexo'
+> = {
+  coinbase: 'pageGeneralWithdrawalGuideCoinbase',
+  jupiter: 'pageGeneralWithdrawalGuideJupiter',
+  nexo: 'pageGeneralWithdrawalGuideNexo',
+}
+
+// "Open an account" step: the three known off-ramps, each with the referral
+// link first then the full sign-up walkthrough (KYC included).
+function SignupPicker({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation('settings')
+  return (
+    <div className="space-y-4">
+      <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralWithdrawalCreateHint)}</p>
+      {PROVIDER_CHOICES.map((choice) => {
+        const label = providerName(choice)
+        return (
+          <div className="rounded-lg border px-4 py-3" key={choice}>
+            <div className="flex items-center gap-3">
+              <ProviderLogo name={label} provider={choice} />
+              <span className="flex-1 font-medium text-sm">{label}</span>
+              <a
+                className="text-primary text-sm underline"
+                href={REFERRAL_URLS[choice]}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {t(($) => $.pageGeneralWithdrawalSignup, { provider: label })}
+              </a>
+            </div>
+            <p className="mt-2 whitespace-pre-line text-muted-foreground text-sm">
+              {t(($) => $[SIGNUP_GUIDE_KEYS[choice]])}
+            </p>
+            {choice === 'jupiter' ? (
+              <div className="mt-2 flex items-center gap-2">
+                <UiTextCopyButton
+                  label={FIMS_JUPITER_SPEND_REFERRAL_CODE}
+                  size="sm"
+                  text={FIMS_JUPITER_SPEND_REFERRAL_CODE}
+                  toast={t(($) => $.pageGeneralWithdrawalSpendReferralCopied)}
+                />
+              </div>
+            ) : null}
+          </div>
+        )
+      })}
+      <div className="flex justify-end">
+        <Button onClick={onDone} variant="ghost">
+          {t(($) => $.actionBack)}
+        </Button>
+      </div>
     </div>
   )
 }
