@@ -18,7 +18,7 @@
         "drizzle-kit": "catalog:",
         "editorconfig-checker": "7.0.0",
         "lefthook": "2.1.6",
-        "pkg-pr-new": "0.0.71",
+        "pkg-pr-new": "0.0.90",
         "playwright": "catalog:",
         "syncpack": "15.1.2",
         "turbo": "2.9.12",
@@ -3134,7 +3134,7 @@
 
     "pino-std-serializers": ["pino-std-serializers@7.1.0", "", {}, "sha512-BndPH67/JxGExRgiX1dX0w1FvZck5Wa4aal9198SrRhZjH3GxKQUKIBnYJTdj2HDN3UQAS06HlfcSbQj2OHmaw=="],
 
-    "pkg-pr-new": ["pkg-pr-new@0.0.71", "", { "bin": { "pkg-pr-new": "bin/cli.js" } }, "sha512-Ln7I7NaOXN6CjBLVrNqsWOo6mIaNW4chH4eCR2t4tnQSmYtyQiWCqlMG6bL2JYCT1MOiKEiDObnnzePGh0TNFQ=="],
+    "pkg-pr-new": ["pkg-pr-new@0.0.90", "", { "bin": { "pkg-pr-new": "bin/cli.js" } }, "sha512-koirj8hzOS1t86OHIunQL/ezeimuCegmtcoNJTGqaFbjWSUbM5U+uKfFqu5Q2kxC/odCAZknaf2tFmfLsbchiw=="],
 
     "pkg-types": ["pkg-types@2.3.3", "", { "dependencies": { "confbox": "^0.3.1", "exsolve": "^1.1.1", "pathe": "^2.0.3" } }, "sha512-j/lCFdcppV0JxWpCEITdbDltBxPP6cHT+yNJ6Go2OgoSA9518X847X9z0p6LtA4Nc16+eQzCZjRrWanTGvHJ5w=="],
 
