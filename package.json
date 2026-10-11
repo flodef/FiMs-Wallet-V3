@@ -70,7 +70,7 @@
     "@commitlint/cli": "21.0.0",
     "@commitlint/config-conventional": "21.0.0",
     "@commitlint/types": "21.0.0",
-    "@cspell/dict-es-es": "3.0.8",
+    "@cspell/dict-es-es": "3.0.9",
     "@cspell/dict-fr-fr": "2.3.2",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
