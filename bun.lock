@@ -9,7 +9,7 @@
         "@commitlint/cli": "21.0.0",
         "@commitlint/config-conventional": "21.0.0",
         "@commitlint/types": "21.0.0",
-        "@cspell/dict-es-es": "3.0.8",
+        "@cspell/dict-es-es": "3.0.9",
         "@cspell/dict-fr-fr": "2.3.2",
         "@types/bun": "catalog:",
         "@types/node": "catalog:",
@@ -1078,7 +1078,7 @@
 
     "@cspell/dict-en_us": ["@cspell/dict-en_us@4.4.33", "", {}, "sha512-zWftVqfUStDA37wO1ZNDN1qMJOfcxELa8ucHW8W8wBAZY3TK5Nb6deLogCK/IJi/Qljf30dwwuqqv84Qqle9Tw=="],
 
-    "@cspell/dict-es-es": ["@cspell/dict-es-es@3.0.8", "", {}, "sha512-tj4zYKYWtAFc+JWtJo0DxLAve7I0UJM5+6we3hvLyzQlhGCBF41cTihPa/cbLHUkTD6PkrVGf1hgOKuSR9hkMQ=="],
+    "@cspell/dict-es-es": ["@cspell/dict-es-es@3.0.9", "", {}, "sha512-OQG7g1th8Py73CKTLyJPeJKzwZXmlIvYA5wyoIGpWYsmDKR+cT3Mx0kCGjC3dnk5OO58WqjF5BZlRr3gqMRGjg=="],
 
     "@cspell/dict-filetypes": ["@cspell/dict-filetypes@3.0.18", "", {}, "sha512-yU7RKD/x1IWmDLzWeiItMwgV+6bUcU/af23uS0+uGiFUbsY1qWV/D4rxlAAO6Z7no3J2z8aZOkYIOvUrJq0Rcw=="],
 
