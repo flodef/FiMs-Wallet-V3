@@ -5,7 +5,7 @@
   "accountPublicKeyCopySuccess": "Clé publique copiée",
   "actionsSidebarHide": "Masquer la barre latérale",
   "actionsSidebarShow": "Afficher la barre latérale",
-  "betaWarningBody": "Ce code n'est ni audité ni maintenu. N'y déposez pas de fonds que vous ne pouvez pas vous permettre de perdre.",
+  "betaWarningBody": "Cette app est encore en cours de développement. N'y déposez pas de fonds que vous ne pouvez pas vous permettre de perdre. Utilisez un wallet externe pour vous connecter (Solflare, Jupiter, etc.)",
   "betaWarningTitle": "Logiciel expérimental — bêta",
   "commandEmpty": "Aucun résultat.",
   "commandInputPlaceholder": "Tapez une commande ou recherchez...",

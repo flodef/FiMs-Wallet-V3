@@ -5,7 +5,7 @@
   "accountPublicKeyCopySuccess": "Clave pública copiada",
   "actionsSidebarHide": "Cerrar barra lateral",
   "actionsSidebarShow": "Abrir barra lateral",
-  "betaWarningBody": "Este código no está auditado ni tiene soporte. No lo uses con fondos que no puedas permitirte perder.",
+  "betaWarningBody": "Esta app aún está en desarrollo. No deposites fondos que no puedas permitirte perder. Usa un monedero externo para conectarte (Solflare, Jupiter, etc.)",
   "betaWarningTitle": "Software experimental — beta",
   "commandEmpty": "Ningún resultado encontrado.",
   "commandInputPlaceholder": "Escriba un comando o busque...",

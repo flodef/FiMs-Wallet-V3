@@ -924,7 +924,7 @@ export default interface Resources {
     accountPublicKeyCopySuccess: 'Copied public key'
     actionsSidebarHide: 'Hide sidebar'
     actionsSidebarShow: 'Show sidebar'
-    betaWarningBody: 'This code is unaudited and unsupported. Do not use it with funds you cannot afford to lose.'
+    betaWarningBody: 'This app is still under development. Do not deposit funds you cannot afford to lose. Use an external wallet to connect (Solflare, Jupiter, etc.)'
     betaWarningTitle: 'Experimental software — beta'
     commandEmpty: 'No results found.'
     commandInputPlaceholder: 'Type a command or search...'

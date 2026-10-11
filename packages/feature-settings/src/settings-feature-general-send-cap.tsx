@@ -57,6 +57,7 @@ export function SettingsFeatureGeneralSendCap() {
         <UiTooltip>{t(($) => $.pageGeneralSendCapHint)}</UiTooltip>
       </Label>
       <Input
+        className="w-28"
         id={sendCapId}
         inputMode="decimal"
         min="0"
