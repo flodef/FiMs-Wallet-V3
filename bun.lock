@@ -118,7 +118,7 @@
         "@solana/kit": "catalog:",
         "@solana/wallet-standard-chains": "catalog:",
         "@solana/wallet-standard-features": "catalog:",
-        "@solana/wallet-standard-util": "1.1.4",
+        "@solana/wallet-standard-util": "1.2.0",
         "@wallet-standard/core": "catalog:",
         "@webext-core/messaging": "2.3.0",
         "@webext-core/proxy-service": "2.0.0",
@@ -1862,7 +1862,7 @@
 
     "@solana/wallet-standard-features": ["@solana/wallet-standard-features@1.5.0", "", { "dependencies": { "@wallet-standard/base": "^1.1.0", "@wallet-standard/features": "^1.1.0" } }, "sha512-gxlLaEfPAqbhd3LNkK0Ks2pbVvDm1SDGqBK/ynDQy13Gu+qiURLpRCfSPjbtrw5bmqQsZ6rS2YJHL31bY/Koag=="],
 
-    "@solana/wallet-standard-util": ["@solana/wallet-standard-util@1.1.4", "", { "dependencies": { "@noble/curves": "^1.8.2", "@solana/wallet-standard-chains": "^1.1.2", "@solana/wallet-standard-features": "^1.5.0" } }, "sha512-vkXUXmpYAFYK3xlaAM3dYbCOtsZLeJxq4Ygxl3rfh3z0cUsxpkONkmwCNop05HdES9+IOzofZlMXF40J00LNRg=="],
+    "@solana/wallet-standard-util": ["@solana/wallet-standard-util@1.2.0", "", { "dependencies": { "@noble/curves": "^1.8.2", "@solana/addresses": "^8.4.0", "@solana/wallet-standard-chains": "^1.1.2", "@solana/wallet-standard-features": "^1.5.0" } }, "sha512-LDtWnOZ+ELaRT5woO/5xP0XI6lUvg0BqFdG8+BlWNMlaJJfhJFUVnQyKWt0LHw23GuWHj5983Vp30iue/JJS9w=="],
 
     "@solana/web3.js": ["@solana/web3.js@1.99.0", "", { "dependencies": { "@babel/runtime": "^7.29.7", "@noble/curves": "^1.9.7", "@noble/hashes": "^1.8.0", "@solana/buffer-layout": "^4.0.1", "@solana/codecs-numbers": "^5.5.1", "agentkeepalive": "^4.6.0", "bn.js": "^5.2.5", "borsh": "^0.7.0", "bs58": "^4.0.1", "buffer": "6.0.3", "fast-stable-stringify": "^1.0.0", "jayson": "^4.3.0", "node-fetch": "^2.7.0", "rpc-websockets": "^9.0.2", "superstruct": "^2.0.2" } }, "sha512-QZYQ2T1z6xWisoyALPq25i/QZTsRlM02BABtAsfaQ1p8wX4SdTfxrKTRue/ZZqrhNVh5oL7T/DUFiTS9DRgxow=="],
 
