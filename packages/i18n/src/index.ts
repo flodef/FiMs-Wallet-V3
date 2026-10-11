@@ -88,5 +88,6 @@ i18n.use(initReactI18next).init({
 })
 
 export { useTranslation } from 'react-i18next'
+export { LANGUAGE_AUTO, resolveLanguage } from './resolve-language.ts'
 export { useSupportedLanguages } from './use-supported-languages.ts'
 export { i18n }

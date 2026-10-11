@@ -5,6 +5,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
+import { UiTooltip } from '@workspace/ui/components/ui-tooltip'
 import { UiWarning } from '@workspace/ui/components/ui-warning'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { decryptWithPassword, decryptWithVaultKey, encryptWithVaultKey } from '@workspace/vault/encrypted-value'
@@ -79,8 +80,10 @@ function PasswordSection({
 
   return (
     <div className="space-y-2">
-      <div className="font-medium text-sm">{t(($) => $.pageGeneralSecurityPassword)}</div>
-      <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralSecurityPasswordHint)}</p>
+      <div className="inline-flex items-center gap-1 font-medium text-sm">
+        {t(($) => $.pageGeneralSecurityPassword)}
+        <UiTooltip>{t(($) => $.pageGeneralSecurityPasswordHint)}</UiTooltip>
+      </div>
       {weak ? <UiWarning>{t(($) => $.pageGeneralSecurityPasswordWeak)}</UiWarning> : null}
       <div className="space-y-2">
         <Label htmlFor={currentId}>{t(($) => $.pageGeneralSecurityPasswordCurrent)}</Label>
@@ -192,8 +195,10 @@ function PasskeySection({
 
   return (
     <div className="space-y-2">
-      <div className="font-medium text-sm">{t(($) => $.pageGeneralSecurityPasskey)}</div>
-      <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralSecurityPasskeyHint)}</p>
+      <div className="inline-flex items-center gap-1 font-medium text-sm">
+        {t(($) => $.pageGeneralSecurityPasskey)}
+        <UiTooltip>{t(($) => $.pageGeneralSecurityPasskeyHint)}</UiTooltip>
+      </div>
       {enabled ? (
         <Button disabled={busy} onClick={() => void handleDisable()} variant="destructive">
           {busy ? <UiLoader className="size-4" /> : null}
@@ -293,8 +298,10 @@ function TotpSection({
 
   return (
     <div className="space-y-2">
-      <div className="font-medium text-sm">{t(($) => $.pageGeneralSecurityTotp)}</div>
-      <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralSecurityTotpHint)}</p>
+      <div className="inline-flex items-center gap-1 font-medium text-sm">
+        {t(($) => $.pageGeneralSecurityTotp)}
+        <UiTooltip>{t(($) => $.pageGeneralSecurityTotpHint)}</UiTooltip>
+      </div>
       {pendingSecret ? (
         <div className="space-y-2">
           <p className="break-all rounded-md border bg-muted p-2 font-mono text-sm">{pendingSecret}</p>

@@ -1,7 +1,6 @@
 import type { Address } from '@solana/kit'
 import type { Network } from '@workspace/db/network/network'
 import { solanaAddressSchema } from '@workspace/db/solana/solana-address-schema'
-import { useSetting } from '@workspace/db-react/use-setting'
 import { usePortfolioTokenMint } from '@workspace/feature-portfolio/data-access/use-portfolio-token-mint'
 import { PortfolioUiModal } from '@workspace/feature-portfolio/ui/portfolio-ui-modal'
 import {
@@ -19,6 +18,7 @@ import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { cn } from '@workspace/ui/lib/utils'
 import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
+import { useWithdrawalDestinations } from './data-access/use-withdrawal-destinations.tsx'
 import {
   FIMS_COINBASE_REFERRAL_URL,
   FIMS_JUPITER_SPEND_REFERRAL_CODE,
@@ -164,9 +164,7 @@ function ExchangeGuide({
 }) {
   const { t } = useTranslation('fims')
   const client = useSolanaClient({ network })
-  const [, setExchangeProvider] = useSetting('withdrawExchangeProvider')
-  const [, setExchangeAddress] = useSetting('withdrawExchangeAddress')
-  const [, setSpendAddress] = useSetting('withdrawJupiterSpend')
+  const { upsert } = useWithdrawalDestinations()
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
@@ -188,12 +186,12 @@ function ExchangeGuide({
       }
       // Remember the configured off-ramp so the destination stays listed and
       // the auto-convert path knows which mints the service accepts.
-      if (option.id === 'jupiter') {
-        await setSpendAddress(trimmed)
-      } else {
-        await setExchangeProvider(option.id)
-        await setExchangeAddress(trimmed)
-      }
+      await upsert({
+        address: trimmed,
+        id: crypto.randomUUID(),
+        name: providerLabel,
+        provider: option.id,
+      })
       await onSubmit(trimmed)
     } catch {
       setError(t(($) => $.sendDestCheckFailed))

@@ -40,7 +40,7 @@ describe('reset', () => {
         accounts: 0,
         bookmarkAccounts: 0,
         bookmarkTransactions: 0,
-        networks: 3,
+        networks: 4,
         settings: 2,
         wallets: 0,
       })
@@ -66,7 +66,7 @@ describe('reset', () => {
       const result2 = await ctx.db.settings.count()
 
       // ASSERT
-      expect(result1).toBe(3)
+      expect(result1).toBe(4)
       expect(result2).toBe(2)
     })
   })

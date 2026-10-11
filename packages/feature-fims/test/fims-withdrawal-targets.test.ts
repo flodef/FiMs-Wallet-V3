@@ -4,6 +4,8 @@ import {
   FIMS_KNOWN_MINTS,
   FIMS_MINT_DECIMALS,
   FIMS_WITHDRAWAL_PROVIDERS,
+  type FimsWithdrawalProviderId,
+  fimsWithdrawalAcceptedSymbols,
 } from '../src/fims-constants.ts'
 
 describe('fims withdrawal targets', () => {
@@ -51,6 +53,24 @@ describe('fims withdrawal targets', () => {
       expect(FIMS_WITHDRAWAL_PROVIDERS.coinbase.acceptedSymbols.slice(0, 2)).toEqual(['EURC', 'USDC'])
       expect(FIMS_JUPITER_SPEND_SYMBOLS[0]).toBe('USDC')
       expect(FIMS_JUPITER_SPEND_SYMBOLS).not.toContain('SOL')
+    })
+
+    it('should resolve a pinned mint for every saved-destination provider', () => {
+      // ARRANGE
+      const providers: FimsWithdrawalProviderId[] = ['coinbase', 'jupiter', 'nexo', 'other']
+      expect.assertions(providers.length * 2)
+
+      for (const provider of providers) {
+        // ACT
+        const result = fimsWithdrawalAcceptedSymbols(provider)
+
+        // ASSERT
+        expect(result.length, `no accepted symbols for ${provider}`).toBeGreaterThan(0)
+        expect(
+          result.every((symbol) => FIMS_KNOWN_MINTS[symbol] !== undefined),
+          `unpinned mint for ${provider}`,
+        ).toBe(true)
+      }
     })
   })
 })

@@ -1,6 +1,6 @@
 import type { AppContext } from '@workspace/context/app-context'
 import { rootLoader } from '@workspace/db-react/root-loader'
-import { i18n } from '@workspace/i18n'
+import { i18n, resolveLanguage } from '@workspace/i18n'
 import { type LoaderFunctionArgs, redirect } from 'react-router'
 import { redirectToOnboarding } from './redirect-to-onboarding.tsx'
 
@@ -23,8 +23,8 @@ export function rootRouteLoader(ctx: AppContext) {
     const theme = settings.find((s) => s.key === 'theme')?.value ?? 'dark'
     document.documentElement.classList.toggle('dark', theme === 'dark')
 
-    const language = settings.find((s) => s.key === 'language')?.value ?? 'en'
-    await i18n.changeLanguage(language)
+    const language = settings.find((s) => s.key === 'language')?.value
+    await i18n.changeLanguage(resolveLanguage(language))
 
     return result
   }

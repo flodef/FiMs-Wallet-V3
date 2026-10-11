@@ -29,8 +29,10 @@ export function SettingsFeatureGeneral() {
         description={page.description}
         title={page.name}
       >
-        <SettingsFeatureGeneralLanguage />
-        <SettingsFeatureGeneralTheme />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SettingsFeatureGeneralLanguage />
+          <SettingsFeatureGeneralTheme />
+        </div>
         <SettingsFeatureGeneralWallpaper />
         <SettingsFeatureGeneralSendCap />
         <SettingsFeatureGeneralWithdrawal />

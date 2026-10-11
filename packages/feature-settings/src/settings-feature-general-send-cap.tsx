@@ -4,6 +4,7 @@ import { useWalletFindUnique } from '@workspace/db-react/use-wallet-find-unique'
 import { useTranslation } from '@workspace/i18n'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
+import { UiTooltip } from '@workspace/ui/components/ui-tooltip'
 import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
 import { useEffect, useId, useRef, useState } from 'react'
 
@@ -51,7 +52,10 @@ export function SettingsFeatureGeneralSendCap() {
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={sendCapId}>{t(($) => $.pageGeneralSendCap)}</Label>
+      <Label className="inline-flex items-center gap-1" htmlFor={sendCapId}>
+        {t(($) => $.pageGeneralSendCap)}
+        <UiTooltip>{t(($) => $.pageGeneralSendCapHint)}</UiTooltip>
+      </Label>
       <Input
         id={sendCapId}
         inputMode="decimal"
@@ -61,7 +65,6 @@ export function SettingsFeatureGeneralSendCap() {
         type="number"
         value={input}
       />
-      <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralSendCapHint)}</p>
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { setEnv } from '@workspace/env/env'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { populateNetworks } from '../src/populate-networks.ts'
 
@@ -35,6 +36,13 @@ describe('populate-networks', () => {
           type: 'solana:localnet',
         },
         {
+          endpoint: 'https://api.mainnet-beta.solana.com',
+          endpointSubscriptions: 'wss://api.mainnet-beta.solana.com',
+          id: 'networkMainnet',
+          name: 'Mainnet',
+          type: 'solana:mainnet',
+        },
+        {
           endpoint: 'https://api.testnet.solana.com',
           endpointSubscriptions: '',
           id: 'networkTestnet',
@@ -55,17 +63,20 @@ describe('populate-networks', () => {
 
     afterEach(() => {
       vi.restoreAllMocks()
+      setEnv()
     })
 
     it('should not include networks without configured endpoints', () => {
       // ARRANGE
       expect.assertions(1)
+      // Blanking an endpoint removes that network from the populated set.
+      setEnv({ networkTestnet: '' })
 
       // ACT
       const result = populateNetworks()
 
       // ASSERT
-      expect(result.map((network) => network.id)).not.toContain('networkMainnet')
+      expect(result.map((network) => network.id)).not.toContain('networkTestnet')
     })
   })
 })

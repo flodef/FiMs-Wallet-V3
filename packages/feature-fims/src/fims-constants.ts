@@ -56,6 +56,47 @@ export type FimsExchangeProvider = keyof typeof FIMS_WITHDRAWAL_PROVIDERS
 
 export const FIMS_JUPITER_SPEND_SYMBOLS = ['USDC', 'USDT'] as const
 
+// Saved withdrawal destinations ('Autre' = a plain Solana address the user
+// names themselves). The accepted mints drive the auto-convert-on-send path;
+// 'other' gets the broad set since nothing is known about the service.
+export type FimsWithdrawalProviderId = 'coinbase' | 'jupiter' | 'nexo' | 'other'
+
+export interface FimsWithdrawalDestination {
+  address: string
+  id: string
+  name: string
+  provider: FimsWithdrawalProviderId
+}
+
+export const FIMS_WITHDRAWAL_OTHER_SYMBOLS = ['SOL', 'USDC', 'EURC', 'USDT'] as const
+
+export function fimsWithdrawalAcceptedSymbols(provider: FimsWithdrawalProviderId): readonly string[] {
+  switch (provider) {
+    case 'coinbase':
+      return FIMS_WITHDRAWAL_PROVIDERS.coinbase.acceptedSymbols
+    case 'jupiter':
+      return FIMS_JUPITER_SPEND_SYMBOLS
+    case 'nexo':
+      return FIMS_WITHDRAWAL_PROVIDERS.nexo.acceptedSymbols
+    case 'other':
+      return FIMS_WITHDRAWAL_OTHER_SYMBOLS
+  }
+}
+
+export const FIMS_WITHDRAWAL_PROVIDER_LABELS: Record<Exclude<FimsWithdrawalProviderId, 'other'>, string> = {
+  coinbase: 'Coinbase',
+  jupiter: 'Jupiter Spend',
+  nexo: 'Nexo',
+}
+
+// Brand-ish background colors for the letter-circle logos.
+export const FIMS_WITHDRAWAL_PROVIDER_COLORS: Record<FimsWithdrawalProviderId, string> = {
+  coinbase: '#0052FF',
+  jupiter: '#00B67A',
+  nexo: '#2853C3',
+  other: '#6B7280',
+}
+
 // FiMs referral for Jupiter Spend signup: the go.link sometimes fails to
 // prefill the "Got a referral code?" box, so the code is always shown next
 // to the link for manual entry.

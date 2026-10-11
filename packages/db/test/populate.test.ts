@@ -21,7 +21,12 @@ describe('populate', () => {
       const result2 = await ctx.db.settings.orderBy('key').toArray()
 
       // ASSERT
-      expect(result1.map((network) => network.id)).toEqual(['networkDevnet', 'networkLocalnet', 'networkTestnet'])
+      expect(result1.map((network) => network.id)).toEqual([
+        'networkDevnet',
+        'networkLocalnet',
+        'networkMainnet',
+        'networkTestnet',
+      ])
       expect(result2.map((setting) => [setting.key, setting.value])).toEqual([
         ['activeNetworkId', env('activeNetworkId')],
         ['apiEndpoint', env('apiEndpoint')],

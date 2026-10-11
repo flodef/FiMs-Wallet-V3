@@ -5,6 +5,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
+import { UiTooltip } from '@workspace/ui/components/ui-tooltip'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { useId, useRef, useState } from 'react'
 
@@ -67,8 +68,10 @@ export function SettingsFeatureGeneralWallpaper() {
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={fileId}>{t(($) => $.pageGeneralWallpaper)}</Label>
-      <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralWallpaperHint)}</p>
+      <Label className="inline-flex items-center gap-1" htmlFor={fileId}>
+        {t(($) => $.pageGeneralWallpaper)}
+        <UiTooltip>{t(($) => $.pageGeneralWallpaperHint)}</UiTooltip>
+      </Label>
       {wallpaper ? (
         <div className="space-y-2">
           <img

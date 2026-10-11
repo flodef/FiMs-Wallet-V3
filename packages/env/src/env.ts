@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const envSchema = z.object({
   activeNetworkId: z
     .enum(['networkDevnet', 'networkLocalnet', 'networkMainnet', 'networkTestnet'])
-    .default('networkDevnet'),
+    .default('networkMainnet'),
   adminAddresses: z.string().default('CCLcWAJX6fubUqGyZWz8dyUGEddRj8h4XZZCNSDzMVx4'),
   // VITE_ALLOW_UNSECURED_WALLETS — dev/test escape hatch: the cleartext
   // storage protection mode must never be offered in production builds.
@@ -16,8 +16,8 @@ export const envSchema = z.object({
   networkDevnetSubscriptions: z.url().or(z.literal('')).default(''),
   networkLocalnet: z.url().or(z.literal('')).default('http://localhost:8899'),
   networkLocalnetSubscriptions: z.url().or(z.literal('')).default('ws://127.0.0.1:8900'),
-  networkMainnet: z.url().or(z.literal('')).default(''),
-  networkMainnetSubscriptions: z.url().or(z.literal('')).default(''),
+  networkMainnet: z.url().or(z.literal('')).default('https://api.mainnet-beta.solana.com'),
+  networkMainnetSubscriptions: z.url().or(z.literal('')).default('wss://api.mainnet-beta.solana.com'),
   networkTestnet: z.url().or(z.literal('')).default('https://api.testnet.solana.com'),
   networkTestnetSubscriptions: z.url().or(z.literal('')).default(''),
 })

@@ -15,7 +15,7 @@ const SERVER_HELPERS = readFileSync(join(import.meta.dirname, 'routes/fims/helpe
 // Fragments contain real newlines in the built message but `\n` escapes in
 // source template literals — compare in the escaped form.
 const escaped = (text: string) => text.replace(/\n/g, '\\n')
-const interpolate = (name: string) => '${' + name + '}'
+const interpolate = (name: string) => `\${${name}}`
 
 describe('fims-messages', () => {
   describe('expected behavior', () => {
@@ -67,9 +67,9 @@ describe('fims-messages', () => {
       expect.assertions(2)
 
       // ACT & ASSERT
-      const linkShape = 'fims-wallet-v3\\nlink-address\\n' + interpolate('userId') + '\\n' + interpolate('address')
+      const linkShape = `fims-wallet-v3\\nlink-address\\n${interpolate('userId')}\\n${interpolate('address')}`
       expect(CLIENT_API).toContain(linkShape)
-      expect(SERVER_AUTH + SERVER_HELPERS).toContain(linkShape)
+      expect(`${SERVER_AUTH}${SERVER_HELPERS}`).toContain(linkShape)
     })
   })
 })

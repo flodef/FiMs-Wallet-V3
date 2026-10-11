@@ -9,6 +9,9 @@ const surfpool = await new SurfpoolContainer()
 
 const env = {
   ...process.env,
+  // Mainnet is the default active network — the e2e suite must stay on the
+  // surfpool localnet it starts itself.
+  VITE_ACTIVE_NETWORK_ID: 'networkLocalnet',
   // The tools routes sit behind AdminOnlyRoute — the e2e test wallet
   // (the fixture seed phrase) must be on the admin allowlist.
   VITE_ADMIN_ADDRESSES: '5F86TNSTre3CYwZd1wELsGQGhqG2HkN3d8zxhbyBSnzm',

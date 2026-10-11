@@ -1,5 +1,5 @@
 import { useSetting } from '@workspace/db-react/use-setting'
-import { i18n, useSupportedLanguages, useTranslation } from '@workspace/i18n'
+import { i18n, resolveLanguage, useSupportedLanguages, useTranslation } from '@workspace/i18n'
 import type { ShellCommandGroup } from './use-shell-command-groups.tsx'
 
 export function useShellCommandGroupLanguage(): ShellCommandGroup {
@@ -9,7 +9,7 @@ export function useShellCommandGroupLanguage(): ShellCommandGroup {
 
   async function handleLanguageChange(newLanguage: string) {
     await setLanguage(newLanguage)
-    await i18n.changeLanguage(newLanguage)
+    await i18n.changeLanguage(resolveLanguage(newLanguage))
   }
 
   return {
