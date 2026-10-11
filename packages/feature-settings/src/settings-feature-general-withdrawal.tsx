@@ -168,19 +168,17 @@ export function SettingsFeatureGeneralWithdrawal() {
   )
 }
 
-const SIGNUP_GUIDE_KEYS: Record<
-  Exclude<FimsWithdrawalProviderId, 'other'>,
-  'pageGeneralWithdrawalGuideCoinbase' | 'pageGeneralWithdrawalGuideJupiter' | 'pageGeneralWithdrawalGuideNexo'
-> = {
-  coinbase: 'pageGeneralWithdrawalGuideCoinbase',
-  jupiter: 'pageGeneralWithdrawalGuideJupiter',
-  nexo: 'pageGeneralWithdrawalGuideNexo',
-}
-
 // "Open an account" step: the three known off-ramps, each with the referral
 // link first then the full sign-up walkthrough (KYC included).
+// Guides are resolved with static key references — i18next-cli extract drops
+// keys only reached through dynamic lookups.
 function SignupPicker({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation('settings')
+  const guides: Record<Exclude<FimsWithdrawalProviderId, 'other'>, string> = {
+    coinbase: t(($) => $.pageGeneralWithdrawalGuideCoinbase),
+    jupiter: t(($) => $.pageGeneralWithdrawalGuideJupiter),
+    nexo: t(($) => $.pageGeneralWithdrawalGuideNexo),
+  }
   return (
     <div className="space-y-4">
       <p className="text-muted-foreground text-sm">{t(($) => $.pageGeneralWithdrawalCreateHint)}</p>
@@ -200,9 +198,7 @@ function SignupPicker({ onDone }: { onDone: () => void }) {
                 {t(($) => $.pageGeneralWithdrawalSignup, { provider: label })}
               </a>
             </div>
-            <p className="mt-2 whitespace-pre-line text-muted-foreground text-sm">
-              {t(($) => $[SIGNUP_GUIDE_KEYS[choice]])}
-            </p>
+            <p className="mt-2 whitespace-pre-line text-muted-foreground text-sm">{guides[choice]}</p>
             {choice === 'jupiter' ? (
               <div className="mt-2 flex items-center gap-2">
                 <UiTextCopyButton
