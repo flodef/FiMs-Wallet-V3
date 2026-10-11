@@ -90,7 +90,6 @@ export function SettingsUiWalletConnect() {
           </ItemMedia>
           <ItemContent>
             <ItemTitle>{wallet.name}</ItemTitle>
-            <ItemDescription>{t(($) => $.walletConnectItemDescription)}</ItemDescription>
           </ItemContent>
           <ItemActions>
             <Button

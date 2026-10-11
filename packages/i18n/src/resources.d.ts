@@ -502,9 +502,9 @@ export default interface Resources {
     indexOptionExternalConnected: 'Wallet connected — continue'
     indexOptionExternalGuide: 'Your keys stay in the wallet extension — every transaction is signed there, FiMs never sees your keys.\n\nThe safest choice if you already use a Solana wallet.'
     indexOptionExternalTitle: 'External wallet (Solflare, Jupiter…)'
-    indexOptionImportAction: 'Import my 12 words'
+    indexOptionImportAction: 'Import my recovery phrase'
     indexOptionImportGuide: 'Your keys are stored encrypted locally in this browser — FiMs then signs your transactions directly after your password.\n\nOnly import on a trusted device: the words you enter never leave this device.'
-    indexOptionImportTitle: 'Import into FiMs (12 words)'
+    indexOptionImportTitle: 'Import into FiMs (12 or 24 words)'
     indexOptionNewAction: 'Create my wallet'
     indexOptionNewGuide: 'FiMs will generate a 12-word recovery phrase — the MASTER key to your wallet.\n\n• Write it down on PAPER, stored somewhere safe — never on a cloud, a phone note or a screenshot.\n• Never share it: anyone who knows it owns your funds.\n• The FiMs team will NEVER ask for it.\n• Lost phrase = lost funds. Stolen phrase = stolen funds.'
     indexOptionNewTitle: "I'm new to crypto"

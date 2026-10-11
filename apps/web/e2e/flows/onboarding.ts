@@ -15,7 +15,7 @@ async function fillImportMnemonic(page: Page) {
 // have a wallet' opens a card whose inner action navigates to the import form.
 async function navigateToImport(page: Page) {
   await page.getByRole('button', { name: 'I already have a wallet' }).click()
-  await page.getByRole('button', { name: 'Import my 12 words' }).click()
+  await page.getByRole('button', { name: 'Import my recovery phrase' }).click()
 }
 
 export async function importExistingWallet(page: Page) {
