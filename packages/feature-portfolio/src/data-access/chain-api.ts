@@ -1,5 +1,6 @@
 import { getBase64Decoder, type MessagePartialSigner } from '@solana/kit'
 import { env } from '@workspace/env/env'
+import { sameBytes, signContentBytes } from '@workspace/solana-client/sign-content'
 
 // Client for the API's /fims/chain/* proxy — Helius never sees the app and the
 // app never sees the Helius key. Types mirror the Effect schemas in
@@ -99,16 +100,18 @@ async function chainSignedGet<T>(
   const query = canonicalizeQuery(url.searchParams)
   const resource = query ? `/fims${path}?${query}` : `/fims${path}`
   const content = new TextEncoder().encode(`fims-wallet-v3\n${host}\nGET\n${resource}\n${ts}\n${bodyHash}`)
-  const [signatures] = await signer.signMessages([{ content, signatures: {} }])
-  const signature = signatures?.[signer.address]
-  if (!signature) {
-    throw new ChainApiError(401, 'wallet did not sign the request')
-  }
-  return chainFetch<T>(url, {
+  const { signature, signedMessage } = await signContentBytes(signer, content)
+  const headers: Record<string, string> = {
     'x-fims-address': signer.address,
     'x-fims-sig': getBase64Decoder().decode(signature),
     'x-fims-ts': String(ts),
-  })
+  }
+  // Wallet-standard signMessage may sign a prefixed copy — forward the bytes
+  // it actually signed so the server verifies against them.
+  if (!sameBytes(signedMessage, content)) {
+    headers['x-fims-msg'] = getBase64Decoder().decode(signedMessage)
+  }
+  return chainFetch<T>(url, headers)
 }
 
 export interface ChainHistoryPage {

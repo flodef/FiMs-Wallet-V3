@@ -256,6 +256,9 @@ export const UpdateUserBody = Schema.Struct({
 export const LinkUserAddressBody = Schema.Struct({
   address: SolanaAddress,
   signature: Schema.optional(Schema.String),
+  // Exact bytes the wallet signed — wallets may modify the consent message
+  // (see CreateSessionBody.signedMessage).
+  signedMessage: Schema.optional(Schema.String),
 })
 
 // Exact-decimal unit amounts travel as number or numeric string — a
@@ -390,11 +393,14 @@ export const WrappedTxBody = Schema.Struct({
 
 // SIWS sign-in: the server rebuilds the canonical message from these fields
 // and verifies `signature` over it — the message text is never client-trusted.
+// `signedMessage` carries the exact bytes the wallet signed when it modified
+// them (wallet-standard signMessage may prepend its own preamble).
 export const CreateSessionBody = Schema.Struct({
   address: SolanaAddress,
   issuedAt: Schema.String,
   nonce: Schema.String.pipe(Schema.minLength(16), Schema.maxLength(64)),
   signature: Schema.String,
+  signedMessage: Schema.optional(Schema.String),
 })
 
 export class Session extends Schema.Class<Session>('Session')({

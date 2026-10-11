@@ -97,11 +97,13 @@ async function signedRequest({
   body = '',
   method = 'GET',
   signedResource,
+  signedPrefix = '',
   ts = Date.now(),
   url,
 }: {
   body?: string
   method?: string
+  signedPrefix?: string
   signedResource?: string
   ts?: number
   url: string
@@ -110,12 +112,17 @@ async function signedRequest({
   const query = canonicalizeQuery(parsed.searchParams)
   const resource = signedResource ?? (query ? `${parsed.pathname}?${query}` : parsed.pathname)
   const message = `fims-wallet-v3\n${HOST}\n${method}\n${resource}\n${ts}\n${await sha256Hex(body)}`
-  const signature = ed25519.sign(new TextEncoder().encode(message), privateKey)
+  // Wallet-standard signMessage may prepend its own preamble — the signature
+  // then covers prefix + canonical, and the wallet's signed bytes travel in
+  // x-fims-msg for the server to verify against.
+  const signed = new TextEncoder().encode(`${signedPrefix}${message}`)
+  const signature = ed25519.sign(signed, privateKey)
   return {
     headers: {
       host: HOST,
       'x-fims-address': address,
       'x-fims-sig': btoa(String.fromCharCode(...signature)),
+      ...(signedPrefix ? { 'x-fims-msg': btoa(String.fromCharCode(...signed)) } : {}),
       'x-fims-ts': String(ts),
     },
     method,
@@ -194,6 +201,23 @@ describe('verify-wallet-request', () => {
       // ARRANGE
       expect.assertions(1)
       const request = await signedRequest({ url: `https://${HOST}/fims/users?offset=0&limit=2000` })
+
+      // ACT
+      const result = await run(verifyWalletRequest(request))
+
+      // ASSERT
+      expect(result).toBe(address)
+    })
+
+    it('should accept a signature over bytes the wallet prefixed before signing', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      // Solflare-style preamble: the signature covers prefix + canonical, and
+      // the wallet's signed bytes arrive verbatim in x-fims-msg.
+      const request = await signedRequest({
+        signedPrefix: 'solana:signMessage:example.com: ',
+        url: `https://${HOST}/fims/votes`,
+      })
 
       // ACT
       const result = await run(verifyWalletRequest(request))
@@ -282,6 +306,20 @@ describe('verify-wallet-request', () => {
       await expect(run(verifyWalletRequest(request))).rejects.toThrow()
     })
 
+    it('should reject signed bytes that do not contain the canonical challenge', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      // A wallet preamble is fine; bytes where the challenge is absent or
+      // altered are not — bindings must survive verbatim.
+      const request = await signedRequest({ url: `https://${HOST}/fims/votes` })
+      const headers = request.headers as Record<string, string>
+      const tampered = new TextEncoder().encode('solana:signMessage:example.com: unrelated content')
+      headers['x-fims-msg'] = btoa(String.fromCharCode(...tampered))
+
+      // ACT & ASSERT
+      await expect(run(verifyWalletRequest(request))).rejects.toThrow()
+    })
+
     it('should reject a request with missing auth headers', async () => {
       // ARRANGE
       expect.assertions(1)
@@ -319,6 +357,21 @@ describe('verify-address-signature', () => {
       // ASSERT
       expect(result).toBe(true)
     })
+
+    it('should accept a consent signature over wallet-prefixed bytes', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const content = linkContent(7, address)
+      const signed = new TextEncoder().encode('wallet:domain:preamble')
+      const signedMessage = new Uint8Array([...signed, ...content])
+      const signature = ed25519.sign(signedMessage, privateKey)
+
+      // ACT
+      const result = verifyAddressSignature(address, content, b64(signature), b64(signedMessage))
+
+      // ASSERT
+      expect(result).toBe(true)
+    })
   })
 
   describe('unexpected behavior', () => {
@@ -339,6 +392,20 @@ describe('verify-address-signature', () => {
 
       // ACT
       const result = verifyAddressSignature(address, content, b64(signature))
+
+      // ASSERT
+      expect(result).toBe(false)
+    })
+
+    it('should reject signed bytes missing the canonical link message', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const content = linkContent(7, address)
+      const signature = ed25519.sign(content, privateKey)
+      const foreign = new TextEncoder().encode('some other message entirely')
+
+      // ACT
+      const result = verifyAddressSignature(address, content, b64(signature), b64(foreign))
 
       // ASSERT
       expect(result).toBe(false)

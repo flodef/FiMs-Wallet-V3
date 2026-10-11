@@ -14,7 +14,13 @@ import {
 } from '@solana/wallet-standard-features'
 import type { Wallet, WalletAccount } from '@wallet-standard/core'
 
-export type WalletStandardSigner = MessagePartialSigner & TransactionPartialSigner
+export type WalletStandardSigner = MessagePartialSigner &
+  TransactionPartialSigner & {
+    // Wallet-standard signMessage may sign a prefixed/modified copy of the
+    // bytes passed in — `signature` only covers `signedMessage`, so the real
+    // signed bytes must reach the verifier (see signContentBytes helper).
+    signContentBytes: (content: Uint8Array) => Promise<{ signature: Uint8Array; signedMessage: Uint8Array }>
+  }
 
 // Adapts an injected wallet-standard wallet (Phantom, Solflare, Jupiter…)
 // to the signer interfaces used throughout the app. The external wallet
@@ -22,17 +28,31 @@ export type WalletStandardSigner = MessagePartialSigner & TransactionPartialSign
 export function createWalletStandardSigner(wallet: Wallet, account: WalletAccount): WalletStandardSigner {
   const address = account.address as Address
 
+  const signMessageFeature = () => {
+    const feature = wallet.features[SolanaSignMessage] as SolanaSignMessageFeature[typeof SolanaSignMessage] | undefined
+    if (!feature) {
+      throw new Error(`${wallet.name} does not support message signing`)
+    }
+    return feature
+  }
+
+  const signContentBytes = async (content: Uint8Array) => {
+    const [result] = await signMessageFeature().signMessage({ account, message: content })
+    if (!result) {
+      throw new Error(`${wallet.name} did not sign the message`)
+    }
+    return { signature: result.signature, signedMessage: result.signedMessage ?? content }
+  }
+
   return {
     address,
 
+    signContentBytes,
+
     signMessages: async (messages) => {
-      const feature = wallet.features[SolanaSignMessage] as
-        | SolanaSignMessageFeature[typeof SolanaSignMessage]
-        | undefined
-      if (!feature) {
-        throw new Error(`${wallet.name} does not support message signing`)
-      }
-      const results = await feature.signMessage(...messages.map((message) => ({ account, message: message.content })))
+      const results = await signMessageFeature().signMessage(
+        ...messages.map((message) => ({ account, message: message.content })),
+      )
       return results.map((result) => ({ [address]: result.signature as SignatureBytes }))
     },
 

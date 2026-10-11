@@ -225,7 +225,14 @@ export const handleAddUserAddress = ({
     yield* verifyFreshConfirmation(request, signer)
     if (!isAdminAddress(signer)) {
       if (!payload.signature) return yield* Effect.fail(new BadRequest({ reason: 'missing link consent signature' }))
-      if (!verifyAddressSignature(payload.address, linkAddressMessage(path.id, payload.address), payload.signature))
+      if (
+        !verifyAddressSignature(
+          payload.address,
+          linkAddressMessage(path.id, payload.address),
+          payload.signature,
+          payload.signedMessage,
+        )
+      )
         return yield* Effect.fail(new BadRequest({ reason: 'invalid link consent signature' }))
     }
     // Admin keys authenticate ops; they must not double as member aliases

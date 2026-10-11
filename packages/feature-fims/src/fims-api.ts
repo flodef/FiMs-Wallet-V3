@@ -1,4 +1,5 @@
 import { getBase64Decoder, type MessagePartialSigner } from '@solana/kit'
+import { sameBytes, signContentBytes } from '@workspace/solana-client/sign-content'
 import { canonicalResource } from './fims-canonical-query.ts'
 
 // Types mirror the Effect schemas in apps/api/src/routes/fims/api.ts
@@ -240,9 +241,9 @@ async function fimsSessionToken(apiEndpoint: string, signer: MessagePartialSigne
       .join('')
     const issuedAt = new Date().toISOString()
     const content = new TextEncoder().encode(fimsSessionMessage(host, signer.address, nonce, issuedAt))
-    const signature = await fimsSignMessage(signer, content)
+    const { signature, signedMessage } = await fimsSignContent(signer, content)
     const res = await fetch(`${apiEndpoint.replace(/\/+$/, '')}/fims/session`, {
-      body: JSON.stringify({ address: signer.address, issuedAt, nonce, signature }),
+      body: JSON.stringify({ address: signer.address, issuedAt, nonce, signature, signedMessage }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
     })
@@ -292,8 +293,10 @@ async function fimsAuthHeaders(
     const host = new URL(apiEndpoint).host
     const bodyHash = await sha256Hex(bodyText)
     const content = new TextEncoder().encode(`fims-confirm\n${host}\n${method}\n${resource}\n${ts}\n${bodyHash}`)
-    headers['x-fims-confirm-sig'] = await fimsSignMessage(signer, content)
+    const { signature, signedMessage } = await fimsSignContent(signer, content)
+    headers['x-fims-confirm-sig'] = signature
     headers['x-fims-confirm-ts'] = String(ts)
+    if (signedMessage) headers['x-fims-confirm-msg'] = signedMessage
   }
   return headers
 }
@@ -354,15 +357,24 @@ export async function fimsSignedGetAll<T>(
 export const fimsLinkAddressMessage = (userId: number, address: string) =>
   new TextEncoder().encode(`fims-wallet-v3\nlink-address\n${userId}\n${address}`)
 
+// Sign `content` for API auth: returns the base64 signature plus — only when
+// the wallet modified the bytes (wallet-standard signMessage may prepend its
+// own preamble) — the base64 signedMessage the signature actually covers.
+export async function fimsSignContent(
+  signer: MessagePartialSigner,
+  content: Uint8Array,
+): Promise<{ signature: string; signedMessage?: string | undefined }> {
+  const { signature, signedMessage } = await signContentBytes(signer, content)
+  return {
+    signature: getBase64Decoder().decode(signature),
+    signedMessage: sameBytes(signedMessage, content) ? undefined : getBase64Decoder().decode(signedMessage),
+  }
+}
+
 // Raw ed25519 signature over arbitrary content (base64), separate from the
 // request signature: proves the NEW wallet consents to being linked.
 export async function fimsSignMessage(signer: MessagePartialSigner, content: Uint8Array): Promise<string> {
-  const [signatures] = await signer.signMessages([{ content, signatures: {} }])
-  const signature = signatures?.[signer.address]
-  if (!signature) {
-    throw new FimsApiError(401, 'wallet did not sign the consent message')
-  }
-  return getBase64Decoder().decode(signature)
+  return (await fimsSignContent(signer, content)).signature
 }
 
 export async function fimsSignedFetch<T>(

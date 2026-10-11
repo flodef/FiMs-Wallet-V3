@@ -26,10 +26,10 @@ import {
   fimsGet,
   fimsGetAll,
   fimsLinkAddressMessage,
+  fimsSignContent,
   fimsSignedFetch,
   fimsSignedGet,
   fimsSignedGetAll,
-  fimsSignMessage,
 } from '../fims-api.ts'
 
 export function useFimsEndpoint() {
@@ -339,7 +339,7 @@ export function useFimsUserClaim(account: Account, accounts: Account[]) {
         // imported here. Either way this wallet cannot prove ownership.
         throw new FimsApiError(403, `name already taken: ${name}`)
       }
-      const consent = await fimsSignMessage(
+      const consent = await fimsSignContent(
         await signerOf(account),
         fimsLinkAddressMessage(existing.id, account.publicKey),
       )
@@ -350,7 +350,8 @@ export function useFimsUserClaim(account: Account, accounts: Account[]) {
         `/users/${existing.id}/addresses`,
         {
           address: account.publicKey,
-          signature: consent,
+          signature: consent.signature,
+          signedMessage: consent.signedMessage,
         },
       )
       return { action: 'linked' as const, user: existing }

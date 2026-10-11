@@ -183,7 +183,7 @@ describe('fims-signed-fetch', () => {
 
       // ACT & ASSERT
       await expect(fimsSignedFetch('https://api.example.com', signer, 'DELETE', '/address-book/1')).rejects.toThrow(
-        'wallet did not sign the consent message',
+        'wallet did not sign the message',
       )
     })
 

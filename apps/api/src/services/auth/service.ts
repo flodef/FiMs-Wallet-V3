@@ -133,15 +133,24 @@ export function verifyWalletRequest(request: HttpServerRequest.HttpServerRequest
     const publicKey = yield* decode(() => Uint8Array.from(getBase58Encoder().encode(address)))
     const signature = yield* decode(() => b64ToBytes(sigHeader))
 
+    // Wallet-standard signMessage may sign a prefixed/modified copy of the
+    // bytes we asked for (Solflare adds a domain preamble). The signature only
+    // covers the bytes the wallet actually signed — forwarded verbatim as
+    // x-fims-msg — so verification happens against them, with the canonical
+    // challenge required to appear inside, keeping every binding intact.
+    const msgHeader = header(request, 'x-fims-msg')
+    const signedBytes = msgHeader ? yield* decode(() => b64ToBytes(msgHeader)) : null
+
     const verify = (resource: string) =>
       Effect.try({
         catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),
-        try: () =>
-          ed25519.verify(
-            signature,
-            new TextEncoder().encode(`fims-wallet-v3\n${host}\n${request.method}\n${resource}\n${ts}\n${bodyHash}`),
-            publicKey,
-          ),
+        try: () => {
+          const canonical = new TextEncoder().encode(
+            `fims-wallet-v3\n${host}\n${request.method}\n${resource}\n${ts}\n${bodyHash}`,
+          )
+          const content = signedBytes ?? canonical
+          return canonicalWithin(content, canonical) && ed25519.verify(signature, content, publicKey)
+        },
       })
 
     const query = canonicalizeQuery(url.searchParams)
@@ -225,15 +234,40 @@ export function requireOwnerOrAdmin(signer: string, ownerAddress: string) {
     : Effect.fail(new AuthForbidden({ address: signer }))
 }
 
+// The bytes a wallet actually signed must contain the canonical challenge
+// verbatim — a wallet may prepend its own preamble (domain binding) but the
+// challenge the server reconstructed must be present contiguously, which
+// keeps every security binding enforced.
+export function canonicalWithin(signed: Uint8Array, canonical: Uint8Array): boolean {
+  if (signed.length < canonical.length) return false
+  outer: for (let i = 0; i + canonical.length <= signed.length; i++) {
+    for (let j = 0; j < canonical.length; j++) {
+      if (signed[i + j] !== canonical[j]) continue outer
+    }
+    return true
+  }
+  return false
+}
+
 /**
- * Verify a raw ed25519 signature by `address` over `content`. Used for
- * wallet-link consent: the new wallet signs the canonical link message
- * separately from the HTTP request signature (which only proves the intent
- * of the already-linked signer).
+ * Verify a raw ed25519 signature by `address` over the canonical content.
+ * Used for wallet-link consent: the new wallet signs the canonical link
+ * message separately from the HTTP request signature (which only proves the
+ * intent of the already-linked signer). `signedMessageB64` carries the exact
+ * bytes the wallet signed when it modified them (see canonicalWithin).
  */
-export function verifyAddressSignature(address: string, content: Uint8Array, signatureB64: string): boolean {
+export function verifyAddressSignature(
+  address: string,
+  canonical: Uint8Array,
+  signatureB64: string,
+  signedMessageB64?: null | string,
+): boolean {
   try {
-    return ed25519.verify(b64ToBytes(signatureB64), content, Uint8Array.from(getBase58Encoder().encode(address)))
+    const content = signedMessageB64 ? b64ToBytes(signedMessageB64) : canonical
+    return (
+      canonicalWithin(content, canonical) &&
+      ed25519.verify(b64ToBytes(signatureB64), content, Uint8Array.from(getBase58Encoder().encode(address)))
+    )
   } catch {
     return false
   }
@@ -272,7 +306,13 @@ export function fimsSessionMessage(host: string, address: string, nonce: string,
  */
 export function createSession(
   request: HttpServerRequest.HttpServerRequest,
-  body: { address: string; issuedAt: string; nonce: string; signature: string },
+  body: {
+    address: string
+    issuedAt: string
+    nonce: string
+    signature: string
+    signedMessage?: null | string | undefined
+  },
 ) {
   return Effect.gen(function* () {
     const fail = (reason: string) => Effect.fail(new AuthUnauthorized({ reason }))
@@ -287,14 +327,15 @@ export function createSession(
       Effect.try({ catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }), try: decodeFn })
     const publicKey = yield* decode(() => Uint8Array.from(getBase58Encoder().encode(body.address)))
     const signature = yield* decode(() => b64ToBytes(body.signature))
+    const signedMessage = body.signedMessage
+    const signedBytes = signedMessage ? yield* decode(() => b64ToBytes(signedMessage)) : null
     const valid = yield* Effect.try({
       catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),
-      try: () =>
-        ed25519.verify(
-          signature,
-          new TextEncoder().encode(fimsSessionMessage(host, body.address, body.nonce, body.issuedAt)),
-          publicKey,
-        ),
+      try: () => {
+        const canonical = new TextEncoder().encode(fimsSessionMessage(host, body.address, body.nonce, body.issuedAt))
+        const content = signedBytes ?? canonical
+        return canonicalWithin(content, canonical) && ed25519.verify(signature, content, publicKey)
+      },
     })
     if (!valid) return yield* fail('bad signature')
 
@@ -368,16 +409,19 @@ export function verifyFreshConfirmation(request: HttpServerRequest.HttpServerReq
       Effect.try({ catch: () => new AuthUnauthorized({ reason: 'malformed confirmation' }), try: decodeFn })
     const publicKey = yield* decode(() => Uint8Array.from(getBase58Encoder().encode(signer)))
     const signature = yield* decode(() => b64ToBytes(sigHeader))
+    const msgHeader = header(request, 'x-fims-confirm-msg')
+    const signedBytes = msgHeader ? yield* decode(() => b64ToBytes(msgHeader)) : null
     const query = canonicalizeQuery(url.searchParams)
     const resource = query ? `${url.pathname}?${query}` : url.pathname
     const valid = yield* Effect.try({
       catch: () => new AuthUnauthorized({ reason: 'malformed confirmation' }),
-      try: () =>
-        ed25519.verify(
-          signature,
-          new TextEncoder().encode(`fims-confirm\n${host}\n${request.method}\n${resource}\n${ts}\n${bodyHash}`),
-          publicKey,
-        ),
+      try: () => {
+        const canonical = new TextEncoder().encode(
+          `fims-confirm\n${host}\n${request.method}\n${resource}\n${ts}\n${bodyHash}`,
+        )
+        const content = signedBytes ?? canonical
+        return canonicalWithin(content, canonical) && ed25519.verify(signature, content, publicKey)
+      },
     })
     if (!valid) return yield* fail('bad confirmation signature')
 
