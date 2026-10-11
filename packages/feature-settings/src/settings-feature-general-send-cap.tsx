@@ -8,7 +8,10 @@ import { UiTooltip } from '@workspace/ui/components/ui-tooltip'
 import { useVaultUnlockDialog } from '@workspace/vault-react/vault-unlock-provider'
 import { useEffect, useId, useRef, useState } from 'react'
 
-// Optional EUR ceiling applied to outgoing transfers (client-side guard).
+// Optional EUR ceiling applied to outgoing transfers (client-side guard). A
+// cap below the floor is pointless noise (every transaction blocked), so the
+// minimum enforceable value is SEND_CAP_MIN_EUR.
+const SEND_CAP_MIN_EUR = 10
 export function SettingsFeatureGeneralSendCap() {
   const { t } = useTranslation('settings')
   const sendCapId = useId()
@@ -28,10 +31,18 @@ export function SettingsFeatureGeneralSendCap() {
     }
   }, [sendCap])
 
+  const parsed = Number.parseFloat(input)
+  const belowMin = input.trim().length > 0 && Number.isFinite(parsed) && parsed > 0 && parsed < SEND_CAP_MIN_EUR
+
   async function handleChange(value: string) {
     setInput(value)
     const parsed = Number.parseFloat(value)
     const next = !value.trim().length || !Number.isFinite(parsed) || parsed <= 0 ? 0 : parsed
+    // Below the floor the field is invalid — flagged in the UI but nothing is
+    // persisted, so the previous cap keeps guarding transfers.
+    if (next > 0 && next < SEND_CAP_MIN_EUR) {
+      return
+    }
     const previous = Number.parseFloat(sendCap ?? '')
     // Raising or clearing the cap widens the theft window — re-authenticate
     // first, so a hijacked unlocked session cannot silently lift the guard.
@@ -57,7 +68,7 @@ export function SettingsFeatureGeneralSendCap() {
         <UiTooltip>{t(($) => $.pageGeneralSendCapHint)}</UiTooltip>
       </Label>
       <Input
-        className="w-28"
+        className={belowMin ? 'w-28 border-destructive' : 'w-28'}
         id={sendCapId}
         inputMode="decimal"
         min="0"
@@ -66,6 +77,7 @@ export function SettingsFeatureGeneralSendCap() {
         type="number"
         value={input}
       />
+      {belowMin ? <p className="text-destructive text-sm">{t(($) => $.pageGeneralSendCapMin)}</p> : null}
     </div>
   )
 }

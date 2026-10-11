@@ -12,7 +12,7 @@ export function SettingsFeatureGeneralTheme() {
   return (
     <div className="space-y-2">
       <Label htmlFor={themeId}>{t(($) => $.pageGeneralTheme)}</Label>
-      <Select onValueChange={setTheme} value={theme ?? 'dark'}>
+      <Select onValueChange={setTheme} value={theme ?? 'auto'}>
         <SelectTrigger id={themeId}>
           <SelectValue />
         </SelectTrigger>

@@ -117,6 +117,7 @@
   "pageGeneralSecurityTotpInvalid": "Código inválido — comprueba la hora de tu dispositivo.",
   "pageGeneralSendCap": "Límite de envío (EUR)",
   "pageGeneralSendCapHint": "Las transferencias salientes por encima de este valor en EUR se bloquean. Es una protección contra errores en el cliente, no una barrera de seguridad.",
+  "pageGeneralSendCapMin": "Mínimo 10 €",
   "pageGeneralSendCapPlaceholder": "Sin límite",
   "pageGeneralTheme": "Apariencia",
   "pageGeneralWallpaper": "Fondo de pantalla",

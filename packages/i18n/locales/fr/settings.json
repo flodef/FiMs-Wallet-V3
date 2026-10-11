@@ -117,6 +117,7 @@
   "pageGeneralSecurityTotpInvalid": "Code invalide — vérifiez l'heure de votre appareil.",
   "pageGeneralSendCap": "Plafond d'envoi (EUR)",
   "pageGeneralSendCapHint": "Les transferts sortants dépassant cette valeur en EUR sont bloqués. C'est une protection contre les erreurs côté client, pas une barrière de sécurité.",
+  "pageGeneralSendCapMin": "Minimum 10 €",
   "pageGeneralSendCapPlaceholder": "Aucune limite",
   "pageGeneralTheme": "Thème",
   "pageGeneralWallpaper": "Fond d’écran",

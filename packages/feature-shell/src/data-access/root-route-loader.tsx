@@ -1,4 +1,5 @@
 import type { AppContext } from '@workspace/context/app-context'
+import { applyThemeClasses } from '@workspace/db-react/resolve-theme'
 import { rootLoader } from '@workspace/db-react/root-loader'
 import { i18n, resolveLanguage } from '@workspace/i18n'
 import { type LoaderFunctionArgs, redirect } from 'react-router'
@@ -20,8 +21,8 @@ export function rootRouteLoader(ctx: AppContext) {
     if (!networks.length) {
       return redirect('/settings/networks')
     }
-    const theme = settings.find((s) => s.key === 'theme')?.value ?? 'dark'
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    const theme = settings.find((s) => s.key === 'theme')?.value
+    applyThemeClasses(theme)
 
     const language = settings.find((s) => s.key === 'language')?.value
     await i18n.changeLanguage(resolveLanguage(language))
