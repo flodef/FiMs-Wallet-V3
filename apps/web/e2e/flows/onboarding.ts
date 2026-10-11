@@ -34,8 +34,7 @@ export async function importExistingWalletUnsecured(page: Page) {
   await fillImportMnemonic(page)
 
   await page.getByText('Advanced protection').click()
-  // ToggleGroupItem renders a plain <button aria-pressed>, not a radio.
-  await page.getByRole('button', { name: 'Unsecured' }).click()
+  await page.getByRole('radio', { name: 'Unsecured' }).click()
   await page.getByLabel(/confirm this wallet will not be protected/).fill('UNSECURED')
   await page.getByRole('button', { name: 'Import wallet' }).click()
   await expect(page.getByRole('heading', { name: 'Create app password' })).toBeHidden()

@@ -9,6 +9,9 @@ const surfpool = await new SurfpoolContainer()
 
 const env = {
   ...process.env,
+  // The tools routes sit behind AdminOnlyRoute — the e2e test wallet
+  // (the fixture seed phrase) must be on the admin allowlist.
+  VITE_ADMIN_ADDRESSES: '5F86TNSTre3CYwZd1wELsGQGhqG2HkN3d8zxhbyBSnzm',
   VITE_NETWORK_LOCALNET: surfpool.url,
   VITE_NETWORK_LOCALNET_SUBSCRIPTIONS: surfpool.urlWs,
 }
