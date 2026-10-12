@@ -1,6 +1,6 @@
-import { getBase64Decoder, type MessagePartialSigner } from '@solana/kit'
+import type { MessagePartialSigner } from '@solana/kit'
 import { env } from '@workspace/env/env'
-import { sameBytes, signContentBytes } from '@workspace/solana-client/sign-content'
+import { fimsInvalidateSession, fimsSessionToken } from '@workspace/solana-client/fims-session'
 
 // Client for the API's /fims/chain/* proxy — Helius never sees the app and the
 // app never sees the Helius key. Types mirror the Effect schemas in
@@ -50,21 +50,6 @@ export class ChainApiError extends Error {
   }
 }
 
-// Duplicated from packages/feature-fims/src/fims-canonical-query.ts — the API
-// verifies signatures against this exact canonicalization, so both must match.
-function canonicalizeQuery(searchParams: URLSearchParams): string {
-  const pairs = [...searchParams.entries()]
-  pairs.sort((a, b) => (a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : a[0] < b[0] ? -1 : 1))
-  return new URLSearchParams(pairs).toString()
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-}
-
 function apiUrl(path: string, params?: Record<string, string>): URL {
   const url = new URL(`${env('apiEndpoint').replace(/\/+$/, '')}/fims${path}`)
   for (const [key, value] of Object.entries(params ?? {})) {
@@ -86,32 +71,27 @@ export async function chainGetLabels(signer: MessagePartialSigner): Promise<Chai
   return chainSignedGet<ChainLabel[]>(signer, '/chain/labels')
 }
 
-// Signed GET — same scheme as fimsSignedGet: the wallet signs
-//   fims-wallet-v3\n{HOST}\nGET\n{PATHNAME[?CANONICAL_QUERY]}\n{TS_MS}\n{SHA256_HEX('')}
+// Authenticated GET via the SIWS bearer session: one wallet signature covers
+// every chain read for a week — per-request signing made external wallets
+// pop a prompt per call (and concurrent prompts cancel each other).
 async function chainSignedGet<T>(
   signer: MessagePartialSigner,
   path: string,
   params?: Record<string, string>,
 ): Promise<T> {
   const url = apiUrl(path, params)
-  const ts = Date.now()
-  const host = url.host
-  const bodyHash = await sha256Hex('')
-  const query = canonicalizeQuery(url.searchParams)
-  const resource = query ? `/fims${path}?${query}` : `/fims${path}`
-  const content = new TextEncoder().encode(`fims-wallet-v3\n${host}\nGET\n${resource}\n${ts}\n${bodyHash}`)
-  const { signature, signedMessage } = await signContentBytes(signer, content)
-  const headers: Record<string, string> = {
-    'x-fims-address': signer.address,
-    'x-fims-sig': getBase64Decoder().decode(signature),
-    'x-fims-ts': String(ts),
+  const apiEndpoint = env('apiEndpoint')
+  try {
+    const token = await fimsSessionToken(apiEndpoint, signer)
+    return await chainFetch<T>(url, { authorization: `Bearer ${token}` })
+  } catch (error) {
+    if (!(error instanceof ChainApiError) || error.status !== 401) throw error
   }
-  // Wallet-standard signMessage may sign a prefixed copy — forward the bytes
-  // it actually signed so the server verifies against them.
-  if (!sameBytes(signedMessage, content)) {
-    headers['x-fims-msg'] = getBase64Decoder().decode(signedMessage)
-  }
-  return chainFetch<T>(url, headers)
+  // The server may have dropped the session (restart, purge) — re-sign in
+  // once, transparently.
+  fimsInvalidateSession(apiEndpoint, signer)
+  const token = await fimsSessionToken(apiEndpoint, signer)
+  return chainFetch<T>(url, { authorization: `Bearer ${token}` })
 }
 
 export interface ChainHistoryPage {

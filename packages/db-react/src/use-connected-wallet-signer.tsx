@@ -2,7 +2,7 @@ import { SolanaSignTransaction, type SolanaSignTransactionFeature } from '@solan
 import { getWallets } from '@wallet-standard/app'
 import { StandardConnect, type StandardConnectFeature } from '@wallet-standard/features'
 import type { Account } from '@workspace/db/account/account'
-import { createWalletStandardSigner } from '@workspace/solana-client/wallet-standard-signer'
+import { createWalletStandardSigner, type WalletStandardSigner } from '@workspace/solana-client/wallet-standard-signer'
 
 // The wallet we register ourselves to act as a wallet for dApps — it must
 // not appear in the "connect external wallet" list.
@@ -34,11 +34,17 @@ export function getAccountTransactionVersion(account: Account): 0 | 1 {
   return feature?.supportedTransactionVersions?.includes(1) ? 1 : 0
 }
 
-// Resolves the wallet-standard signer for a 'Connected' account: finds the
-// injected wallet by name, (re)connects it, then wraps the authorized
-// account in a signer that delegates message/transaction signing to it.
-export function useConnectedWalletSigner() {
-  return async (account: Account) => {
+// Signers are memoized by wallet+address: connecting again on every API call
+// popped the wallet extension open/closed once per request (Solflare does it
+// even for already-authorized connects), and racing connects can cancel a
+// pending sign prompt.
+const signerCache = new Map<string, Promise<WalletStandardSigner>>()
+
+function resolveWalletSigner(account: Account): Promise<WalletStandardSigner> {
+  const key = `${account.externalWallet}|${account.publicKey}`
+  const cached = signerCache.get(key)
+  if (cached) return cached
+  const promise = (async () => {
     const wallet = getWallets()
       .get()
       .find((w) => w.name === account.externalWallet)
@@ -55,5 +61,16 @@ export function useConnectedWalletSigner() {
       throw new Error(`Account ${account.publicKey} not authorized in ${wallet.name}`)
     }
     return createWalletStandardSigner(wallet, walletAccount)
-  }
+  })()
+  signerCache.set(key, promise)
+  // A rejected resolution must not be cached forever — the next call retries.
+  promise.catch(() => signerCache.delete(key))
+  return promise
+}
+
+// Resolves the wallet-standard signer for a 'Connected' account: finds the
+// injected wallet by name, connects it once, then wraps the authorized
+// account in a signer that delegates message/transaction signing to it.
+export function useConnectedWalletSigner() {
+  return (account: Account) => resolveWalletSigner(account)
 }
