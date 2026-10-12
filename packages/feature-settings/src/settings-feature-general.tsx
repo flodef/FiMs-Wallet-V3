@@ -6,6 +6,7 @@ import { UiCard } from '@workspace/ui/components/ui-card'
 import { Link } from 'react-router'
 import { useSettingsPage } from './data-access/use-settings-page.tsx'
 import { SettingsFeatureGeneralApiSettings } from './settings-feature-general-api-settings.tsx'
+import { SettingsFeatureGeneralExplorer } from './settings-feature-general-explorer.tsx'
 import { SettingsFeatureGeneralLanguage } from './settings-feature-general-language.tsx'
 import { SettingsFeatureGeneralSecurity } from './settings-feature-general-security.tsx'
 import { SettingsFeatureGeneralSendCap } from './settings-feature-general-send-cap.tsx'
@@ -29,9 +30,10 @@ export function SettingsFeatureGeneral() {
         description={page.description}
         title={page.name}
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <SettingsFeatureGeneralLanguage />
           <SettingsFeatureGeneralTheme />
+          <SettingsFeatureGeneralExplorer />
         </div>
         <SettingsFeatureGeneralWallpaper />
         <SettingsFeatureGeneralSendCap />

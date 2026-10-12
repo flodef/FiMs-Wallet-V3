@@ -1,5 +1,6 @@
 import type { Account } from '@workspace/db/account/account'
 import type { NetworkType } from '@workspace/db/network/network-type'
+import { useAccountUpdate } from '@workspace/db-react/use-account-update'
 import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import {
@@ -10,6 +11,8 @@ import {
 } from '@workspace/ui/components/dropdown-menu'
 import { UiConfirm } from '@workspace/ui/components/ui-confirm'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
+import { toastError } from '@workspace/ui/lib/toast-error'
+import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { Fragment, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { SettingsUiBottomSheetExportAccountSecretKey } from './settings-ui-bottom-sheet-export-account-secret-key.tsx'
@@ -39,8 +42,13 @@ export function SettingsUiAccountMenu({
   const { t } = useTranslation('settings')
   const { pathname: from } = useLocation()
   const [openDelete, setOpenDelete] = useState(false)
+  const [openDisconnect, setOpenDisconnect] = useState(false)
   const [openExport, setOpenExport] = useState(false)
   const [openMigrate, setOpenMigrate] = useState(false)
+  const updateMutation = useAccountUpdate({
+    onError: (error) => toastError(error.message),
+    onSuccess: () => toastSuccess(t(($) => $.accountDisconnectSuccess)),
+  })
   return (
     <Fragment>
       <DropdownMenu>
@@ -76,6 +84,11 @@ export function SettingsUiAccountMenu({
           >
             {t(($) => $.actionRequestAirdrop)}
           </DropdownMenuItem>
+          {account.type === 'Connected' ? (
+            <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenDisconnect(true)}>
+              {t(($) => $.accountDisconnectAction)}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenMigrate(true)}>
             {t(($) => $.migrateTitle)}
           </DropdownMenuItem>
@@ -89,6 +102,16 @@ export function SettingsUiAccountMenu({
       </DropdownMenu>
       <SettingsUiBottomSheetExportAccountSecretKey account={account} open={openExport} setOpen={setOpenExport} />
       <SettingsUiBottomSheetMigrateAccount account={account} open={openMigrate} setOpen={setOpenMigrate} />
+      <UiConfirm
+        action={() =>
+          updateMutation.mutateAsync({ id: account.id, input: { externalWallet: undefined, type: 'Watched' } })
+        }
+        actionLabel={t(($) => $.accountDisconnectAction)}
+        description={t(($) => $.accountDisconnectDescription)}
+        onOpenChange={setOpenDisconnect}
+        open={openDisconnect}
+        title={t(($) => $.accountDisconnectTitle)}
+      />
       <UiConfirm
         action={() => deleteItem(account)}
         actionLabel={t(($) => $.actionDelete)}

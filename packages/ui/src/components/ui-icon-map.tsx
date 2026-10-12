@@ -1,4 +1,5 @@
 import {
+  LucideActivity,
   LucideAlertTriangle,
   LucideArrowDown,
   LucideArrowUp,
@@ -51,6 +52,7 @@ import type { ForwardRefExoticComponent } from 'react'
 type UiIconLucide = ForwardRefExoticComponent<Omit<LucideProps, 'ref'> & react.RefAttributes<SVGSVGElement>>
 
 export type UiIconName =
+  | 'activity'
   | 'add'
   | 'airdrop'
   | 'alert'
@@ -99,6 +101,7 @@ export type UiIconName =
   | 'x'
 
 const uiIconMap = new Map<UiIconName, UiIconLucide>()
+  .set('activity', LucideActivity)
   .set('add', LucidePlus)
   .set('airdrop', LucideUmbrella)
   .set('alert', LucideAlertTriangle)

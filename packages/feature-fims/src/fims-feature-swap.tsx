@@ -1,6 +1,7 @@
 import type { Address } from '@solana/kit'
 import type { Account } from '@workspace/db/account/account'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
+import { ExplorerUiTxExternalLink } from '@workspace/feature-explorer/ui/explorer-ui-tx-external-link'
 import { useGetTokenBalances } from '@workspace/feature-portfolio/data-access/use-get-token-balances'
 import { useTranslation } from '@workspace/i18n'
 import { useGetTokenMetadataJupiter } from '@workspace/solana-client-react/use-get-token-metadata-jupiter'
@@ -13,7 +14,6 @@ import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
 import type { FimsStrategyState } from './data-access/fims-strategy.ts'
 import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
@@ -279,9 +279,9 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
             <p className="text-sm">
               <UiIcon className="mr-1 inline size-4 text-green-500" icon="check" />
               {t(($) => $.swapSuccess)}{' '}
-              <Link className="text-primary underline" to={`/explorer/tx/${signature}`}>
+              <ExplorerUiTxExternalLink className="text-primary underline" signature={signature}>
                 {t(($) => $.swapViewTx)}
-              </Link>
+              </ExplorerUiTxExternalLink>
             </p>
           ) : null}
 

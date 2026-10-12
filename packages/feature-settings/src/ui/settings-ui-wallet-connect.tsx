@@ -2,6 +2,8 @@ import type { Address } from '@solana/kit'
 import type { Wallet as StandardWallet } from '@wallet-standard/core'
 import { StandardConnect, type StandardConnectFeature } from '@wallet-standard/features'
 import { useAccountCreate } from '@workspace/db-react/use-account-create'
+import { useAccountSetActive } from '@workspace/db-react/use-account-set-active'
+import { useAccountUpdate } from '@workspace/db-react/use-account-update'
 import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useDetectedWallets } from '@workspace/db-react/use-connected-wallet-signer'
 import { useWalletCreate } from '@workspace/db-react/use-wallet-create'
@@ -25,6 +27,8 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
   const accounts = useAccountsLive()
   const createWallet = useWalletCreate()
   const createAccount = useAccountCreate()
+  const updateAccount = useAccountUpdate()
+  const setActive = useAccountSetActive()
   const [pending, setPending] = useState<string>()
   // 'FiMs' is the wallet we register for dApps — not an external wallet.
   const detected = useDetectedWallets().filter((wallet) => wallet.features[StandardConnect])
@@ -53,13 +57,25 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
             protection: { mode: 'unsecured' },
           },
         }))
-      const existing = new Set(accounts.filter((a) => a.externalWallet === wallet.name).map((a) => a.publicKey))
+      // Reconnecting a wallet restores the link on any account that was
+      // disconnected (Watched) instead of duplicating it; genuinely new
+      // addresses get a fresh Connected account.
+      let lastAddedId: string | undefined
       for (const walletAccount of walletAccounts) {
         const publicKey = walletAccount.address as Address
-        if (existing.has(publicKey)) {
+        const existing = accounts.find((a) => a.walletId === walletId && a.publicKey === publicKey)
+        if (existing?.type === 'Connected') {
           continue
         }
-        await createAccount.mutateAsync({
+        if (existing) {
+          await updateAccount.mutateAsync({
+            id: existing.id,
+            input: { externalWallet: wallet.name, type: 'Connected' },
+          })
+          lastAddedId = existing.id
+          continue
+        }
+        lastAddedId = await createAccount.mutateAsync({
           input: {
             externalWallet: wallet.name,
             name: ellipsify(publicKey),
@@ -68,6 +84,12 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
             walletId,
           },
         })
+      }
+      // The connect is an intent to use the wallet — activate it so it does
+      // not sit inert while another account stays active.
+      const targetId = lastAddedId ?? accounts.find((a) => a.walletId === walletId)?.id
+      if (targetId) {
+        await setActive.mutateAsync({ id: targetId })
       }
       toastSuccess(t(($) => $.walletConnectSuccess))
       onConnected?.()

@@ -5,10 +5,18 @@ import { fimsSessionMessage } from './services/auth/service.js'
 
 // The API auth message formats are built in TWO places: the server
 // (service.ts / helpers.ts) verifies signatures over messages the client
-// (feature-fims/fims-api.ts) constructs byte-identically. A drift in either
-// copy silently breaks login — or worse, makes a signature valid on one side
-// but not the other (audit L-11). This spec diffs the literal fragments.
-const CLIENT_API = readFileSync(join(import.meta.dirname, '../../../packages/feature-fims/src/fims-api.ts'), 'utf-8')
+// (feature-fims/fims-api.ts + solana-client/fims-session.ts) constructs
+// byte-identically. A drift in either copy silently breaks login — or
+// worse, makes a signature valid on one side but not the other (audit
+// L-11). This spec diffs the literal fragments.
+const CLIENT_API = readFileSync(
+  join(import.meta.dirname, '../../../packages/solana-client/src/fims-session.ts'),
+  'utf-8',
+)
+const CLIENT_FIMS_API = readFileSync(
+  join(import.meta.dirname, '../../../packages/feature-fims/src/fims-api.ts'),
+  'utf-8',
+)
 const SERVER_AUTH = readFileSync(join(import.meta.dirname, 'services/auth/service.ts'), 'utf-8')
 const SERVER_HELPERS = readFileSync(join(import.meta.dirname, 'routes/fims/helpers.ts'), 'utf-8')
 
@@ -56,8 +64,8 @@ describe('fims-messages', () => {
 
       // ACT & ASSERT — every protocol-tagged family must appear in the
       // client source exactly as the server verifies it.
-      expect(CLIENT_API).toContain('fims-wallet-v3\\n')
-      expect(CLIENT_API).toContain('fims-confirm\\n')
+      expect(CLIENT_FIMS_API).toContain('fims-wallet-v3\\n')
+      expect(CLIENT_FIMS_API).toContain('fims-confirm\\n')
       // The link-address consent message shares the request prefix.
       expect(SERVER_HELPERS).toContain('fims-wallet-v3\\nlink-address')
     })
@@ -68,7 +76,7 @@ describe('fims-messages', () => {
 
       // ACT & ASSERT
       const linkShape = `fims-wallet-v3\\nlink-address\\n${interpolate('userId')}\\n${interpolate('address')}`
-      expect(CLIENT_API).toContain(linkShape)
+      expect(CLIENT_FIMS_API).toContain(linkShape)
       expect(`${SERVER_AUTH}${SERVER_HELPERS}`).toContain(linkShape)
     })
   })

@@ -1,6 +1,8 @@
 import type { Network } from '@workspace/db/network/network'
+import { useSetting } from '@workspace/db-react/use-setting'
 import { ExplorerUiExplorerIcon } from '@workspace/feature-explorer/ui/explorer-ui-explorer-icon'
 import { useTranslation } from '@workspace/i18n'
+import { type ExplorerProvider, explorerProviders } from '@workspace/solana-client/get-explorer-url'
 import { Badge } from '@workspace/ui/components/badge'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
@@ -34,6 +36,10 @@ function formatAmount(amount: number): string {
 
 function ChainTxItem({ network, tx }: { network: Network; tx: ChainTransaction }) {
   const { t } = useTranslation('portfolio')
+  const [explorer] = useSetting('chainExplorer')
+  const provider: ExplorerProvider = explorerProviders.includes(explorer as ExplorerProvider)
+    ? (explorer as ExplorerProvider)
+    : 'solana'
   const kind = classifyChainTx(tx)
   const peer = chainTxPeer(tx)
   const amounts = chainTxNetAmounts(tx)
@@ -79,7 +85,7 @@ function ChainTxItem({ network, tx }: { network: Network; tx: ChainTransaction }
       </div>
       <div className="flex shrink-0 items-center gap-2 font-mono text-muted-foreground text-xs">
         <UiRelativeDate date={new Date(tx.timestamp * 1000)} />
-        <ExplorerUiExplorerIcon network={network} path={`/tx/${tx.signature}`} provider="solana" />
+        <ExplorerUiExplorerIcon network={network} path={`/tx/${tx.signature}`} provider={provider} />
       </div>
     </div>
   )

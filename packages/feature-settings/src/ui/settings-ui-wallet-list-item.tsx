@@ -19,6 +19,9 @@ export function SettingsUiWalletListItem({
     pin: t(($) => $.walletProtectionPin),
     unsecured: t(($) => $.walletProtectionUnsecured),
   })
+  // Keys live in the external wallet extension, not in our storage — the
+  // protection badge is its name, not "Unsecured".
+  const isExternal = !!wallet.externalWallet
 
   return (
     <Item key={wallet.id} role="listitem" variant={activeId === wallet.id ? 'muted' : 'outline'}>
@@ -32,10 +35,10 @@ export function SettingsUiWalletListItem({
       <ItemActions className="ml-auto shrink-0">
         <Badge
           className={cn('max-w-[140px] truncate md:max-w-none', getProtectionBadgeClassName(protectionMode))}
-          title={protectionLabel}
-          variant={getProtectionBadgeVariant(protectionMode)}
+          title={isExternal ? wallet.externalWallet : protectionLabel}
+          variant={isExternal ? 'outline' : getProtectionBadgeVariant(protectionMode)}
         >
-          {protectionLabel}
+          {isExternal ? t(($) => $.walletProtectionExternal) : protectionLabel}
         </Badge>
         <SettingsUiWalletMenu {...props} wallet={wallet} />
       </ItemActions>

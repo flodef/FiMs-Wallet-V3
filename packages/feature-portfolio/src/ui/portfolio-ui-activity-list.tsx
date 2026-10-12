@@ -1,5 +1,3 @@
-import type { Network } from '@workspace/db/network/network'
-import { ExplorerUiExplorerIcon } from '@workspace/feature-explorer/ui/explorer-ui-explorer-icon'
 import { ExplorerUiTxTimestamp } from '@workspace/feature-explorer/ui/explorer-ui-tx-timestamp'
 import { useTranslation } from '@workspace/i18n'
 import type { GetActivityItems } from '@workspace/solana-client/get-activity'
@@ -9,15 +7,7 @@ import { groupActivityItems } from './group-activity-items.tsx'
 import { PortfolioUiTxLink } from './portfolio-ui-tx-link.tsx'
 import { PortfolioUiTxStatus } from './portfolio-ui-tx-status.tsx'
 
-export function PortfolioUiActivityList({
-  from,
-  network,
-  items,
-}: {
-  from: string
-  network: Network
-  items: GetActivityItems
-}) {
+export function PortfolioUiActivityList({ items }: { items: GetActivityItems }) {
   const { t } = useTranslation('portfolio')
   const grouped = groupActivityItems(items)
   return (
@@ -38,8 +28,7 @@ export function PortfolioUiActivityList({
                   <div className="flex items-center justify-between" key={tx.signature}>
                     <div className="flex items-center gap-2">
                       <PortfolioUiTxStatus tx={tx} />
-                      <PortfolioUiTxLink from={from} tx={tx} />
-                      <ExplorerUiExplorerIcon network={network} path={`/tx/${tx.signature}`} provider="solana" />
+                      <PortfolioUiTxLink tx={tx} />
                     </div>
                     <div className="truncate whitespace-nowrap text-right font-mono text-muted-foreground text-xs">
                       <ExplorerUiTxTimestamp blockTime={tx.blockTime} />

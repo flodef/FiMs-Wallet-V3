@@ -34,7 +34,7 @@ export function ShellUiLayout() {
   const links: ShellLayoutLink[] = [
     { icon: 'portfolio', label: t(($) => $.labelPortfolio), to: '/portfolio' },
     { icon: 'handCoins', label: t(($) => $.labelFims), to: '/fims' },
-    { icon: 'explorer', label: t(($) => $.labelExplorer), to: '/explorer' },
+    { icon: 'activity', label: t(($) => $.labelActivity), to: '/portfolio/activity' },
     // Raw protocol tooling is admin-only — not a place for regular users.
     ...(isAdmin ? [{ icon: 'tools' as const, label: t(($) => $.labelTools), to: '/tools' }] : []),
     { icon: 'settings', label: t(($) => $.labelSettings), to: '/settings' },

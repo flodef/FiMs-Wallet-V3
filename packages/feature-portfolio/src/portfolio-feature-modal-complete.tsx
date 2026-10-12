@@ -1,10 +1,11 @@
 import { assertIsSignature } from '@solana/kit'
 
+import { ExplorerUiTxExternalLink } from '@workspace/feature-explorer/ui/explorer-ui-tx-external-link'
 import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { UiEmpty } from '@workspace/ui/components/ui-empty'
 import { UiError } from '@workspace/ui/components/ui-error'
-import { Link, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { PortfolioUiModal } from './ui/portfolio-ui-modal.tsx'
 
 export function PortfolioFeatureModalComplete() {
@@ -19,7 +20,7 @@ export function PortfolioFeatureModalComplete() {
     <PortfolioUiModal title={t(($) => $.actionConfirm)}>
       <UiEmpty className="border-solid" icon="checkCircle" iconClassName="text-green-500" title="Transaction complete!">
         <Button asChild>
-          <Link to={`/explorer/tx/${signature}`}>View in explorer</Link>
+          <ExplorerUiTxExternalLink signature={signature}>View in explorer</ExplorerUiTxExternalLink>
         </Button>
       </UiEmpty>
     </PortfolioUiModal>
