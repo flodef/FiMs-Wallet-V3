@@ -175,12 +175,14 @@ const consumeChainQuota = (signer: string) =>
 
 // The proxy burns a PAID Helius budget — arbitrary addresses would make the
 // API a free indexer for anyone holding a member key (audit M-8). Members may
-// only query their own linked wallets plus protocol addresses the product
-// legitimately displays (tontine pot, treasury). Admins stay unrestricted.
+// query their own linked wallets plus protocol addresses the product
+// legitimately displays (tontine pot, treasury); a signed-in wallet may
+// always read ITS OWN address — the signature already proves ownership, and
+// the shared read quota still bounds abuse. Admins stay unrestricted.
 const CHAIN_PUBLIC_TARGETS = new Set([FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS])
 const assertChainAddressAllowed = (signer: string, target: string) =>
   Effect.gen(function* () {
-    if (isAdminAddress(signer) || CHAIN_PUBLIC_TARGETS.has(target)) return
+    if (isAdminAddress(signer) || CHAIN_PUBLIC_TARGETS.has(target) || signer === target) return
     const linked = yield* withDb(async (db) => {
       const member = await db
         .select({ address: users.address, id: users.id })
