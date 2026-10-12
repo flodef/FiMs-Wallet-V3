@@ -43,6 +43,8 @@ const config: CSpellSettings = {
   useGitignore: true,
   words: [
     'borsh',
+    'rustup',
+    'sbf',
     'coinbase',
     'nexo',
     'cdylib',
