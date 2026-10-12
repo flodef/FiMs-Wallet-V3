@@ -3,7 +3,6 @@ export default interface Resources {
   'db-react': {
     themeAuto: 'Auto (system)'
     themeDark: 'Dark'
-    themeJupiter: 'Jupiter'
     themeLight: 'Light'
   }
   explorer: {
