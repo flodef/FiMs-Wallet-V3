@@ -71,3 +71,23 @@ Only after this is `initialize` unreachable — order matters (docs
   brief deploy window — retries handle dropped txs.
 - `cargo update -p anchor-lang` for SDK bumps; redeploy = same build+deploy.
 - Keep the deployed bytecode reproducible: always deploy from a clean tree.
+
+## Deployed instances
+
+### devnet (smoke test, anchor-lang 1.2.1 — 2026-10-12)
+
+- Program: `AtmC4gPAEZ1r4fD698mDaCpGEC5WZN5f4z55zscsdVmS` ✅ executable
+- ProgramData: `7pbBfodizcoRTUUTzjMzWeJTPBYdzitufVEMe2qRyS43`
+- Upgrade authority: `GyU9ZpTL3ce8kfS6XSpoiXaiiGb9svJfFEWer33SMmPS`
+  (throwaway test wallet — `~/.config/fims/devnet-test-wallet*.json`)
+- `initialize` ✅ (sig `2sWopNGAqJHM…`): admin+guardian = test wallet,
+  delegate = `EgLm7eFGry44VQTsxbHRcb5QK4NW9BRSSt7xn1dLUz2r` (API keeper hot
+  key — derived from `STRATEGY_DELEGATE_KEYPAIR`), treasury = FiMs treasury,
+  `state` PDA `2uvpWqWtMtj9ccRLv7TdheLA9eT3xfWvG6PnZEyEjz6X`
+- Whitelists empty on purpose: no Fluid positions exist on devnet — this
+  instance is a deploy/initialize rehearsal, not a working strategy.
+
+### mainnet — not deployed yet
+
+Deploy once the strategy feature is finalized (one paid deploy ~3–5 SOL,
+then the Squads authority transfer).
