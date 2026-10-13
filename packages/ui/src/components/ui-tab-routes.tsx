@@ -7,6 +7,9 @@ import { UiLoader } from './ui-loader.tsx'
 
 export interface UiTabRoute {
   element: ReactNode
+  // The route stays reachable (e.g. a dedicated nav entry points at it)
+  // but the trigger is hidden from the tab strip.
+  hidden?: boolean
   label: ReactElement | string
   path: string
 }
@@ -35,11 +38,13 @@ export function UiTabRoutes({
         {...props}
       >
         <TabsList>
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.path} value={tab.path}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
+          {tabs
+            .filter((tab) => !tab.hidden)
+            .map((tab) => (
+              <TabsTrigger key={tab.path} value={tab.path}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
         </TabsList>
       </Tabs>
       <Suspense fallback={<UiLoader />}>

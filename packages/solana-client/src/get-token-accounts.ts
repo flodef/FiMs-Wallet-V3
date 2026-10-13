@@ -17,8 +17,18 @@ export async function getTokenAccounts(
   client: SolanaClient,
   { address }: GetTokenAccountsOptions,
 ): Promise<GetTokenAccountsResult> {
-  return Promise.all([
+  // Each program fetch is independent: a T22 parse/rpc failure must not hide
+  // the legacy-token accounts (and vice-versa) — but a total failure still
+  // surfaces as an error, not an empty wallet.
+  const [tokenAccounts, token2022Accounts] = await Promise.allSettled([
     getTokenAccountsForProgramId(client, { address, programId: TOKEN_PROGRAM_ADDRESS }),
     getTokenAccountsForProgramId(client, { address, programId: TOKEN_2022_PROGRAM_ADDRESS }),
-  ]).then(([tokenAccounts, token2022Accounts]) => [...tokenAccounts.value, ...token2022Accounts.value])
+  ])
+  if (tokenAccounts.status === 'rejected' && token2022Accounts.status === 'rejected') {
+    throw tokenAccounts.reason
+  }
+  return [
+    ...(tokenAccounts.status === 'fulfilled' ? tokenAccounts.value.value : []),
+    ...(token2022Accounts.status === 'fulfilled' ? token2022Accounts.value.value : []),
+  ]
 }

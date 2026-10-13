@@ -61,9 +61,25 @@ export const handleChainAssets = ({ urlParams }: { urlParams: { address: string 
       try: () => fetchHeliusAssets(keys, urlParams.address),
     })
     const { symbols } = yield* withDb((db) => loadChainLabels(db, Option.some(signer)))
+    // FiMs-family mints have no Helius price feed — the `tokens` table is the
+    // protocol's own source: `value` is EUR per unit, and the USDC row gives
+    // the EUR→USD conversion so the chain reader can price the P&L.
+    const tokenRows = yield* withDb((db) =>
+      db.select({ address: tokens.address, symbol: tokens.symbol, value: tokens.value }).from(tokens),
+    )
+    const usdcEur = tokenRows.find((row) => row.symbol === 'USDC')?.value ?? null
+    const eurToUsd = usdcEur && usdcEur > 0 ? 1 / usdcEur : null
+    const fimsUsdByMint = new Map(
+      eurToUsd === null
+        ? []
+        : tokenRows
+            .filter((row) => row.address && row.value !== null && row.value > 0)
+            .map((row) => [row.address as string, (row.value as number) * eurToUsd]),
+    )
     return assets.map((asset) => ({
       ...asset,
       symbol: asset.mint ? (asset.symbol ?? chainSymbolForMint(asset.mint, symbols)) : 'SOL',
+      usdPrice: asset.usdPrice ?? (asset.mint ? (fimsUsdByMint.get(asset.mint) ?? null) : null),
     }))
   })
 
@@ -183,19 +199,20 @@ const CHAIN_PUBLIC_TARGETS = new Set([FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRES
 const assertChainAddressAllowed = (signer: string, target: string) =>
   Effect.gen(function* () {
     if (isAdminAddress(signer) || CHAIN_PUBLIC_TARGETS.has(target) || signer === target) return
-    const linked = yield* withDb(async (db) => {
-      const member = await db
-        .select({ address: users.address, id: users.id })
+    // Any member-linked address (main or alias) is readable by an
+    // authenticated signer — transaction history is public on-chain data
+    // and the shared quota still bounds Helius abuse. This is what lets a
+    // watched member account show its ledger.
+    const isMemberTarget = yield* withDb(async (db) => {
+      const rows = await db
+        .select({ address: users.address })
         .from(users)
-        .where(addressLinkedToUser(signer))
-      if (!member[0]) return []
-      const aliases = await db
-        .select({ address: userAddresses.address })
-        .from(userAddresses)
-        .where(eq(userAddresses.userId, member[0].id))
-      return [member[0].address, ...aliases.map((row) => row.address)]
+        .leftJoin(userAddresses, eq(users.id, userAddresses.userId))
+        .where(or(eq(users.address, target), eq(userAddresses.address, target)))
+        .limit(1)
+      return rows.length > 0
     })
-    if (!linked.includes(target)) {
+    if (!isMemberTarget) {
       return yield* Effect.fail(new AuthForbidden({ address: signer }))
     }
   })

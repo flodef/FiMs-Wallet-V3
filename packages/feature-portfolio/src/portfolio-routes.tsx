@@ -22,7 +22,10 @@ export default function PortfolioRoutes() {
             path: 'tokens',
           },
           {
+            // The dedicated Activity nav entry opens this directly — no
+            // duplicate trigger in the strip.
             element: <PortfolioFeatureTabActivity account={account} network={network} />,
+            hidden: true,
             label: t(($) => $.labelActivity),
             path: 'activity',
           },

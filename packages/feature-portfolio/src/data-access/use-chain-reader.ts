@@ -4,6 +4,7 @@ import { useAppContext } from '@workspace/context-react/use-app-context'
 import type { Account } from '@workspace/db/account/account'
 import type { Database } from '@workspace/db/database'
 import { useAccountMessageSigner } from '@workspace/db-react/use-account-message-signer'
+import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { chainGetAssets, chainGetHistory, chainGetLabels } from './chain-api.ts'
 
 const PAGE_SIZE = 100
@@ -30,30 +31,46 @@ async function syncChainHistory(db: Database, signer: MessagePartialSigner, addr
   }
 }
 
+// The chain API needs a signed session but the signed address does not
+// have to be the watched target — any signing-capable account works.
+// External (Connected) signers are preferred: they sign without unlocking
+// the vault, exactly like a plain session read.
+export function useChainSignerAccount(account: Account): Account | undefined {
+  const accounts = useAccountsLive()
+  return account.type !== 'Watched'
+    ? account
+    : (accounts.find((item) => item.type === 'Connected') ?? accounts.find((item) => item.type !== 'Watched'))
+}
+
 export function useChainLabels({ account }: { account: Account }) {
   const signerFor = useAccountMessageSigner()
+  const signerAccount = useChainSignerAccount(account)
   return useQuery({
-    enabled: account.type !== 'Watched',
-    queryFn: async () => chainGetLabels(await signerFor(account)),
+    enabled: !!signerAccount,
+    queryFn: async () => {
+      if (!signerAccount) throw new Error('No signing-capable account')
+      return chainGetLabels(await signerFor(signerAccount))
+    },
     queryKey: ['chainLabels'],
     staleTime: 5 * 60 * 1000,
   })
 }
 
 function chainHistoryQueryOptions({
-  account,
   address,
   db,
   signerFor,
+  signerAccount,
 }: {
-  account: Account
   address: string
   db: Database
   signerFor: (account: Account) => Promise<MessagePartialSigner>
+  signerAccount: Account | undefined
 }) {
   return queryOptions({
     queryFn: async () => {
-      const signer = await signerFor(account)
+      if (!signerAccount) throw new Error('No signing-capable account')
+      const signer = await signerFor(signerAccount)
       // Sync failure (API down, rate limit) must not blank cached history —
       // that's the point of the local store. Empty cache → error surfaces.
       try {
@@ -72,17 +89,22 @@ function chainHistoryQueryOptions({
 export function useChainHistory({ account, address }: { account: Account; address: null | string }) {
   const ctx = useAppContext()
   const signerFor = useAccountMessageSigner()
+  const signerAccount = useChainSignerAccount(account)
   return useQuery({
-    ...chainHistoryQueryOptions({ account, address: address ?? '', db: ctx.db, signerFor }),
-    enabled: Boolean(address) && account.type !== 'Watched',
+    ...chainHistoryQueryOptions({ address: address ?? '', db: ctx.db, signerAccount, signerFor }),
+    enabled: Boolean(address) && !!signerAccount,
   })
 }
 
 export function useChainAssets({ account, address }: { account: Account; address: null | string }) {
   const signerFor = useAccountMessageSigner()
+  const signerAccount = useChainSignerAccount(account)
   return useQuery({
-    enabled: Boolean(address) && account.type !== 'Watched',
-    queryFn: async () => chainGetAssets(await signerFor(account), address ?? ''),
+    enabled: Boolean(address) && !!signerAccount,
+    queryFn: async () => {
+      if (!signerAccount) throw new Error('No signing-capable account')
+      return chainGetAssets(await signerFor(signerAccount), address ?? '')
+    },
     queryKey: ['chainAssets', address],
   })
 }

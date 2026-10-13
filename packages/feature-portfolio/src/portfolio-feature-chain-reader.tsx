@@ -10,7 +10,12 @@ import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { useMemo, useState } from 'react'
 import { aggregateTokenFlows, computeTokenPnl } from './data-access/chain-pnl.ts'
-import { useChainAssets, useChainHistory, useChainLabels } from './data-access/use-chain-reader.ts'
+import {
+  useChainAssets,
+  useChainHistory,
+  useChainLabels,
+  useChainSignerAccount,
+} from './data-access/use-chain-reader.ts'
 import { PortfolioUiChainPnl } from './ui/portfolio-ui-chain-pnl.tsx'
 import { PortfolioUiChainTxList } from './ui/portfolio-ui-chain-tx-list.tsx'
 
@@ -42,7 +47,7 @@ export function PortfolioFeatureChainReader({ account, network }: { account: Acc
     return computeTokenPnl(aggregateTokenFlows(history.data), prices)
   }, [history.data, assets.data])
 
-  const signable = account.type !== 'Watched'
+  const signable = !!useChainSignerAccount(account)
 
   return (
     <UiCard
