@@ -20,8 +20,10 @@ export function SettingsUiWalletListItem({
     unsecured: t(($) => $.walletProtectionUnsecured),
   })
   // Keys live in the external wallet extension, not in our storage — the
-  // protection badge is its name, not "Unsecured".
-  const isExternal = !!wallet.externalWallet
+  // protection badge is its name, not "Unsecured". Rows written before the
+  // flag persisted are still external: only they have an empty
+  // derivationPath.
+  const isExternal = !!wallet.externalWallet || wallet.derivationPath.length === 0
 
   return (
     <Item key={wallet.id} role="listitem" variant={activeId === wallet.id ? 'muted' : 'outline'}>

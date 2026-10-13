@@ -70,11 +70,11 @@ export function SettingsFeatureWalletDetails() {
 
   const deleteMutation = useAccountDelete({
     onError: (error) => toastError(error.message),
-    onSuccess: () => toastSuccess('Account deleted'),
+    onSuccess: () => toastSuccess(t(($) => $.accountDeleteSuccess)),
   })
   const updateOrderMutation = useAccountUpdateOrder({
     onError: (error) => toastError(error.message),
-    onSuccess: () => toastSuccess('Account order updated'),
+    onSuccess: () => toastSuccess(t(($) => $.accountOrderSuccess)),
   })
   const activeAccount = useAccountActive()
   const wallet = useWalletFindUnique({ id: resolvedWalletId })

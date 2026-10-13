@@ -32,6 +32,7 @@ export async function walletCreate(ctx: DbContext, input: WalletCreateInput): Pr
         createdAt: now,
         derivationPath: parsedInput.derivationPath,
         description: parsedInput.description,
+        externalWallet: parsedInput.externalWallet,
         id: randomId(),
         mnemonic,
         name: parsedInput.name,

@@ -36,6 +36,9 @@ export function SettingsUiWalletMenu({
   const [openDelete, setOpenDelete] = useState(false)
   const [openExport, setOpenExport] = useState(false)
   const [openTransfer, setOpenTransfer] = useState(false)
+  // Rows written before externalWallet persisted only carry an empty
+  // derivationPath — both markers mean "no secrets here".
+  const isExternal = !!wallet.externalWallet || wallet.derivationPath.length === 0
   return (
     <Fragment>
       <DropdownMenu>
@@ -69,13 +72,13 @@ export function SettingsUiWalletMenu({
               {t(($) => $.exportMnemonic)}
             </DropdownMenuItem>
           ) : null}
-          {wallet.externalWallet ? null : (
+          {isExternal ? null : (
             <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenTransfer(true)}>
               {t(($) => $.transferWalletMenu)}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem className="cursor-pointer" onClick={() => setOpenDelete(true)}>
-            {t(($) => $.actionDeleteWallet)}
+            {isExternal ? t(($) => $.accountDisconnectAction) : t(($) => $.actionDeleteWallet)}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -83,12 +86,12 @@ export function SettingsUiWalletMenu({
       <SettingsUiBottomSheetTransferWallet open={openTransfer} setOpen={setOpenTransfer} wallet={wallet} />
       <UiConfirm
         action={() => deleteItem(wallet)}
-        actionLabel={t(($) => $.actionDelete)}
+        actionLabel={isExternal ? t(($) => $.accountDisconnectAction) : t(($) => $.actionDelete)}
         actionVariant="destructive"
-        description={t(($) => $.walletDeleteDescription)}
+        description={isExternal ? t(($) => $.walletDisconnectDescription) : t(($) => $.walletDeleteDescription)}
         onOpenChange={setOpenDelete}
         open={openDelete}
-        title={t(($) => $.walletDeleteTitle)}
+        title={isExternal ? t(($) => $.walletDisconnectTitle) : t(($) => $.walletDeleteTitle)}
       />
     </Fragment>
   )

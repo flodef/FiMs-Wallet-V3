@@ -1,4 +1,5 @@
 import type { Wallet } from '@workspace/db/wallet/wallet'
+import { WalletDeleteActiveError } from '@workspace/db/wallet/wallet-delete'
 import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useWalletDelete } from '@workspace/db-react/use-wallet-delete'
 import { useWalletLive } from '@workspace/db-react/use-wallet-live'
@@ -17,12 +18,19 @@ export function SettingsFeatureWalletList() {
   const { t } = useTranslation('settings')
   const page = useSettingsPage({ pageId: 'wallets' })
   const deleteMutation = useWalletDelete({
-    onError: (error) => toastError(error.message),
-    onSuccess: () => toastSuccess('Wallet deleted'),
+    onError: (error) =>
+      toastError(error instanceof WalletDeleteActiveError ? t(($) => $.walletDeleteActiveError) : error.message),
+    // "Disconnected" for external wallets — nothing was deleted locally.
+    onSuccess: (_, { id }) =>
+      toastSuccess(
+        wallets.find((wallet) => wallet.id === id)?.derivationPath.length === 0
+          ? t(($) => $.accountDisconnectSuccess)
+          : t(($) => $.walletDeleteSuccess),
+      ),
   })
   const updateOrderMutation = useWalletUpdateOrder({
     onError: (error) => toastError(error.message),
-    onSuccess: () => toastSuccess('Wallet order updated'),
+    onSuccess: () => toastSuccess(t(($) => $.walletOrderSuccess)),
   })
   const account = useAccountActive()
   const wallets = useWalletLive()

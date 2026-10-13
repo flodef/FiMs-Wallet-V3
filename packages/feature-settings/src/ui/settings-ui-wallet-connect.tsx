@@ -8,6 +8,7 @@ import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useDetectedWallets } from '@workspace/db-react/use-connected-wallet-signer'
 import { useWalletCreate } from '@workspace/db-react/use-wallet-create'
 import { useWalletLive } from '@workspace/db-react/use-wallet-live'
+import { useWalletUpdate } from '@workspace/db-react/use-wallet-update'
 import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@workspace/ui/components/item'
@@ -26,6 +27,7 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
   const wallets = useWalletLive()
   const accounts = useAccountsLive()
   const createWallet = useWalletCreate()
+  const updateWallet = useWalletUpdate()
   const createAccount = useAccountCreate()
   const updateAccount = useAccountUpdate()
   const setActive = useAccountSetActive()
@@ -46,8 +48,16 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
       if (!walletAccounts.length) {
         throw new Error('No account authorized')
       }
+      // Legacy rows were written before externalWallet was persisted — they
+      // are recognizable by an empty derivationPath and the wallet name.
+      const existingWallet =
+        wallets.find((item) => item.externalWallet === wallet.name) ??
+        wallets.find((item) => item.derivationPath === '' && item.name === wallet.name.slice(0, 20))
+      if (existingWallet && !existingWallet.externalWallet) {
+        await updateWallet.mutateAsync({ id: existingWallet.id, input: { externalWallet: wallet.name } })
+      }
       const walletId =
-        wallets.find((item) => item.externalWallet === wallet.name)?.id ??
+        existingWallet?.id ??
         (await createWallet.mutateAsync({
           input: {
             derivationPath: '',
