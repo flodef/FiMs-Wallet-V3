@@ -1,4 +1,5 @@
 import type { AppContext } from '@workspace/context/app-context'
+import { settingSetValue } from '@workspace/db/setting/setting-set-value'
 import { applyThemeClasses } from '@workspace/db-react/resolve-theme'
 import { rootLoader } from '@workspace/db-react/root-loader'
 import { i18n, resolveLanguage } from '@workspace/i18n'
@@ -11,10 +12,20 @@ export function rootRouteLoader(ctx: AppContext) {
     const pathname = url.pathname
 
     const result = await rootLoader(ctx)
-    const { settings, networks } = result
+    const { accounts, networks, settings } = result
 
     const activeAccountId = settings.find((s) => s.key === 'activeAccountId')?.value
-    if (!activeAccountId && !pathname.startsWith('/onboarding')) {
+    let activeAccount = activeAccountId ? accounts.find((account) => account.id === activeAccountId) : null
+
+    // activeAccountId can point at a deleted account (external wallet
+    // disconnected while active, …) or simply be unset while accounts
+    // exist — reassign it instead of letting the app loop on a stale id.
+    const fallback = accounts[0]
+    if (!activeAccount && fallback) {
+      activeAccount = fallback
+      await settingSetValue(ctx, 'activeAccountId', fallback.id)
+    }
+    if (!activeAccount && !pathname.startsWith('/onboarding')) {
       return redirectToOnboarding()
     }
 
