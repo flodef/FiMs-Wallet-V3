@@ -41,7 +41,7 @@ export function FimsUiProfileEdit({ account, member }: { account: Account; membe
       await update.mutateAsync(patch)
       toastSuccess(t(($) => $.profileSaved))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 

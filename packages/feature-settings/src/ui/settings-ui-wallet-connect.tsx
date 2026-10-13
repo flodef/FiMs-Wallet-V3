@@ -1,6 +1,7 @@
 import type { Address } from '@solana/kit'
 import type { Wallet as StandardWallet } from '@wallet-standard/core'
 import { StandardConnect, type StandardConnectFeature } from '@wallet-standard/features'
+import { AppError } from '@workspace/core/app-error'
 import { useAccountCreate } from '@workspace/db-react/use-account-create'
 import { useAccountSetActive } from '@workspace/db-react/use-account-set-active'
 import { useAccountUpdate } from '@workspace/db-react/use-account-update'
@@ -46,7 +47,7 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
       }
       const { accounts: walletAccounts } = await connectFeature.connect()
       if (!walletAccounts.length) {
-        throw new Error('No account authorized')
+        throw new AppError('noAccountAuthorized', 'No account authorized')
       }
       // Legacy rows were written before externalWallet was persisted — they
       // are recognizable by an empty derivationPath and the wallet name.
@@ -104,7 +105,7 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
       toastSuccess(t(($) => $.walletConnectSuccess))
       onConnected?.()
     } catch (error) {
-      toastError(`${error}`)
+      toastError(error)
     } finally {
       setPending(undefined)
     }

@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import { z } from 'zod'
 
 import { solanaAddressSchema } from '../solana/solana-address-schema.ts'
@@ -52,7 +53,7 @@ export function walletTransferEncode(payload: WalletTransferPayload): string {
 export function walletTransferDecode(raw: string): WalletTransferPayload {
   const trimmed = raw.trim()
   if (!trimmed.length) {
-    throw new Error('Empty transfer code')
+    throw new AppError('transferCodeEmpty', 'Empty transfer code')
   }
   const json = new TextDecoder().decode(base64UrlToBytes(trimmed))
   return walletTransferPayloadSchema.parse(JSON.parse(json))

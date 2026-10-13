@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import {
   decryptWithPassword,
   encryptWithPassword,
@@ -54,7 +55,7 @@ export function createVault(store: VaultStorage): Vault {
 
   function requireDefaultKey(): CryptoKey {
     if (!key) {
-      throw new Error('Vault is locked')
+      throw new AppError('vaultLocked', 'Vault is locked')
     }
     return key
   }
@@ -63,7 +64,7 @@ export function createVault(store: VaultStorage): Vault {
     async changePassword({ newPassword, oldPassword }) {
       const encryptedVaultKey = await store.getVaultKey()
       if (!encryptedVaultKey) {
-        throw new Error('Vault is not configured')
+        throw new AppError('vaultNotConfigured', 'Vault is not configured')
       }
       try {
         const keyMaterial = await decryptWithPassword({ encrypted: encryptedVaultKey, password: oldPassword })
@@ -71,7 +72,7 @@ export function createVault(store: VaultStorage): Vault {
         key = await importVaultKey({ keyMaterial })
         weakPassword = false
       } catch (error) {
-        throw new Error('Unable to change vault password', { cause: error })
+        throw new AppError('vaultPasswordChangeFailed', 'Unable to change vault password', { cause: error })
       }
     },
     clearWalletKey({ walletId }) {
@@ -80,7 +81,7 @@ export function createVault(store: VaultStorage): Vault {
     },
     async create({ password }) {
       if (await isConfigured()) {
-        throw new Error('Vault is already configured')
+        throw new AppError('vaultAlreadyConfigured', 'Vault is already configured')
       }
       const keyMaterial = generateVaultKeyMaterial()
       await store.setVaultKey(await encryptWithPassword({ password, value: keyMaterial }))
@@ -105,7 +106,7 @@ export function createVault(store: VaultStorage): Vault {
         case 'pin': {
           const walletKey = walletKeys.get(walletId)
           if (!walletKey) {
-            throw new Error('Wallet is locked')
+            throw new AppError('walletLocked', 'Wallet is locked')
           }
           return walletKey
         }
@@ -123,7 +124,7 @@ export function createVault(store: VaultStorage): Vault {
     async unlock({ password }) {
       const encryptedVaultKey = await store.getVaultKey()
       if (!encryptedVaultKey) {
-        throw new Error('Vault is not configured')
+        throw new AppError('vaultNotConfigured', 'Vault is not configured')
       }
       checkUnlockThrottle('vault')
       try {
@@ -147,7 +148,7 @@ export function createVault(store: VaultStorage): Vault {
         weakPassword = false
         walletKeys.clear()
         recordUnlockFailure('vault')
-        throw new Error('Unable to unlock vault', { cause: error })
+        throw new AppError('vaultUnlockFailed', 'Unable to unlock vault', { cause: error })
       }
     },
     async unlockWallet({ credential, walletId }) {
@@ -183,7 +184,7 @@ export function createVault(store: VaultStorage): Vault {
             return
         }
       } catch (error) {
-        throw new Error('Unable to unlock wallet', { cause: error })
+        throw new AppError('walletUnlockFailed', 'Unable to unlock wallet', { cause: error })
       }
     },
     async unlockWithKeyMaterial({ keyMaterial }) {
@@ -192,7 +193,7 @@ export function createVault(store: VaultStorage): Vault {
       } catch (error) {
         key = null
         walletKeys.clear()
-        throw new Error('Unable to unlock vault', { cause: error })
+        throw new AppError('vaultUnlockFailed', 'Unable to unlock vault', { cause: error })
       }
     },
     weakCredentials() {

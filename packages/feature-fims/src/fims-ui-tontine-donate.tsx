@@ -71,7 +71,7 @@ export function FimsUiTontineDonate({ account }: { account: Account }) {
       }
       return `${result.signature}`
     },
-    onError: (error) => toastError(error instanceof Error ? error.message : String(error)),
+    onError: (error) => toastError(error),
     onSuccess: async (signature) => {
       // The gift is on-chain. Recording can lag one node behind — retry once
       // before reporting, the endpoint is idempotent on the signature.
@@ -82,7 +82,7 @@ export function FimsUiTontineDonate({ account }: { account: Account }) {
         try {
           await recordDonation.mutateAsync(signature)
         } catch (error) {
-          toastError(error instanceof Error ? error.message : String(error))
+          toastError(error)
           return
         }
       }

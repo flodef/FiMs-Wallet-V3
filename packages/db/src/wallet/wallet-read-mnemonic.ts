@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import { tryCatchOrThrow } from '@workspace/core/try-catch-or-throw'
 import { decryptWithVaultKey } from '@workspace/vault/encrypted-value'
 import type { DbContext } from '../db-context.ts'
@@ -9,7 +10,7 @@ export async function walletReadMnemonic(ctx: DbContext, id: string): Promise<st
       `Error finding wallet with id ${id}`,
     )
     if (!wallet) {
-      throw new Error(`Wallet with id ${id} not found`)
+      throw new AppError('walletNotFound', `Wallet with id ${id} not found`, { id })
     }
     return wallet
   })
@@ -19,7 +20,7 @@ export async function walletReadMnemonic(ctx: DbContext, id: string): Promise<st
     key: await ctx.vault.requireWalletKey({ walletId: id }),
   })
   if (!mnemonic.length) {
-    throw new Error('This wallet was imported from a private key and has no recovery phrase')
+    throw new AppError('mnemonicMissing', 'This wallet was imported from a private key and has no recovery phrase')
   }
   return mnemonic
 }

@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import { tryCatchOrThrow } from '@workspace/core/try-catch-or-throw'
 import type { DbContext } from '../db-context.ts'
 import type { Account } from './account.ts'
@@ -10,7 +11,7 @@ export async function accountUpdateOrder(ctx: DbContext, input: AccountUpdateOrd
   return ctx.db.transaction('rw', ctx.db.accounts, async () => {
     const [account, accountCount] = await Promise.all([ctx.db.accounts.get(id), ctx.db.accounts.count()])
     if (!account) {
-      throw new Error(`Account with id ${id} not found`)
+      throw new AppError('accountNotFound', `Account with id ${id} not found`, { id })
     }
     if (accountCount === 0) {
       return

@@ -1,4 +1,5 @@
 import { type Address, assertIsAddress } from '@solana/kit'
+import { AppError } from '@workspace/core/app-error'
 
 // Solana Pay URL parsing (https://docs.solanapay.com/spec):
 //   solana:<recipient>?amount=1.5&spl-token=<mint>&reference=<key>&label=..&message=..&memo=..
@@ -29,11 +30,13 @@ const AMOUNT_PATTERN = /^\d*\.?\d+$/
 export function parseSolanaPayUrl(raw: string): SolanaPayRequest {
   const trimmed = raw.trim()
   if (!trimmed.length) {
-    throw new Error('Empty payment link')
+    throw new AppError('paymentLinkEmpty', 'Empty payment link')
   }
   const url = new URL(trimmed)
   if (url.protocol !== `${SCHEME}:`) {
-    throw new Error(`Unsupported payment link scheme: ${url.protocol}`)
+    throw new AppError('paymentLinkScheme', `Unsupported payment link scheme: ${url.protocol}`, {
+      protocol: url.protocol,
+    })
   }
 
   const recipientPart = decodeURIComponent(url.pathname)

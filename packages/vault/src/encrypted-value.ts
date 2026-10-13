@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import {
   type EncryptedValue,
   encryptedValueSchema,
@@ -21,7 +22,7 @@ export async function decryptWithCredential(input: { credential: string; encrypt
   try {
     const encryptedValue = encryptedValueSchema.parse(JSON.parse(input.encrypted))
     if (encryptedValue.kdf !== 'pbkdf2-sha256') {
-      throw new Error('Unsupported encrypted value')
+      throw new AppError('encryptedValueUnsupported', 'Unsupported encrypted value')
     }
     const key = await derivePasswordKey({
       credential: input.credential,
@@ -30,7 +31,7 @@ export async function decryptWithCredential(input: { credential: string; encrypt
     })
     return await decryptWithKey({ encryptedValue, key })
   } catch (error) {
-    throw new Error('Unable to decrypt value', { cause: error })
+    throw new AppError('decryptFailed', 'Unable to decrypt value', { cause: error })
   }
 }
 
@@ -49,12 +50,12 @@ export async function decryptWithVaultKey(input: { encrypted: string; key: Crypt
   try {
     const encryptedValue = encryptedValueSchema.parse(JSON.parse(input.encrypted))
     if (encryptedValue.kdf !== 'direct') {
-      throw new Error('Unsupported encrypted value')
+      throw new AppError('encryptedValueUnsupported', 'Unsupported encrypted value')
     }
 
     return await decryptWithKey({ encryptedValue, key: input.key })
   } catch (error) {
-    throw new Error('Unable to decrypt value', { cause: error })
+    throw new AppError('decryptFailed', 'Unable to decrypt value', { cause: error })
   }
 }
 
@@ -117,7 +118,7 @@ export function generateVaultKeyMaterial(): string {
 export async function importVaultKey(input: { keyMaterial: string }): Promise<CryptoKey> {
   const keyMaterial = decodeBase64Url(input.keyMaterial)
   if (keyMaterial.length !== VAULT_KEY_LENGTH_BYTES) {
-    throw new Error('Invalid vault key material')
+    throw new AppError('vaultKeyInvalid', 'Invalid vault key material')
   }
 
   try {
@@ -155,10 +156,16 @@ function assertCredentialLength(input: {
   minLength: number
 }): void {
   if (input.credential.length < input.minLength) {
-    throw new Error(`${input.label} must be at least ${input.minLength} characters`)
+    throw new AppError('valueTooShort', `${input.label} must be at least ${input.minLength} characters`, {
+      count: input.minLength,
+      label: input.label,
+    })
   }
   if (input.maxLength !== undefined && input.credential.length > input.maxLength) {
-    throw new Error(`${input.label} must be at most ${input.maxLength} characters`)
+    throw new AppError('valueTooLong', `${input.label} must be at most ${input.maxLength} characters`, {
+      count: input.maxLength,
+      label: input.label,
+    })
   }
 }
 

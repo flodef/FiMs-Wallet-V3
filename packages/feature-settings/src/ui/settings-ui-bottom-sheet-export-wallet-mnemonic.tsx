@@ -60,7 +60,7 @@ export function SettingsUiBottomSheetExportWalletMnemonic({
       }
     } catch (caught) {
       if (session === sessionRef.current) {
-        toastError(caught instanceof Error ? caught.message : `${caught}`)
+        toastError(caught)
       }
     }
   }

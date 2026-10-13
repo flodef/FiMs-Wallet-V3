@@ -46,7 +46,7 @@ export function SettingsUiAccountMenu({
   const [openExport, setOpenExport] = useState(false)
   const [openMigrate, setOpenMigrate] = useState(false)
   const updateMutation = useAccountUpdate({
-    onError: (error) => toastError(error.message),
+    onError: (error) => toastError(error),
     onSuccess: () => toastSuccess(t(($) => $.accountDisconnectSuccess)),
   })
   return (

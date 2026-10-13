@@ -1,4 +1,5 @@
 import { useTranslation } from '@workspace/i18n'
+import { localizedErrorMessage } from '@workspace/i18n/localized-error'
 import { useState } from 'react'
 import { isRouteErrorResponse, Navigate, useRouteError } from 'react-router'
 import { cn } from '../lib/utils.ts'
@@ -14,7 +15,7 @@ export function UiErrorBoundary() {
 
   // Thrown when the last wallet/account vanished mid-session (e.g. the active
   // external wallet was disconnected) — a redirect, not a bug page.
-  if (isError && error.name === 'NoActiveAccountError') {
+  if (isError && error.name === 'noActiveAccount') {
     return <Navigate replace to="/onboarding" />
   }
 
@@ -22,7 +23,7 @@ export function UiErrorBoundary() {
   const message = isRouteErrorResponse(error)
     ? `${error.status} ${error.statusText}`
     : isError
-      ? error.message
+      ? localizedErrorMessage(error)
       : JSON.stringify(error)
 
   const description = message ?? t(($) => $.errorUnknown)

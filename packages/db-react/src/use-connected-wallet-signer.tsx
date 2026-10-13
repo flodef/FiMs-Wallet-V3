@@ -1,6 +1,7 @@
 import { SolanaSignTransaction, type SolanaSignTransactionFeature } from '@solana/wallet-standard-features'
 import { getWallets } from '@wallet-standard/app'
 import { StandardConnect, type StandardConnectFeature } from '@wallet-standard/features'
+import { AppError } from '@workspace/core/app-error'
 import type { Account } from '@workspace/db/account/account'
 import { createWalletStandardSigner, type WalletStandardSigner } from '@workspace/solana-client/wallet-standard-signer'
 
@@ -49,16 +50,26 @@ function resolveWalletSigner(account: Account): Promise<WalletStandardSigner> {
       .get()
       .find((w) => w.name === account.externalWallet)
     if (!wallet) {
-      throw new Error(`External wallet not available: ${account.externalWallet ?? account.publicKey}`)
+      throw new AppError(
+        'externalWalletNotAvailable',
+        `External wallet not available: ${account.externalWallet ?? account.publicKey}`,
+        { name: account.externalWallet },
+      )
     }
     const feature = wallet.features[StandardConnect] as StandardConnectFeature[typeof StandardConnect] | undefined
     if (!feature) {
-      throw new Error(`${wallet.name} does not support standard:connect`)
+      throw new AppError('walletNoConnectFeature', `${wallet.name} does not support standard:connect`, {
+        name: wallet.name,
+      })
     }
     const { accounts } = await feature.connect()
     const walletAccount = accounts.find((a) => a.address === account.publicKey)
     if (!walletAccount) {
-      throw new Error(`Account ${account.publicKey} not authorized in ${wallet.name}`)
+      throw new AppError(
+        'accountNotAuthorizedInWallet',
+        `Account ${account.publicKey} not authorized in ${wallet.name}`,
+        { name: wallet.name },
+      )
     }
     return createWalletStandardSigner(wallet, walletAccount)
   })()

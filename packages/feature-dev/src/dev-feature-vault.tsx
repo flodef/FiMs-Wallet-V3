@@ -22,7 +22,7 @@ export default function DevFeatureVault() {
   })
   const unlockVault = useMutation({
     mutationFn: () => requestUnlock(),
-    onError: (error) => toastError(error instanceof Error ? error.message : 'Unable to request vault unlock'),
+    onError: (error) => toastError(error instanceof Error ? error : 'Unable to request vault unlock'),
     onSuccess: (result) => {
       if (result) {
         toastSuccess('Vault unlocked successfully')

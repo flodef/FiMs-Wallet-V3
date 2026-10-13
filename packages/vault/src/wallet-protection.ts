@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import {
   decryptWithCredential,
   encryptWithCredential,
@@ -61,7 +62,7 @@ export async function unlockPinWalletProtection(input: { pin: string; protection
   try {
     const protection = walletProtectionSchema.parse(JSON.parse(input.protection))
     if (protection.mode !== 'pin') {
-      throw new Error('Wallet is not PIN protected')
+      throw new AppError('walletNotPinProtected', 'Wallet is not PIN protected')
     }
     const keyMaterial = await decryptWithCredential({
       credential: input.pin,
@@ -69,7 +70,7 @@ export async function unlockPinWalletProtection(input: { pin: string; protection
     })
     return await importVaultKey({ keyMaterial })
   } catch (error) {
-    throw new Error('Unable to unlock wallet protection', { cause: error })
+    throw new AppError('walletUnlockFailed', 'Unable to unlock wallet protection', { cause: error })
   }
 }
 
@@ -77,23 +78,25 @@ export async function unlockUnsecuredWalletProtection(input: { protection: strin
   try {
     const protection = walletProtectionSchema.parse(JSON.parse(input.protection))
     if (protection.mode !== 'unsecured') {
-      throw new Error('Wallet is not unsecured')
+      throw new AppError('walletNotUnsecured', 'Wallet is not unsecured')
     }
 
     return await importVaultKey({ keyMaterial: protection.keyMaterial })
   } catch (error) {
-    throw new Error('Unable to unlock wallet protection', { cause: error })
+    throw new AppError('walletUnlockFailed', 'Unable to unlock wallet protection', { cause: error })
   }
 }
 
 function assertPin(pin: string, minLength = VAULT_PIN_MIN_LENGTH): void {
   if (!PIN_DIGITS_REGEX.test(pin)) {
-    throw new Error('PIN must contain only digits')
+    throw new AppError('pinDigitsOnly', 'PIN must contain only digits')
   }
   if (pin.length < minLength) {
-    throw new Error(`PIN must be at least ${minLength} digits`)
+    throw new AppError('pinTooShort', `PIN must be at least ${minLength} digits`, { count: minLength })
   }
   if (pin.length > VAULT_PIN_MAX_LENGTH) {
-    throw new Error(`PIN must be at most ${VAULT_PIN_MAX_LENGTH} digits`)
+    throw new AppError('pinTooLong', `PIN must be at most ${VAULT_PIN_MAX_LENGTH} digits`, {
+      count: VAULT_PIN_MAX_LENGTH,
+    })
   }
 }

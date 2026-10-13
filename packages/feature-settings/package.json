@@ -5,6 +5,7 @@
     "@wallet-standard/core": "catalog:",
     "@wallet-standard/features": "1.1.0",
     "@workspace/context-react": "workspace:*",
+    "@workspace/core": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/db-react": "workspace:*",
     "@workspace/env": "workspace:*",

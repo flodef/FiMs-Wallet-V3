@@ -1,5 +1,4 @@
 {
-  "accountDeleteActiveError": "You cannot delete the active account. Switch to another account and try again.",
   "accountDeleteDescription": "This action cannot be undone.",
   "accountDeleteSuccess": "Account deleted",
   "accountDeleteTitle": "Are you sure you want to delete this account?",
@@ -201,7 +200,6 @@
   "walletCreateHeaderSeed": "Seed phrases",
   "walletCreateImportDescription": "Import an existing seed phrase and discover accounts",
   "walletCreateImportTitle": "Import an existing wallet",
-  "walletDeleteActiveError": "You cannot delete the active wallet. Switch to another wallet and try again.",
   "walletDeleteDescription": "This action cannot be undone.",
   "walletDeleteSuccess": "Wallet deleted",
   "walletDeleteTitle": "Are you sure you want to delete this wallet?",

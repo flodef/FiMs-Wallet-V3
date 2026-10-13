@@ -64,7 +64,7 @@ export function FimsUiLimitOrders({ account, outputTokens }: { account: Account;
       await orders.refetch()
     } catch (error) {
       reportGasTopupError(error)
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 
@@ -74,7 +74,7 @@ export function FimsUiLimitOrders({ account, outputTokens }: { account: Account;
       await orders.refetch()
     } catch (error) {
       reportGasTopupError(error)
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 

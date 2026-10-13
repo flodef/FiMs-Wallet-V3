@@ -50,7 +50,7 @@ export function SettingsFeatureWalletAddAccount() {
       await deriveAccount.mutateAsync({ index: accountsRef.current?.length ?? 0, item: wallet })
       toastSuccess(`Account derived for ${wallet.name}`)
     } catch (e) {
-      toastError(`${e}`)
+      toastError(e)
     }
   }
 
@@ -75,7 +75,7 @@ export function SettingsFeatureWalletAddAccount() {
       })
       toastSuccess(`Account imported for ${wallet.name}`)
     } catch (e) {
-      toastError(`${e}`)
+      toastError(e)
     }
   }
 
@@ -90,7 +90,7 @@ export function SettingsFeatureWalletAddAccount() {
       })
       toastSuccess(`Account watched for ${wallet?.name}`)
     } catch (e) {
-      toastError(`${e}`)
+      toastError(e)
     }
   }
 

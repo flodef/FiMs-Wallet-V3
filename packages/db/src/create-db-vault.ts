@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import { createVault, type Vault } from '@workspace/vault/vault'
 import type { Database } from './database.ts'
 import { randomId } from './random-id.ts'
@@ -12,7 +13,7 @@ export function createDbVault({ db }: { db: Database }): Vault {
     async getWalletProtection(walletId: string) {
       const wallet = await db.wallets.where('id').equals(walletId).raw().first()
       if (!wallet) {
-        throw new Error(`Wallet with id ${walletId} not found`)
+        throw new AppError('walletNotFound', `Wallet with id ${walletId} not found`, { id: walletId })
       }
 
       return wallet.secret

@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import { tryCatchOrThrow } from '@workspace/core/try-catch-or-throw'
 import type { DbContext } from '../db-context.ts'
 import type { WalletInternal } from './wallet-internal.ts'
@@ -10,7 +11,7 @@ export async function walletUpdateOrder(ctx: DbContext, input: WalletUpdateOrder
   return ctx.db.transaction('rw', ctx.db.wallets, async () => {
     const [wallet, walletCount] = await Promise.all([ctx.db.wallets.get(id), ctx.db.wallets.count()])
     if (!wallet) {
-      throw new Error(`Wallet with id ${id} not found`)
+      throw new AppError('walletNotFound', `Wallet with id ${id} not found`, { id })
     }
     if (walletCount === 0) {
       return

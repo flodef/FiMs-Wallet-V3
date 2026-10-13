@@ -49,7 +49,7 @@ export function useSolanaPayRequest() {
         await navigate(`/modals/send/${token}/${request.recipient}`, { state })
       }
     } catch (error) {
-      toastError(error instanceof Error ? error.message : `${error}`)
+      toastError(error)
     }
   }
 }

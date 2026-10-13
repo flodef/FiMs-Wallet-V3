@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import { tryCatchOrThrow } from '@workspace/core/try-catch-or-throw'
 
 import type { DbContext } from '../db-context.ts'
@@ -8,10 +9,10 @@ import { settingKeySchema } from './setting-key-schema.ts'
 
 export async function settingSetValue(ctx: DbContext, key: SettingKey, value: string): Promise<void> {
   if (!settingKeySchema.safeParse(key).success) {
-    throw new Error(`Invalid setting key: ${key}`)
+    throw new AppError('settingKeyInvalid', `Invalid setting key: ${key}`, { key })
   }
   if (!value || typeof value !== 'string') {
-    throw new Error(`Invalid setting value: ${value}`)
+    throw new AppError('settingValueInvalid', `Invalid setting value: ${value}`, { value })
   }
 
   return ctx.db.transaction('rw', ctx.db.settings, async () => {

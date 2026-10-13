@@ -50,7 +50,7 @@ export function useRequestSignApproval(): RequestSignApproval {
 
       return { action, mode: nextMode, type: 'unlock' as const }
     },
-    onError: (caught) => toastError(caught instanceof Error ? caught.message : `${caught}`),
+    onError: (caught) => toastError(caught),
   })
   const unlockMutation = useMutation({
     mutationFn: async (nextCredential: string) =>
@@ -163,6 +163,6 @@ async function runApproval(action: () => Promise<void>) {
   try {
     await action()
   } catch (caught) {
-    toastError(caught instanceof Error ? caught.message : `${caught}`)
+    toastError(caught)
   }
 }

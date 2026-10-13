@@ -80,7 +80,7 @@ export function OnboardingFeatureGenerate({ redirectTo }: { redirectTo: string }
         await navigate(redirectTo)
       }
     } catch (error) {
-      toastError(`${error}`)
+      toastError(error)
     }
   }
 

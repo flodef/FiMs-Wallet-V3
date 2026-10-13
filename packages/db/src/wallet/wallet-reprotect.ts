@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import { decryptWithVaultKey, encryptWithVaultKey } from '@workspace/vault/encrypted-value'
 import {
   createPasswordWalletProtection,
@@ -20,7 +21,7 @@ export async function walletReprotect(ctx: DbContext, input: WalletReprotectInpu
   await db.transaction('rw', db.accounts, db.wallets, async () => {
     const wallet = await db.wallets.where('id').equals(input.walletId).raw().first()
     if (!wallet) {
-      throw new Error(`Wallet with id ${input.walletId} not found`)
+      throw new AppError('walletNotFound', `Wallet with id ${input.walletId} not found`, { id: input.walletId })
     }
 
     const accounts = await db.accounts.where('walletId').equals(input.walletId).raw().toArray()

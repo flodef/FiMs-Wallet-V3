@@ -1,3 +1,5 @@
+import { AppError } from '@workspace/core/app-error'
+
 // Expands scientific notation ("1e-8", "2.5E6") into a plain decimal string.
 // String-only: no float, so precision is never lost.
 function expandScientificNotation(input: string): string {
@@ -22,21 +24,21 @@ function expandScientificNotation(input: string): string {
 
 export function uiAmountToBigInt(amount: string, decimals: number): bigint {
   if (!Number.isInteger(decimals) || decimals < 0) {
-    throw new Error(`Decimals must be a non-negative integer: ${decimals}`)
+    throw new AppError('amountDecimalsInvalid', `Decimals must be a non-negative integer: ${decimals}`, { decimals })
   }
   const parsedAmount = parseFloat(amount)
   if (Number.isNaN(parsedAmount)) {
-    throw new Error(`Could not parse amount: ${String(amount)}`)
+    throw new AppError('amountInvalid', `Could not parse amount: ${String(amount)}`, { amount })
   }
   if (parsedAmount < 0) {
-    throw new Error(`Amount cannot be negative: ${String(amount)}`)
+    throw new AppError('amountNegative', `Amount cannot be negative: ${String(amount)}`, { amount })
   }
   // `Number#toString` emits scientific notation for small and huge amounts
   // ("0.00000001" → "1e-8"), which the previous `Intl.NumberFormat` trick
   // could not digest. Expand it before scaling to integer units.
   const expanded = expandScientificNotation(amount.trim())
   if (!/^\d+(\.\d+)?$/.test(expanded)) {
-    throw new Error(`Could not parse amount: ${String(amount)}`)
+    throw new AppError('amountInvalid', `Could not parse amount: ${String(amount)}`, { amount })
   }
   const [whole = '0', fraction = ''] = expanded.split('.')
   // Sub-unit precision is truncated, matching the previous behavior: the

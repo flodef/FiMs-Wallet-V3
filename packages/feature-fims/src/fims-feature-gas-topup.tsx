@@ -83,7 +83,7 @@ export function FimsFeatureGasTopup() {
       await queryClient.invalidateQueries()
       closeGasTopup()
     } catch (error) {
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 

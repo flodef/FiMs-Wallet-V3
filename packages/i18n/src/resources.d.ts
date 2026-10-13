@@ -696,7 +696,6 @@ export default interface Resources {
     warningWalletReassigned: 'This transaction hands control of your wallet account to another program. Signing is blocked.'
   }
   settings: {
-    accountDeleteActiveError: 'You cannot delete the active account. Switch to another account and try again.'
     accountDeleteDescription: 'This action cannot be undone.'
     accountDeleteSuccess: 'Account deleted'
     accountDeleteTitle: 'Are you sure you want to delete this account?'
@@ -897,7 +896,6 @@ export default interface Resources {
     walletCreateHeaderSeed: 'Seed phrases'
     walletCreateImportDescription: 'Import an existing seed phrase and discover accounts'
     walletCreateImportTitle: 'Import an existing wallet'
-    walletDeleteActiveError: 'You cannot delete the active wallet. Switch to another wallet and try again.'
     walletDeleteDescription: 'This action cannot be undone.'
     walletDeleteSuccess: 'Wallet deleted'
     walletDeleteTitle: 'Are you sure you want to delete this wallet?'
@@ -981,6 +979,7 @@ export default interface Resources {
     actionRemove: 'Remove'
     actionSave: 'Save'
     actionShowStack: 'Show stack trace'
+    errorInvalidInput: 'Invalid input.'
     errorSupport: 'Create a GitHub issue if the issue persists.'
     errorTitle: 'Oops, an error occurred'
     errorUnknown: 'Unknown error'

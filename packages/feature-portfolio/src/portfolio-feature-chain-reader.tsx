@@ -1,6 +1,7 @@
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
 import { useTranslation } from '@workspace/i18n'
+import { localizedErrorMessage } from '@workspace/i18n/localized-error'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
@@ -85,7 +86,9 @@ export function PortfolioFeatureChainReader({ account, network }: { account: Acc
         </div>
 
         {!signable ? <div className="text-muted-foreground text-sm">{t(($) => $.chainReaderWatched)}</div> : null}
-        {history.isError ? <pre className="alert alert-error whitespace-pre-wrap">{history.error.message}</pre> : null}
+        {history.isError ? (
+          <pre className="alert alert-error whitespace-pre-wrap">{localizedErrorMessage(history.error)}</pre>
+        ) : null}
         {history.isLoading ? (
           <div className="flex items-center gap-2 text-muted-foreground">
             <Spinner /> {t(($) => $.chainReaderSyncing)}

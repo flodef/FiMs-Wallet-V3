@@ -1,13 +1,12 @@
+import { AppError } from '@workspace/core/app-error'
 import { tryCatchOrThrow } from '@workspace/core/try-catch-or-throw'
 
 import type { DbContext } from '../db-context.ts'
 import { settingFindUnique } from '../setting/setting-find-unique.ts'
 
-// Tagged so the UI can localize it — raw error.message is English-only.
-export class AccountDeleteActiveError extends Error {
+export class AccountDeleteActiveError extends AppError {
   constructor() {
-    super('You cannot delete the active account. Please change accounts and try again.')
-    this.name = 'AccountDeleteActiveError'
+    super('accountDeleteActive', 'You cannot delete the active account. Please change accounts and try again.')
   }
 }
 

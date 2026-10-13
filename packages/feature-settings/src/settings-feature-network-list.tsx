@@ -14,7 +14,7 @@ export function SettingsFeatureNetworkList() {
   const { t } = useTranslation('settings')
   const page = useSettingsPage({ pageId: 'networks' })
   const deleteMutation = useNetworkDelete({
-    onError: (error) => toastError(error.message),
+    onError: (error) => toastError(error),
     onSuccess: () => toastSuccess('Network deleted'),
   })
   const networks = useNetworkLive()

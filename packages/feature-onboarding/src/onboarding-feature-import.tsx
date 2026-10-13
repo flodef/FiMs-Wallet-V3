@@ -155,7 +155,7 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
         await navigate(redirectTo)
       }
     } catch (error) {
-      toastError(`${error}`)
+      toastError(error)
     }
   }
 
@@ -204,7 +204,7 @@ export function OnboardingFeatureImport({ redirectTo }: { redirectTo: string }) 
               demoSetState({ stepIndex: 1, walletCreated: true, walletId })
               await nav(to)
             })
-            .catch((error: unknown) => toastError(`${error}`))
+            .catch((error: unknown) => toastError(error))
         }, 800)
       }
     }, 150)

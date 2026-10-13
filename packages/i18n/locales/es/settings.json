@@ -1,5 +1,4 @@
 {
-  "accountDeleteActiveError": "No puedes eliminar la cuenta activa. Cambia a otra cuenta e inténtalo de nuevo.",
   "accountDeleteDescription": "Esta acción no se puede deshacer",
   "accountDeleteSuccess": "Cuenta eliminada",
   "accountDeleteTitle": "¿Estás seguro que quieres eliminar esta cuenta?",
@@ -202,7 +201,6 @@
   "walletCreateHeaderSeed": "Frase semilla",
   "walletCreateImportDescription": "Importar una frase semilla existente y descubrir cuentas",
   "walletCreateImportTitle": "Importar una billetera existente",
-  "walletDeleteActiveError": "No puedes eliminar el monedero activo. Cambia a otro monedero e inténtalo de nuevo.",
   "walletDeleteDescription": "Esta acción no se puede deshacer",
   "walletDeleteSuccess": "Monedero eliminado",
   "walletDeleteTitle": "¿Estás seguro que quieres eliminar esta billetera?",

@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import type { DbContext } from '../db-context.ts'
 import { accountFindUnique } from './account-find-unique.ts'
 import type { AccountUpdateInput } from './account-update-input.ts'
@@ -12,7 +13,7 @@ export async function accountUpdate(ctx: DbContext, id: string, input: AccountUp
   return ctx.db.transaction('rw', ctx.db.accounts, async () => {
     const found = await accountFindUnique(ctx, id)
     if (!found) {
-      throw new Error(`Account with id ${id} not found`)
+      throw new AppError('accountNotFound', `Account with id ${id} not found`, { id })
     }
     await ctx.db.accounts
       .where('id')

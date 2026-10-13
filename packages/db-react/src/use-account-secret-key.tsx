@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import type { Account } from '@workspace/db/account/account'
 import { useAccountReadSecretKey } from './use-account-read-secret-key.tsx'
 
@@ -7,7 +8,7 @@ export function useAccountSecretKey() {
     const secretKey = await readSecretKeyMutation.mutateAsync({ id: account.id })
 
     if (!secretKey) {
-      throw new Error(`No secret key for this account`)
+      throw new AppError('secretKeyMissing', 'No secret key for this account')
     }
 
     return secretKey

@@ -7,7 +7,7 @@ export function accountDeriveFromMnemonicMutationOptions() {
   return mutationOptions({
     mutationFn: (input: DeriveFromMnemonicAtIndexProps) => deriveFromMnemonicAtIndex(input),
     onError: (error) => {
-      toastError(`Error: ${error.message}`)
+      toastError(error)
     },
   })
 }

@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import type { DbContext } from '../db-context.ts'
 import { settingSetValue } from '../setting/setting-set-value.ts'
 import { accountFindUnique } from './account-find-unique.ts'
@@ -8,7 +9,7 @@ export async function accountSetActive(ctx: DbContext, id: string) {
     const found = await accountFindUnique(ctx, id)
     if (!found) {
       // TODO: Use Effect
-      throw new Error(`Account with id ${id} not found`)
+      throw new AppError('accountNotFound', `Account with id ${id} not found`, { id })
     }
     const accountId = found.id
 

@@ -1,3 +1,4 @@
+import { AppError, NoActiveAccountError } from '@workspace/core/app-error'
 import { tryCatchOrThrow } from '@workspace/core/try-catch-or-throw'
 import { accountFindMany } from '../account/account-find-many.ts'
 import type { DbContext } from '../db-context.ts'
@@ -5,10 +6,9 @@ import { settingFindUnique } from '../setting/setting-find-unique.ts'
 import { settingSetValue } from '../setting/setting-set-value.ts'
 
 // Tagged so the UI can localize it — raw error.message is English-only.
-export class WalletDeleteActiveError extends Error {
+export class WalletDeleteActiveError extends AppError {
   constructor() {
-    super('You cannot delete the active wallet. Please change wallets and try again.')
-    this.name = 'WalletDeleteActiveError'
+    super('walletDeleteActive', 'You cannot delete the active wallet. Please change wallets and try again.')
   }
 }
 
@@ -16,11 +16,11 @@ export async function walletDelete(ctx: DbContext, id: string): Promise<void> {
   return ctx.db.transaction('rw', ctx.db.accounts, ctx.db.settings, ctx.db.wallets, async () => {
     const wallet = await tryCatchOrThrow(ctx.db.wallets.get(id), `Error finding wallet with id ${id}`)
     if (!wallet) {
-      throw new Error(`Wallet with id ${id} not found`)
+      throw new AppError('walletNotFound', `Wallet with id ${id} not found`, { id })
     }
     const activeAccountId = (await settingFindUnique(ctx, 'activeAccountId'))?.value
     if (!activeAccountId) {
-      throw new Error('No active account set.')
+      throw new NoActiveAccountError()
     }
     const accounts = await accountFindMany(ctx, { walletId: id })
     const deletesActive = accounts.some((account) => account.id === activeAccountId)

@@ -48,7 +48,7 @@ export function useCreateNewWallet() {
         return true
       })
       .catch((error) => {
-        toastError(`${error}`)
+        toastError(error)
         return false
       })
   }
@@ -86,7 +86,7 @@ export function useCreateNewWalletFromPrivateKey() {
       toastSuccess('Wallet created!')
       return true
     } catch (error) {
-      toastError(`${error}`)
+      toastError(error)
       return false
     }
   }
@@ -172,7 +172,7 @@ export function useImportWalletTransfer() {
       toastSuccess('Wallet imported!')
       return true
     } catch (error) {
-      toastError(`${error}`)
+      toastError(error)
       return false
     }
   }

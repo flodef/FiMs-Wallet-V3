@@ -69,7 +69,7 @@ export function SettingsUiBottomSheetMigrateAccount({
       const planned = await plan(address(destination.publicKey) as Address)
       setResult(planned)
     } catch (error) {
-      toastError(error instanceof Error ? error.message : `${error}`)
+      toastError(error)
     } finally {
       setBusy(false)
     }
@@ -85,7 +85,7 @@ export function SettingsUiBottomSheetMigrateAccount({
       setDone(true)
       toastSuccess(t(($) => $.migrateDone))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : `${error}`)
+      toastError(error)
     } finally {
       setBusy(false)
     }

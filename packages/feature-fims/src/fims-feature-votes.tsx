@@ -90,7 +90,7 @@ function FimsVoteCard({
       await cast.mutateAsync(optionId)
       toastSuccess(t(($) => $.votesCasted))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 
@@ -229,7 +229,7 @@ function FimsVoteCreateCard({ account, proposal = false }: { account: Account; p
       setClosesAt('')
       toastSuccess(t(($) => (proposal ? $.votesProposeCreated : $.votesCreated)))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 
@@ -303,7 +303,7 @@ function FimsConfigCard({ account }: { account: Account }) {
       setThreshold('')
       toastSuccess(t(($) => $.votesThresholdSaved))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 

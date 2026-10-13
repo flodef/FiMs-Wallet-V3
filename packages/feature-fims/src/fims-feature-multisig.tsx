@@ -235,7 +235,7 @@ function MultisigCreateCard({
       )
       return { label, multisigPda }
     },
-    onError: (error) => toastError(error instanceof Error ? error.message : String(error)),
+    onError: (error) => toastError(error),
     onSuccess: ({ label: createdLabel, multisigPda }) => {
       registry.add({ label: createdLabel, networkId: network.id, pda: multisigPda })
       toastSuccess(t(($) => $.multisigCreated))
@@ -544,7 +544,7 @@ function ProposalRow({
             })
       await signAndSend(instructions)
     },
-    onError: (error) => toastError(error instanceof Error ? error.message : String(error)),
+    onError: (error) => toastError(error),
     onSuccess: () => {
       toastSuccess(t(($) => $.multisigTxSent))
       onDone()
@@ -647,7 +647,7 @@ function SpendProposalCard({
         }),
       )
     },
-    onError: (error) => toastError(error instanceof Error ? error.message : String(error)),
+    onError: (error) => toastError(error),
     onSuccess: () => {
       toastSuccess(t(($) => $.multisigTxSent))
       onDone()
@@ -753,7 +753,7 @@ function SpendingLimitCard({
         }),
       )
     },
-    onError: (error) => toastError(error instanceof Error ? error.message : String(error)),
+    onError: (error) => toastError(error),
     onSuccess: () => {
       toastSuccess(t(($) => $.multisigTxSent))
       onDone()
@@ -893,7 +893,7 @@ function SpendViaLimitCard({
         }),
       )
     },
-    onError: (error) => toastError(error instanceof Error ? error.message : String(error)),
+    onError: (error) => toastError(error),
     onSuccess: () => {
       toastSuccess(t(($) => $.multisigTxSent))
       onDone()

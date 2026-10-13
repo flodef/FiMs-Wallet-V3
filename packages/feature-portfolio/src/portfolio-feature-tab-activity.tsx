@@ -1,6 +1,7 @@
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
 import { useTranslation } from '@workspace/i18n'
+import { localizedErrorMessage } from '@workspace/i18n/localized-error'
 import { useGetActivity } from '@workspace/solana-client-react/use-get-activity'
 import { Button } from '@workspace/ui/components/button'
 import { Spinner } from '@workspace/ui/components/spinner'
@@ -26,7 +27,7 @@ export function PortfolioFeatureTabActivity({ account, network }: { account: Acc
           </Button>
         </div>
       </div>
-      {isError ? <pre className="alert alert-error">{error?.message.toString() ?? 'Unknown error'}</pre> : null}
+      {isError ? <pre className="alert alert-error">{localizedErrorMessage(error)}</pre> : null}
       {isLoading ? <PortfolioUiActivityListSkeleton /> : null}
       {isSuccess ? <PortfolioUiActivityList items={data} /> : null}
       <PortfolioFeatureChainReader account={account} network={network} />

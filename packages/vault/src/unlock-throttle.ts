@@ -1,3 +1,5 @@
+import { AppError } from '@workspace/core/app-error'
+
 // Progressive delay between failed credential-unlock attempts. Throttling
 // PIN/password retries in the UI raises the cost of casual brute force —
 // it is defense-in-depth, not a cryptographic boundary: an attacker who
@@ -54,7 +56,9 @@ export function checkUnlockThrottle(target: string): void {
   }
   const remaining = entry.nextAllowedAt - Date.now()
   if (remaining > 0) {
-    throw new Error(`Too many failed attempts — try again in ${Math.ceil(remaining / 1000)}s`)
+    throw new AppError('tooManyAttempts', `Too many failed attempts — try again in ${Math.ceil(remaining / 1000)}s`, {
+      seconds: Math.ceil(remaining / 1000),
+    })
   }
 }
 

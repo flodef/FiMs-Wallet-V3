@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import type { Env } from '@workspace/env/env'
 import { env } from '@workspace/env/env'
 
@@ -33,7 +34,7 @@ function getNetworkTypeFromEnv(env: keyof Env): NetworkType {
     case 'networkTestnet':
       return 'solana:testnet'
     default:
-      throw new Error(`Cannot get network type from ${env}`)
+      throw new AppError('populateNetworkType', `Cannot get network type from ${env}`, { env })
   }
 }
 function getEndpointSubscriptionsTypeFromEnv(env: keyof Env): keyof Env {
@@ -47,6 +48,6 @@ function getEndpointSubscriptionsTypeFromEnv(env: keyof Env): keyof Env {
     case 'networkTestnet':
       return 'networkTestnetSubscriptions'
     default:
-      throw new Error(`Cannot get subscriptions endpoint from ${env}`)
+      throw new AppError('populateSubscriptionsEndpoint', `Cannot get subscriptions endpoint from ${env}`, { env })
   }
 }

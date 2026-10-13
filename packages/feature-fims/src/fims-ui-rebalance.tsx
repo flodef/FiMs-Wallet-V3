@@ -48,7 +48,7 @@ export function FimsUiRebalance({
       setEditing(false)
       toastSuccess(t(($) => $.rebalanceTargetSaved))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 
@@ -62,7 +62,7 @@ export function FimsUiRebalance({
       })
       toastSuccess(t(($) => $.rebalanceDone))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 

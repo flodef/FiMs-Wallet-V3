@@ -1,5 +1,4 @@
 {
-  "accountDeleteActiveError": "Impossible de supprimer le compte actif. Basculez sur un autre compte puis réessayez.",
   "accountDeleteDescription": "Cette action est irréversible.",
   "accountDeleteSuccess": "Compte supprimé",
   "accountDeleteTitle": "Voulez-vous vraiment supprimer ce compte ?",
@@ -202,7 +201,6 @@
   "walletCreateHeaderSeed": "Phrases de récupération",
   "walletCreateImportDescription": "Importer une phrase de récupération existante et découvrir les comptes",
   "walletCreateImportTitle": "Importer un wallet existant",
-  "walletDeleteActiveError": "Impossible de supprimer le wallet actif. Basculez sur un autre wallet puis réessayez.",
   "walletDeleteDescription": "Cette action est irréversible.",
   "walletDeleteSuccess": "Wallet supprimé",
   "walletDeleteTitle": "Voulez-vous vraiment supprimer ce wallet ?",

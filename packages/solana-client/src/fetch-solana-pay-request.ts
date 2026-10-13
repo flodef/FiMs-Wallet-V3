@@ -1,4 +1,5 @@
 import type { Address } from '@solana/kit'
+import { AppError } from '@workspace/core/app-error'
 
 // Solana Pay transaction-request resolution (https://docs.solanapay.com/spec):
 //   GET  <link>              -> { label, icon }  merchant display info
@@ -21,7 +22,7 @@ const TIMEOUT_MS = 10_000
 
 export async function fetchSolanaPayRequest(link: string, account: Address): Promise<SolanaPayRequestResolution> {
   if (!link.startsWith('https://')) {
-    throw new Error('Payment request link must be an https URL')
+    throw new AppError('paymentLinkHttps', 'Payment request link must be an https URL')
   }
 
   // The GET is best-effort: several merchants only implement the POST.
@@ -36,11 +37,13 @@ export async function fetchSolanaPayRequest(link: string, account: Address): Pro
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   if (!response.ok) {
-    throw new Error(`Payment request failed: HTTP ${response.status}`)
+    throw new AppError('paymentRequestHttp', `Payment request failed: HTTP ${response.status}`, {
+      status: response.status,
+    })
   }
   const body = (await response.json()) as { message?: unknown; transaction?: unknown }
   if (typeof body?.transaction !== 'string' || !body.transaction.length) {
-    throw new Error('Payment request returned no transaction')
+    throw new AppError('paymentNoTransaction', 'Payment request returned no transaction')
   }
   return {
     merchant,

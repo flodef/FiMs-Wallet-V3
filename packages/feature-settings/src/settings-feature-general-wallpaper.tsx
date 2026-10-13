@@ -57,7 +57,7 @@ export function SettingsFeatureGeneralWallpaper() {
     try {
       await setWallpaper(await fileToWallpaperDataUrl(file))
     } catch (error) {
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     } finally {
       setBusy(false)
       if (inputRef.current) {

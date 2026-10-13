@@ -1,3 +1,4 @@
+import { AppError } from '@workspace/core/app-error'
 import { tryCatchOrThrow } from '@workspace/core/try-catch-or-throw'
 import { decryptWithVaultKey } from '@workspace/vault/encrypted-value'
 import type { DbContext } from '../db-context.ts'
@@ -9,13 +10,13 @@ export async function accountReadSecretKey(ctx: DbContext, id: string): Promise<
       `Error finding account with id ${id}`,
     )
     if (!account) {
-      throw new Error(`Account with id ${id} not found`)
+      throw new AppError('accountNotFound', `Account with id ${id} not found`, { id })
     }
     if (account.type === 'Watched' || account.type === 'Connected') {
-      throw new Error(`Account with id ${id} does not have a secret key`)
+      throw new AppError('secretKeyMissingExternal', `Account with id ${id} does not have a secret key`, { id })
     }
     if (!account.secretKey) {
-      throw new Error(`Account with id ${id} does not have a secret key`)
+      throw new AppError('secretKeyMissing', `Account with id ${id} does not have a secret key`, { id })
     }
     return { secretKey: account.secretKey, walletId: account.walletId }
   })

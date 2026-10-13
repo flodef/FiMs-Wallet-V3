@@ -1,5 +1,6 @@
 import { ExplorerUiLinkAddress } from '@workspace/feature-explorer/ui/explorer-ui-link-address'
 import { ExplorerUiLinkSignature } from '@workspace/feature-explorer/ui/explorer-ui-link-signature'
+import { localizedErrorMessage } from '@workspace/i18n/localized-error'
 import type {
   TransactionInspectorAccountReference,
   TransactionInspectorResult,
@@ -40,7 +41,7 @@ export default function ToolsFeatureTransactionInspector() {
         value={input}
       />
       {isLoading ? <p className="text-muted-foreground text-sm">Parsing transaction...</p> : null}
-      {error ? <p className="text-destructive text-sm">{error.message}</p> : null}
+      {error ? <p className="text-destructive text-sm">{localizedErrorMessage(error)}</p> : null}
       {data ? <TransactionInspectorResultView result={data} /> : null}
     </UiCard>
   )

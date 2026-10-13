@@ -72,7 +72,7 @@ export function FimsFeatureSolExcess() {
       setOpen(false)
     } catch (error) {
       reportGasTopupError(error)
-      toastError(error instanceof Error ? error.message : String(error))
+      toastError(error)
     }
   }
 
