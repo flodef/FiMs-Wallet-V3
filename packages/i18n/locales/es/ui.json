@@ -5,7 +5,6 @@
   "actionRemove": "Eliminar",
   "actionSave": "Guardar",
   "actionShowStack": "Mostrar la traza",
-  "errorInvalidInput": "Entrada inválida.",
   "errorSupport": "Crea un issue en GitHub si el problema persiste.",
   "errorTitle": "Uy, ocurrió un error",
   "errorUnknown": "Error desconocido",

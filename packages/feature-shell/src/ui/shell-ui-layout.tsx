@@ -17,6 +17,7 @@ import { ShellUiCommandMenu } from './shell-ui-command-menu.tsx'
 import { ShellUiHelpDemo } from './shell-ui-help-demo.tsx'
 import { ShellUiMenu } from './shell-ui-menu.tsx'
 import { ShellUiMenuActions } from './shell-ui-menu-actions.tsx'
+import { ShellUiNetworkBanner } from './shell-ui-network-banner.tsx'
 
 export interface ShellLayoutLink {
   icon: UiIconName
@@ -76,6 +77,7 @@ export function ShellUiLayout() {
         </div>
       </header>
       <ShellUiBetaBanner />
+      <ShellUiNetworkBanner network={activeNetwork} />
       <main className="flex-1 overflow-y-auto p-1 md:p-2 lg:p-4">
         <Outlet />
       </main>

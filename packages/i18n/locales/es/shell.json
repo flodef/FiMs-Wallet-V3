@@ -25,6 +25,8 @@
   "labelSettings": "Ajustes",
   "labelTools": "Herramientas",
   "networkSettings": "Ajustes de red",
+  "networkWarningBody": "Estás en {{network}}: los tokens y transacciones mostrados no tienen valor real.",
+  "networkWarningTitle": "Red de pruebas — no es mainnet",
   "walletEdit": "Editar billetera",
   "walletSettings": "Ajustes de la billetera"
 }

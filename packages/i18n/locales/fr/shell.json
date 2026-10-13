@@ -25,6 +25,8 @@
   "labelSettings": "Paramètres",
   "labelTools": "Outils",
   "networkSettings": "Paramètres réseau",
+  "networkWarningBody": "Vous êtes sur {{network}} : les jetons et transactions affichés n'ont aucune valeur réelle.",
+  "networkWarningTitle": "Réseau de test — pas le mainnet",
   "walletEdit": "Modifier le wallet",
   "walletSettings": "Paramètres du wallet"
 }

@@ -5,7 +5,6 @@
   "actionRemove": "Remove",
   "actionSave": "Save",
   "actionShowStack": "Show stack trace",
-  "errorInvalidInput": "Invalid input.",
   "errorSupport": "Create a GitHub issue if the issue persists.",
   "errorTitle": "Oops, an error occurred",
   "errorUnknown": "Unknown error",

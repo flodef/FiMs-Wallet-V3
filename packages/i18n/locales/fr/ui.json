@@ -5,7 +5,6 @@
   "actionRemove": "Retirer",
   "actionSave": "Enregistrer",
   "actionShowStack": "Afficher la pile d’appels",
-  "errorInvalidInput": "Saisie invalide.",
   "errorSupport": "Créez un ticket GitHub si le problème persiste.",
   "errorTitle": "Oups, une erreur est survenue",
   "errorUnknown": "Erreur inconnue",

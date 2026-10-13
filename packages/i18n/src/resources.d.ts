@@ -964,6 +964,8 @@ export default interface Resources {
     labelSettings: 'Settings'
     labelTools: 'Tools'
     networkSettings: 'Network settings'
+    networkWarningBody: 'You are on {{network}}: tokens and transactions shown have no real value.'
+    networkWarningTitle: 'Test network — not mainnet'
     walletEdit: 'Edit wallet'
     walletSettings: 'Wallet settings'
   }
@@ -979,7 +981,6 @@ export default interface Resources {
     actionRemove: 'Remove'
     actionSave: 'Save'
     actionShowStack: 'Show stack trace'
-    errorInvalidInput: 'Invalid input.'
     errorSupport: 'Create a GitHub issue if the issue persists.'
     errorTitle: 'Oops, an error occurred'
     errorUnknown: 'Unknown error'
