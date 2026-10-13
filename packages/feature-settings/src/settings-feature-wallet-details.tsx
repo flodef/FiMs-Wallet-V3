@@ -1,5 +1,6 @@
 import { useAppContext } from '@workspace/context-react/use-app-context'
 import type { Account } from '@workspace/db/account/account'
+import { AccountDeleteActiveError } from '@workspace/db/account/account-delete'
 import type { Wallet } from '@workspace/db/wallet/wallet'
 import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useAccountDelete } from '@workspace/db-react/use-account-delete'
@@ -69,7 +70,8 @@ export function SettingsFeatureWalletDetails() {
   const resolvedWalletId = walletId
 
   const deleteMutation = useAccountDelete({
-    onError: (error) => toastError(error.message),
+    onError: (error) =>
+      toastError(error instanceof AccountDeleteActiveError ? t(($) => $.accountDeleteActiveError) : error.message),
     onSuccess: () => toastSuccess(t(($) => $.accountDeleteSuccess)),
   })
   const updateOrderMutation = useAccountUpdateOrder({

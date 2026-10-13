@@ -35,6 +35,7 @@ export const optionsAccount = {
     mutationOptions({
       mutationFn: ({ id }: { id: string }) => accountDelete(ctx, id),
       onSuccess: () => {
+        queryClient.invalidateQueries(optionsSetting.findMany(ctx, {}))
         queryClient.invalidateQueries(optionsAccount.findMany(ctx, {}))
       },
       ...props,

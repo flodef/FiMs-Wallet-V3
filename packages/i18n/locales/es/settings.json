@@ -1,4 +1,5 @@
 {
+  "accountDeleteActiveError": "No puedes eliminar la cuenta activa. Cambia a otra cuenta e inténtalo de nuevo.",
   "accountDeleteDescription": "Esta acción no se puede deshacer",
   "accountDeleteSuccess": "Cuenta eliminada",
   "accountDeleteTitle": "¿Estás seguro que quieres eliminar esta cuenta?",

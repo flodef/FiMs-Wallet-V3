@@ -35,6 +35,10 @@ export const optionsWallet = {
     mutationOptions({
       mutationFn: ({ id }: { id: string }) => walletDelete(ctx, id),
       onSuccess: () => {
+        // The deletion can clear or move activeAccountId — settings must
+        // revalidate too so the loader redirects instead of the tree
+        // crashing on a dangling active id.
+        queryClient.invalidateQueries(optionsSetting.findMany(ctx, {}))
         queryClient.invalidateQueries(optionsWallet.findMany(ctx, {}))
       },
       ...props,

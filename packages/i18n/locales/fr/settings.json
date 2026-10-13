@@ -1,4 +1,5 @@
 {
+  "accountDeleteActiveError": "Impossible de supprimer le compte actif. Basculez sur un autre compte puis réessayez.",
   "accountDeleteDescription": "Cette action est irréversible.",
   "accountDeleteSuccess": "Compte supprimé",
   "accountDeleteTitle": "Voulez-vous vraiment supprimer ce compte ?",

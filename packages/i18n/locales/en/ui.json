@@ -1,8 +1,13 @@
 {
   "actionAdd": "Add",
+  "actionHideStack": "Hide stack trace",
+  "actionRefresh": "Refresh",
   "actionRemove": "Remove",
   "actionSave": "Save",
+  "actionShowStack": "Show stack trace",
+  "errorSupport": "Create a GitHub issue if the issue persists.",
   "errorTitle": "Oops, an error occurred",
+  "errorUnknown": "Unknown error",
   "notFoundDescription": "The page you're looking for doesn't exist.",
   "notFoundTitle": "404 - Not Found",
   "qrScanReshare": "Choose another screen",

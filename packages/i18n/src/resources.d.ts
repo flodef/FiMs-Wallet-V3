@@ -696,6 +696,7 @@ export default interface Resources {
     warningWalletReassigned: 'This transaction hands control of your wallet account to another program. Signing is blocked.'
   }
   settings: {
+    accountDeleteActiveError: 'You cannot delete the active account. Switch to another account and try again.'
     accountDeleteDescription: 'This action cannot be undone.'
     accountDeleteSuccess: 'Account deleted'
     accountDeleteTitle: 'Are you sure you want to delete this account?'
@@ -975,9 +976,14 @@ export default interface Resources {
   }
   ui: {
     actionAdd: 'Add'
+    actionHideStack: 'Hide stack trace'
+    actionRefresh: 'Refresh'
     actionRemove: 'Remove'
     actionSave: 'Save'
+    actionShowStack: 'Show stack trace'
+    errorSupport: 'Create a GitHub issue if the issue persists.'
     errorTitle: 'Oops, an error occurred'
+    errorUnknown: 'Unknown error'
     notFoundDescription: "The page you're looking for doesn't exist."
     notFoundTitle: '404 - Not Found'
     qrScanReshare: 'Choose another screen'

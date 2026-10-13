@@ -1,8 +1,13 @@
 {
   "actionAdd": "Agregar",
+  "actionHideStack": "Ocultar la traza",
+  "actionRefresh": "Actualizar",
   "actionRemove": "Eliminar",
   "actionSave": "Guardar",
+  "actionShowStack": "Mostrar la traza",
+  "errorSupport": "Crea un issue en GitHub si el problema persiste.",
   "errorTitle": "Uy, ocurrió un error",
+  "errorUnknown": "Error desconocido",
   "notFoundDescription": "La página que está buscando no existe.",
   "notFoundTitle": "404 - No encontrado",
   "qrScanReshare": "Elegir otra pantalla",

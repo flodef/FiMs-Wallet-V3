@@ -1,4 +1,5 @@
 {
+  "accountDeleteActiveError": "You cannot delete the active account. Switch to another account and try again.",
   "accountDeleteDescription": "This action cannot be undone.",
   "accountDeleteSuccess": "Account deleted",
   "accountDeleteTitle": "Are you sure you want to delete this account?",

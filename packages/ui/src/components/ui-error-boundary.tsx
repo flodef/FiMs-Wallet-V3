@@ -1,5 +1,6 @@
+import { useTranslation } from '@workspace/i18n'
 import { useState } from 'react'
-import { isRouteErrorResponse, useRouteError } from 'react-router'
+import { isRouteErrorResponse, Navigate, useRouteError } from 'react-router'
 import { cn } from '../lib/utils.ts'
 import { Button } from './button.tsx'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './collapsible.tsx'
@@ -7,8 +8,16 @@ import { UiEmpty } from './ui-empty.tsx'
 import { UiIcon } from './ui-icon.tsx'
 
 export function UiErrorBoundary() {
+  const { t } = useTranslation('ui')
   const error = useRouteError()
   const isError = error instanceof Error
+
+  // Thrown when the last wallet/account vanished mid-session (e.g. the active
+  // external wallet was disconnected) — a redirect, not a bug page.
+  if (isError && error.name === 'NoActiveAccountError') {
+    return <Navigate replace to="/onboarding" />
+  }
+
   const stack = isError ? error.stack : null
   const message = isRouteErrorResponse(error)
     ? `${error.status} ${error.statusText}`
@@ -16,15 +25,15 @@ export function UiErrorBoundary() {
       ? error.message
       : JSON.stringify(error)
 
-  const description = message ?? 'Unknown error'
-  const title = `${isError ? 'A route' : 'An unknown'} error occurred`
+  const description = message ?? t(($) => $.errorUnknown)
+  const title = t(($) => $.errorTitle)
 
   return (
     <div className={cn('flex h-full w-full items-center justify-center px-6')}>
       <UiEmpty className="" description={description} icon="bug" title={title}>
         <UiErrorBoundarySupport />
         <Button onClick={() => window.location.reload()} variant="secondary">
-          <span>Refresh</span>
+          <span>{t(($) => $.actionRefresh)}</span>
           <UiIcon className="size-3" icon="refresh" />
         </Button>
 
@@ -35,13 +44,14 @@ export function UiErrorBoundary() {
 }
 
 function UiErrorBoundaryStack({ stack }: { stack: string }) {
+  const { t } = useTranslation('ui')
   const [showStack, setShowStack] = useState(false)
 
   return (
     <Collapsible className="w-full" onOpenChange={setShowStack} open={showStack}>
       <CollapsibleTrigger asChild>
         <Button variant="secondary">
-          <span>{showStack ? 'Hide' : 'Show'} stack trace</span>
+          <span>{showStack ? t(($) => $.actionHideStack) : t(($) => $.actionShowStack)}</span>
           <UiIcon icon="chevronsUpDown" />
         </Button>
       </CollapsibleTrigger>
@@ -53,18 +63,17 @@ function UiErrorBoundaryStack({ stack }: { stack: string }) {
 }
 
 function UiErrorBoundarySupport() {
+  const { t } = useTranslation('ui')
   return (
     <div>
-      Please{' '}
       <a
         className="hover:underline"
         href="https://github.com/flodef/FiMs-Wallet-V3/issues/new"
         rel="noopener noreferrer"
         target="_blank"
       >
-        create a GitHub issue
-      </a>{' '}
-      if the issue persists.
+        {t(($) => $.errorSupport)}
+      </a>
     </div>
   )
 }

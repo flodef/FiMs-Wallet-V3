@@ -1,8 +1,13 @@
 {
   "actionAdd": "Ajouter",
+  "actionHideStack": "Masquer la pile d’appels",
+  "actionRefresh": "Actualiser",
   "actionRemove": "Retirer",
   "actionSave": "Enregistrer",
+  "actionShowStack": "Afficher la pile d’appels",
+  "errorSupport": "Créez un ticket GitHub si le problème persiste.",
   "errorTitle": "Oups, une erreur est survenue",
+  "errorUnknown": "Erreur inconnue",
   "notFoundDescription": "La page que vous cherchez n'existe pas.",
   "notFoundTitle": "404 - Page introuvable",
   "qrScanReshare": "Choisir un autre écran",
