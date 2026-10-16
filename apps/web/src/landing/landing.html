@@ -42,10 +42,11 @@
     margin: 0;
   }
   html {
+    overflow-x: clip;
     scroll-behavior: smooth;
   }
   body {
-    overflow-x: hidden;
+    overflow-x: clip;
     font-family:
       ui-sans-serif,
       system-ui,
@@ -316,6 +317,8 @@
   section {
     position: relative;
     padding: 6.5rem 0;
+    /* Clip horizontal overflow: glow orbs extend past the section edges. */
+    overflow-x: clip;
   }
   .eyebrow {
     margin-bottom: 1rem;
@@ -811,7 +814,7 @@
           </svg>
         </button>
       </div>
-      <a class="btn-primary nav-cta" href="https://wallet-v3.fims.fi" target="_blank" rel="noopener"
+      <a class="btn-primary nav-cta" href="https://wallet.fims.fi" target="_blank" rel="noopener"
         >Ouvrir le wallet</a
       >
       <button type="button" class="burger" id="burger" aria-label="Menu">
@@ -840,7 +843,7 @@
   <a
     class="btn-primary"
     style="justify-content: center; margin-top: 1rem"
-    href="https://wallet-v3.fims.fi"
+    href="https://wallet.fims.fi"
     target="_blank"
     rel="noopener"
     >Ouvrir le wallet</a
@@ -1098,7 +1101,7 @@
       <h2>Quatre piliers,<br /><span class="grad-text">un seul état d'esprit</span></h2>
     </div>
     <div class="pillars">
-      <a class="pillar glass reveal" href="https://wallet-v3.fims.fi" target="_blank" rel="noopener">
+      <a class="pillar glass reveal" href="https://wallet.fims.fi" target="_blank" rel="noopener">
         <div class="card-icon ci-1">
           <svg
             aria-hidden="true"
@@ -1141,7 +1144,7 @@
             <path d="M13 6l6 6" /></svg
         ></span>
       </a>
-      <a class="pillar glass reveal" href="https://wallet-v3.fims.fi/fims" target="_blank" rel="noopener">
+      <a class="pillar glass reveal" href="https://wallet.fims.fi" target="_blank" rel="noopener">
         <div class="card-icon ci-3">
           <svg
             aria-hidden="true"
@@ -1284,9 +1287,10 @@
       <details class="faq glass reveal" name="faq">
         <summary>Comment ça marche concrètement ?</summary>
         <p>
-          Tu te crées un porte-monnaie (un « wallet ») en deux minutes sur wallet-v3.fims.fi, tu y mets un peu de
-          cryptomonnaie, et tu peux ensuite payer, échanger ou participer aux projets de la communauté. Tout se passe
-          sur Solana, une blockchain publique rapide et peu énergivore.
+          Tu te crées un porte-monnaie (un « wallet ») en deux minutes sur wallet.fims.fi — ou tu connectes un wallet
+          existant (Solflare, Jupiter…) si tu en as déjà un —, tu y mets un peu de cryptomonnaie, et tu peux ensuite
+          payer, échanger ou participer aux projets de la communauté. Tout se passe sur Solana, une blockchain
+          publique rapide et peu énergivore.
         </p>
       </details>
       <details class="faq glass reveal" name="faq">
@@ -1311,14 +1315,15 @@
         <summary>Et cette règle des « 10 % » dont on entend parler ?</summary>
         <p>
           Quand un membre réalise des gains, on lui propose de reverser 10 % au pot commun — c'est ce qui finance le
-          fonctionnement et la solidarité. Tant qu'un membre a une contribution due, ses actions sortantes (échanges,
-          envois) sont bloquées jusqu'à régularisation.
+          fonctionnement et la solidarité. Tant qu'une contribution reste due, une part est automatiquement prélevée
+          sur les sorties (envois, échanges) pour l'alimenter — rien n'est bloqué, la solidarité se règle au fil de
+          l'eau.
         </p>
       </details>
       <details class="faq glass reveal" name="faq">
         <summary>Combien ça coûte ?</summary>
         <p>
-          L'inscription et l'utilisation du wallet sont gratuites. Les conversions et retraits prélèvent 0,1 % de frais
+          L'inscription et l'utilisation du wallet sont gratuites. Les conversions et retraits prélèvent 0,2 % de frais
           de fonctionnement pour la communauté, et la blockchain Solana ajoute des frais réseau de l'ordre du centime.
         </p>
       </details>
@@ -1332,9 +1337,11 @@
       <details class="faq glass reveal" name="faq">
         <summary>Ma « phrase de récupération », c'est quoi et pourquoi tout le monde insiste dessus ?</summary>
         <p>
-          C'est la liste de 12 mots affichée à la création du wallet : c'est ta seule et unique clé. Qui la connaît
-          contrôle tes fonds — la communauté ne peut pas te la « réinitialiser ». Écris-la sur papier, garde-la
-          précieusement, ne la donne à personne (jamais, pas même à « l'assistance »).
+          Si tu crées un wallet dans l'app FiMs, c'est la liste de 12 mots affichée à la création : c'est ta seule et
+          unique clé. Qui la connaît contrôle tes fonds — la communauté ne peut pas te la « réinitialiser ». Écris-la
+          sur papier, garde-la précieusement, ne la donne à personne (jamais, pas même à « l'assistance »). Si tu
+          utilises un wallet externe (Solflare…), la phrase appartient à cette app et le mot de passe ou le PIN protège
+          l'accès local.
         </p>
       </details>
       <details class="faq glass reveal" name="faq">
@@ -1349,6 +1356,14 @@
         <p>
           Oui, tout est open source sur GitHub (FiMs-Wallet-V3). Tu peux lire, vérifier, contribuer — et la communauté
           se réunit tous les 3 mois sur Discord pour décider ensemble de la suite.
+        </p>
+      </details>
+      <details class="faq glass reveal" name="faq">
+        <summary>Et la version « v3 » du wallet dont on entend parler ?</summary>
+        <p>
+          C'est la prochaine génération du wallet, en bêta sur wallet-v3.fims.fi : connexion d'un wallet externe,
+          historique on-chain enrichi, nouvelle interface. Tu peux l'essayer et remonter les bugs — mais l'adresse
+          officielle du wallet reste wallet.fims.fi, et c'est elle qui accueillera la bascule le moment venu.
         </p>
       </details>
       <details class="faq glass reveal" name="faq">
@@ -1371,7 +1386,7 @@
       <a
         class="btn-primary"
         style="padding: 1rem 2.2rem; font-size: 1.05rem"
-        href="https://wallet-v3.fims.fi"
+        href="https://wallet.fims.fi"
         target="_blank"
         rel="noopener"
       >
@@ -1431,7 +1446,8 @@
       <div class="footer-links">
         <a href="https://github.com/flodef/FiMs-Wallet-V3" target="_blank" rel="noopener">GitHub</a>
         <a href="https://discord.gg/WEfkw3HRv2" target="_blank" rel="noopener">Discord</a>
-        <a href="https://wallet-v3.fims.fi" target="_blank" rel="noopener">Wallet</a>
+        <a href="https://wallet.fims.fi" target="_blank" rel="noopener">Wallet</a>
+        <a href="https://wallet-v3.fims.fi" target="_blank" rel="noopener">Wallet v3 (bêta)</a>
       </div>
     </div>
   </div>
