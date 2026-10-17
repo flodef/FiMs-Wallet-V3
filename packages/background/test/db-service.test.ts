@@ -5,7 +5,7 @@ import { registerDbService } from '../src/services/db.ts'
 
 const mocks = vi.hoisted(() => ({
   accountCreate: vi.fn(),
-  accountFindUnique: vi.fn(),
+  accountFindMany: vi.fn(),
   accountReadSecretKey: vi.fn(),
   address: vi.fn(),
   addressEncode: vi.fn(),
@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   registerService: vi.fn(),
   settingFindUnique: vi.fn(),
   walletCreate: vi.fn(),
+  walletFindMany: vi.fn(),
 }))
 
 vi.mock('@solana/kit', () => ({
@@ -46,8 +47,8 @@ vi.mock('@workspace/db/account/account-create', () => ({
   accountCreate: mocks.accountCreate,
 }))
 
-vi.mock('@workspace/db/account/account-find-unique', () => ({
-  accountFindUnique: mocks.accountFindUnique,
+vi.mock('@workspace/db/account/account-find-many', () => ({
+  accountFindMany: mocks.accountFindMany,
 }))
 
 vi.mock('@workspace/db/account/account-read-secret-key', () => ({
@@ -62,6 +63,10 @@ vi.mock('@workspace/db/wallet/wallet-create', () => ({
   walletCreate: mocks.walletCreate,
 }))
 
+vi.mock('@workspace/db/wallet/wallet-find-many', () => ({
+  walletFindMany: mocks.walletFindMany,
+}))
+
 vi.mock('@workspace/keypair/derive-from-mnemonic-at-index', () => ({
   deriveFromMnemonicAtIndex: mocks.deriveFromMnemonicAtIndex,
 }))
@@ -70,11 +75,13 @@ vi.mock('@workspace/ui/lib/ellipsify', () => ({
   ellipsify: mocks.ellipsify,
 }))
 
+const accountId = 'active-account-id'
 const activeAccount = {
+  id: accountId,
+  order: 0,
   publicKey: 'active-public-key',
   walletId: 'wallet-id',
 }
-const accountId = 'active-account-id'
 const backgroundContext = { db: mocks.db, vault: { id: 'vault' } } as unknown as AppContext
 const derivedAccount = {
   publicKey: 'derived-public-key',
@@ -93,7 +100,8 @@ describe('db-service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mocks.accountFindUnique.mockResolvedValue(activeAccount)
+    mocks.accountFindMany.mockResolvedValue([activeAccount])
+    mocks.walletFindMany.mockResolvedValue([{ id: 'wallet-id', order: 0 }])
     mocks.accountReadSecretKey.mockResolvedValue(secretKey)
     mocks.address.mockReturnValue(activeAccount.publicKey)
     mocks.addressEncode.mockReturnValue(publicKeyBytes)

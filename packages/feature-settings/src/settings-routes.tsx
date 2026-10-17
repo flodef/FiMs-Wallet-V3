@@ -1,5 +1,4 @@
-import { useAccountActive } from '@workspace/db-react/use-account-active'
-import { envAdminAddresses } from '@workspace/env/env'
+import { useHasAdminAccount } from '@workspace/db-react/use-is-admin'
 import { Navigate, useRoutes } from 'react-router'
 import { SettingsFeatureAccountGenerateVanity } from './settings-feature-account-generate-vanity.tsx'
 import { SettingsFeatureGeneral } from './settings-feature-general.tsx'
@@ -19,8 +18,7 @@ export default function SettingsRoutes() {
   // Network create/update can point the app at a hostile RPC — admin-only,
   // enforced here too (not just hidden in the page list) since URLs can be
   // navigated to directly.
-  const account = useAccountActive()
-  const isAdmin = envAdminAddresses().includes(account.publicKey)
+  const isAdmin = useHasAdminAccount()
   return useRoutes([
     {
       children: [

@@ -1,5 +1,12 @@
 import type { AppContext } from '@workspace/context/app-context'
+import {
+  hasAdminAccount,
+  resolveActiveAccount,
+  resolveAllowedNetwork,
+  settingValue,
+} from '@workspace/db/session/resolve-session'
 import { settingSetValue } from '@workspace/db/setting/setting-set-value'
+import { invalidateWalletGraph } from '@workspace/db-react/invalidate-wallet-graph'
 import { applyThemeClasses } from '@workspace/db-react/resolve-theme'
 import { rootLoader } from '@workspace/db-react/root-loader'
 import { envAdminAddresses } from '@workspace/env/env'
@@ -13,53 +20,51 @@ export function rootRouteLoader(ctx: AppContext) {
     const url = new URL(args.request.url)
     const pathname = url.pathname
 
-    const result = await rootLoader(ctx)
-    const { accounts, networks, settings } = result
-
-    const activeAccountId = settings.find((s) => s.key === 'activeAccountId')?.value
-    let activeAccount = activeAccountId ? accounts.find((account) => account.id === activeAccountId) : null
+    const loaded = await rootLoader(ctx)
+    const { accounts, networks, wallets } = loaded
+    let { settings } = loaded
+    const writeSetting = async (key: 'activeAccountId' | 'activeNetworkId', value: string) => {
+      await settingSetValue(ctx, key, value)
+      // Never mutate the cached rows in place — return a fresh array.
+      settings = settings.map((setting) => (setting.key === key ? { ...setting, value } : setting))
+    }
 
     // activeAccountId can point at a deleted account (external wallet
-    // disconnected while active, …) or simply be unset while accounts
-    // exist — reassign it instead of letting the app loop on a stale id.
-    const fallback = accounts[0]
-    if (!activeAccount && fallback) {
-      activeAccount = fallback
-      await settingSetValue(ctx, 'activeAccountId', fallback.id)
+    // disconnected while active, …) or simply be unset while accounts exist —
+    // reassign it instead of letting the app loop on a stale id.
+    const active = resolveActiveAccount({
+      accounts,
+      activeAccountId: settingValue(settings, 'activeAccountId'),
+      wallets,
+    })
+    if (active.repaired && active.account) {
+      await writeSetting('activeAccountId', active.account.id)
     }
-    if (!activeAccount && !pathname.startsWith('/onboarding')) {
+    if (!active.account && !pathname.startsWith('/onboarding')) {
       return redirectToOnboarding()
-    }
-
-    // Public networks are a debug/admin feature: outside the guided demo a
-    // non-admin is always brought back to mainnet. Localnet is exempt —
-    // scripted e2e flows drive it and no user ever lands there.
-    const activeNetworkId = settings.find((s) => s.key === 'activeNetworkId')?.value
-    const activeNetwork = networks.find((network) => network.id === activeNetworkId)
-    const isAdmin = activeAccount ? envAdminAddresses().includes(activeAccount.publicKey) : false
-    const networkForbidden =
-      !activeNetwork ||
-      (!isAdmin &&
-        !demoGetState().active &&
-        (activeNetwork.type === 'solana:devnet' || activeNetwork.type === 'solana:testnet'))
-    if (networkForbidden) {
-      const mainnet = networks.find((network) => network.type === 'solana:mainnet')
-      if (mainnet) {
-        await settingSetValue(ctx, 'activeNetworkId', mainnet.id)
-        const setting = result.settings.find((s) => s.key === 'activeNetworkId')
-        if (setting) setting.value = mainnet.id
-      }
     }
 
     if (!networks.length) {
       return redirect('/settings/networks')
     }
-    const theme = settings.find((s) => s.key === 'theme')?.value
-    applyThemeClasses(theme)
+    // Public test networks are an admin/debug feature: outside the guided
+    // demo a non-admin is always brought back to mainnet.
+    const network = resolveAllowedNetwork({
+      activeNetworkId: settingValue(settings, 'activeNetworkId'),
+      demo: demoGetState().active,
+      isAdmin: hasAdminAccount(accounts, envAdminAddresses()),
+      networks,
+    })
+    if (network.repaired && network.network) {
+      await writeSetting('activeNetworkId', network.network.id)
+    }
+    if (active.repaired || network.repaired) {
+      await invalidateWalletGraph(ctx)
+    }
 
-    const language = settings.find((s) => s.key === 'language')?.value
-    await i18n.changeLanguage(resolveLanguage(language))
+    applyThemeClasses(settingValue(settings, 'theme'))
+    await i18n.changeLanguage(resolveLanguage(settingValue(settings, 'language')))
 
-    return result
+    return { ...loaded, settings }
   }
 }

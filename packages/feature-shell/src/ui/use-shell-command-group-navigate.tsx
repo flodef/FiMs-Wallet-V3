@@ -1,5 +1,4 @@
-import { useAccountActive } from '@workspace/db-react/use-account-active'
-import { envAdminAddresses } from '@workspace/env/env'
+import { useIsAdmin } from '@workspace/db-react/use-is-admin'
 import { isEnabled } from '@workspace/flags'
 import { useTranslation } from '@workspace/i18n'
 import { useLocation, useNavigate } from 'react-router'
@@ -10,8 +9,7 @@ export function useShellCommandGroupNavigate(): ShellCommandGroup {
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
-  const account = useAccountActive()
-  const isAdmin = envAdminAddresses().includes(account.publicKey)
+  const isAdmin = useIsAdmin()
 
   const options: { label: string; path: string }[] = [
     {

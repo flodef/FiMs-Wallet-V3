@@ -1,5 +1,4 @@
-import { useAccountActive } from '@workspace/db-react/use-account-active'
-import { envAdminAddresses } from '@workspace/env/env'
+import { useHasAdminAccount } from '@workspace/db-react/use-is-admin'
 import { useTranslation } from '@workspace/i18n'
 import type { SettingsPage } from './settings-page.ts'
 
@@ -7,8 +6,7 @@ export function useSettingsPages(): SettingsPage[] {
   const { t } = useTranslation('settings')
   // Network management can point the app at a hostile RPC, so it is admin-only:
   // hidden from the settings list and guarded in the router.
-  const account = useAccountActive()
-  const isAdmin = envAdminAddresses().includes(account.publicKey)
+  const isAdmin = useHasAdminAccount()
   return [
     {
       description: t(($) => $.pageGeneralDescription),

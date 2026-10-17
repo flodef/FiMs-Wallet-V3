@@ -1,5 +1,5 @@
 import type { Account } from '@workspace/db/account/account'
-import { envAdminAddresses } from '@workspace/env/env'
+import { useIsAdmin } from '@workspace/db-react/use-is-admin'
 import { useTranslation } from '@workspace/i18n'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -32,7 +32,7 @@ export function FimsFeatureVotes({ account }: { account: Account }) {
   const config = useFimsConfig()
   const { member } = useFimsMember(account.publicKey, account)
   const historic = useFimsUserHistoric(member?.id, account)
-  const isAdmin = envAdminAddresses().includes(account.publicKey)
+  const isAdmin = useIsAdmin()
   const canSign = account.type !== 'Watched'
 
   const latest = (historic.data ?? []).at(-1)

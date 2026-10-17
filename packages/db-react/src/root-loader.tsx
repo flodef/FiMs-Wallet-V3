@@ -3,7 +3,6 @@ import type { DbContext } from '@workspace/db/db-context'
 import type { Network } from '@workspace/db/network/network'
 import type { Setting } from '@workspace/db/setting/setting'
 import type { Wallet } from '@workspace/db/wallet/wallet'
-import { getOrFetchQuery } from './get-or-fetch.tsx'
 import { optionsAccount } from './options-account.tsx'
 import { optionsNetwork } from './options-network.tsx'
 import { optionsSetting } from './options-setting.tsx'
@@ -18,11 +17,15 @@ export interface RootLoaderData {
 }
 
 export async function rootLoader(ctx: DbContext) {
+  // Always read Dexie fresh (staleTime 0): the loader decides redirects and
+  // repairs dangling ids, so a stale cached list (e.g. accounts of a wallet
+  // just deleted) would make it resurrect a gone account. Local IndexedDB
+  // reads are cheap; the cache is still refreshed for the live hooks.
   const [accounts, networks, settings, wallets] = await Promise.all([
-    getOrFetchQuery(queryClient, optionsAccount.findMany(ctx, {})),
-    getOrFetchQuery(queryClient, optionsNetwork.findMany(ctx, {})),
-    getOrFetchQuery(queryClient, optionsSetting.findMany(ctx, {})),
-    getOrFetchQuery(queryClient, optionsWallet.findMany(ctx, {})),
+    queryClient.fetchQuery({ ...optionsAccount.findMany(ctx, {}), staleTime: 0 }),
+    queryClient.fetchQuery({ ...optionsNetwork.findMany(ctx, {}), staleTime: 0 }),
+    queryClient.fetchQuery({ ...optionsSetting.findMany(ctx, {}), staleTime: 0 }),
+    queryClient.fetchQuery({ ...optionsWallet.findMany(ctx, {}), staleTime: 0 }),
   ])
 
   return {

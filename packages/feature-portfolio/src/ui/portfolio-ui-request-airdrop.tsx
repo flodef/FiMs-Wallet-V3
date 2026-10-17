@@ -1,7 +1,6 @@
 import type { Address, Lamports } from '@solana/kit'
 import type { Network } from '@workspace/db/network/network'
-import { useAccountActive } from '@workspace/db-react/use-account-active'
-import { envAdminAddresses } from '@workspace/env/env'
+import { useIsAdmin } from '@workspace/db-react/use-is-admin'
 import { useTranslation } from '@workspace/i18n'
 import { solToLamports } from '@workspace/solana-client/sol-to-lamports'
 import { useRequestAirdrop } from '@workspace/solana-client-react/use-request-airdrop'
@@ -19,14 +18,13 @@ export function PortfolioUiRequestAirdrop({
   network: Network
 }) {
   const { t } = useTranslation('portfolio')
-  const account = useAccountActive()
   const { isPending, mutateAsync } = useRequestAirdrop(network)
   const hasBalance = lamports && lamports > 0
   const isMainnet = network.type === 'solana:mainnet'
   const isLocalnet = network.type === 'solana:localnet'
   // Faucets are a dev tool: mainnet users never see the card, and non-admin
   // accounts shouldn't be handed test funds anyway.
-  const isAdmin = envAdminAddresses().includes(account.publicKey)
+  const isAdmin = useIsAdmin()
   if (hasBalance || isMainnet || !isAdmin) {
     return null
   }

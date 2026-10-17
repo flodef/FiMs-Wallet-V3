@@ -1,7 +1,6 @@
-import { useAccountActive } from '@workspace/db-react/use-account-active'
+import { useIsAdmin } from '@workspace/db-react/use-is-admin'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useSetting } from '@workspace/db-react/use-setting'
-import { envAdminAddresses } from '@workspace/env/env'
 import { FimsFeatureGasTopup } from '@workspace/feature-fims/fims-feature-gas-topup'
 import { FimsFeatureRentReclaim } from '@workspace/feature-fims/fims-feature-rent-reclaim'
 import { FimsFeatureSolExcess } from '@workspace/feature-fims/fims-feature-sol-excess'
@@ -26,12 +25,11 @@ export interface ShellLayoutLink {
 }
 
 export function ShellUiLayout() {
-  const activeAccount = useAccountActive()
   const activeNetwork = useNetworkActive()
   const [wallpaper] = useSetting('themeWallpaper')
   const { border } = useMemo(() => getColorByName(activeNetwork.color ?? 'green'), [activeNetwork])
   const { t } = useTranslation('shell')
-  const isAdmin = envAdminAddresses().includes(activeAccount.publicKey)
+  const isAdmin = useIsAdmin()
   const links: ShellLayoutLink[] = [
     { icon: 'portfolio', label: t(($) => $.labelPortfolio), to: '/portfolio' },
     { icon: 'handCoins', label: t(($) => $.labelFims), to: '/fims' },

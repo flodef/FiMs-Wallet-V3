@@ -1,11 +1,11 @@
 import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useAccountSetActive } from '@workspace/db-react/use-account-set-active'
+import { useHasAdminAccount } from '@workspace/db-react/use-is-admin'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useNetworkLive } from '@workspace/db-react/use-network-live'
 import { useSetting } from '@workspace/db-react/use-setting'
 import { useWalletActive } from '@workspace/db-react/use-wallet-active'
 import { useWalletLive } from '@workspace/db-react/use-wallet-live'
-import { envAdminAddresses } from '@workspace/env/env'
 import { getDevOptions } from '@workspace/feature-dev/dev-features'
 import { Menubar } from '@workspace/ui/components/menubar'
 import { ShellUiMenuDevelopment } from './shell-ui-menu-development.tsx'
@@ -22,6 +22,7 @@ export function ShellUiMenu() {
   const activeNetwork = useNetworkActive()
   const networks = useNetworkLive()
   const [, setActiveNetworkId] = useSetting('activeNetworkId')
+  const hasAdmin = useHasAdminAccount()
 
   return (
     <Menubar className="h-10 border-none bg-transparent py-2 md:h-14">
@@ -33,7 +34,7 @@ export function ShellUiMenu() {
       />
       {/* Network switching is admin-only: pointing the app at a hostile RPC is
           a security risk ordinary users should never be able to trigger. */}
-      {envAdminAddresses().includes(activeAccount.publicKey) ? (
+      {hasAdmin ? (
         <ShellUiMenuNetwork active={activeNetwork} networks={networks} setActive={setActiveNetworkId} />
       ) : null}
       <ShellUiMenuDevelopment items={getDevOptions()} />

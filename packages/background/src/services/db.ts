@@ -13,31 +13,35 @@ import type { AppContext } from '@workspace/context/app-context'
 import type { Account } from '@workspace/db/account/account'
 import { accountCreate } from '@workspace/db/account/account-create'
 import { accountFindMany } from '@workspace/db/account/account-find-many'
-import { accountFindUnique } from '@workspace/db/account/account-find-unique'
 import { accountReadSecretKey } from '@workspace/db/account/account-read-secret-key'
 import type { Network } from '@workspace/db/network/network'
-import { networkFindUnique } from '@workspace/db/network/network-find-unique'
+import { networkFindMany } from '@workspace/db/network/network-find-many'
+import { hasAdminAccount, resolveActiveAccount, resolveAllowedNetwork } from '@workspace/db/session/resolve-session'
 import { settingFindUnique } from '@workspace/db/setting/setting-find-unique'
 import { walletCreate } from '@workspace/db/wallet/wallet-create'
 import type { WalletCreateInput } from '@workspace/db/wallet/wallet-create-input'
+import { walletFindMany } from '@workspace/db/wallet/wallet-find-many'
+import { envAdminAddresses } from '@workspace/env/env'
 import { deriveFromMnemonicAtIndex } from '@workspace/keypair/derive-from-mnemonic-at-index'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
 
-// TODO: Database abstraction layer to avoid duplicating this code from db and db-react packages
+// Session rules (active account, allowed network) come from the shared pure
+// resolvers in @workspace/db/session — the same ones the web root loader uses.
 function createDbService(ctx: AppContext) {
   return {
     account: {
       active: async (): Promise<Account> => {
-        const accountId = (await settingFindUnique(ctx, 'activeAccountId'))?.value
-        if (!accountId) {
+        // Same resolution as the web root loader: a dangling or unset
+        // activeAccountId falls back to the first visible account.
+        const [accounts, wallets, activeAccountId] = await Promise.all([
+          accountFindMany(ctx),
+          walletFindMany(ctx),
+          settingFindUnique(ctx, 'activeAccountId'),
+        ])
+        const { account } = resolveActiveAccount({ accounts, activeAccountId: activeAccountId?.value, wallets })
+        if (!account) {
           throw new Error('No active account set')
         }
-
-        const account = await accountFindUnique(ctx, accountId)
-        if (!account) {
-          throw new Error('Active account not found')
-        }
-
         return account
       },
       byPublicKey: async (publicKey: string): Promise<Account | undefined> => {
@@ -57,11 +61,7 @@ function createDbService(ctx: AppContext) {
         return await createKeyPairFromBytes(new Uint8Array(JSON.parse(secretKey)))
       },
       secretKey: async (): Promise<string> => {
-        const accountId = (await settingFindUnique(ctx, 'activeAccountId'))?.value
-        if (!accountId) {
-          throw new Error('No active account set')
-        }
-
+        const { id: accountId } = await getDbService().account.active()
         const secretKey = await accountReadSecretKey(ctx, accountId)
         if (!secretKey) {
           throw new Error('Active account secretKey not found')
@@ -88,11 +88,20 @@ function createDbService(ctx: AppContext) {
     },
     network: {
       active: async (): Promise<Network> => {
-        const networkId = (await settingFindUnique(ctx, 'activeNetworkId'))?.value
-        if (!networkId) {
-          throw new Error('No active network set')
-        }
-        const network = await networkFindUnique(ctx, networkId)
+        // dApp requests go through here, not the web root loader: apply the
+        // same mainnet-only policy for non-admin devices (no demo in the
+        // extension).
+        const [accounts, networks, activeNetworkId] = await Promise.all([
+          accountFindMany(ctx),
+          networkFindMany(ctx),
+          settingFindUnique(ctx, 'activeNetworkId'),
+        ])
+        const { network } = resolveAllowedNetwork({
+          activeNetworkId: activeNetworkId?.value,
+          demo: false,
+          isAdmin: hasAdminAccount(accounts, envAdminAddresses()),
+          networks,
+        })
         if (!network) {
           throw new Error('Active network not found')
         }

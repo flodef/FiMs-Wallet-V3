@@ -11,8 +11,7 @@ import type { AccountUpdateInput } from '@workspace/db/account/account-update-in
 import { accountUpdateOrder } from '@workspace/db/account/account-update-order'
 import type { AccountUpdateOrderInput } from '@workspace/db/account/account-update-order-input'
 import type { DbContext } from '@workspace/db/db-context'
-import { optionsSetting } from './options-setting.tsx'
-import { queryClient } from './query-client.tsx'
+import { invalidateWalletGraph } from './invalidate-wallet-graph.tsx'
 
 export type AccountCreateMutateOptions = MutateOptions<string, Error, { input: AccountCreateInput }>
 export type AccountDeleteMutateOptions = MutateOptions<void, Error, { id: string }>
@@ -25,19 +24,13 @@ export const optionsAccount = {
   create: (ctx: DbContext, props: AccountCreateMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ input }: { input: AccountCreateInput }) => accountCreate(ctx, input),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsSetting.findMany(ctx, {}))
-        queryClient.invalidateQueries(optionsAccount.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
   delete: (ctx: DbContext, props: AccountDeleteMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ id }: { id: string }) => accountDelete(ctx, id),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsSetting.findMany(ctx, {}))
-        queryClient.invalidateQueries(optionsAccount.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
   findMany: (ctx: DbContext, input: AccountFindManyInput) =>
@@ -53,25 +46,19 @@ export const optionsAccount = {
   setActive: (ctx: DbContext, props: AccountSetActiveMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ id }: { id: string }) => accountSetActive(ctx, id),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsSetting.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
   update: (ctx: DbContext, props: AccountUpdateMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ id, input }: { id: string; input: AccountUpdateInput }) => accountUpdate(ctx, id, input),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsAccount.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
   updateOrder: (ctx: DbContext, props: AccountUpdateOrderMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ input }: { input: AccountUpdateOrderInput }) => accountUpdateOrder(ctx, input),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsAccount.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
 }

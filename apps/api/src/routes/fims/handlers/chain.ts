@@ -1,8 +1,9 @@
-import { HttpServerRequest } from '@effect/platform'
+import { Headers, HttpServerRequest } from '@effect/platform'
 import { eq, or, sql } from 'drizzle-orm'
 import { Effect, Option } from 'effect'
 import { addressBook, tokens, userAddresses, users } from '../../../db/schema.js'
 import { DatabaseService, type Db, withDb } from '../../../db/service.js'
+import { envInt } from '../../../env.js'
 import { FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS } from '../../../fims-constants.js'
 import {
   chainSymbolForMint,
@@ -31,7 +32,7 @@ export const handleChainHistory = ({
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const signer = yield* verifyWalletRequest(request)
-    yield* consumeChainQuota(signer)
+    yield* consumeChainQuota(request, signer)
     yield* assertChainAddressAllowed(signer, urlParams.address)
     const keys = yield* heliusKeysOrFail
     const limit = Math.min(Math.max(1, Math.floor(urlParams.limit ?? 100)), 100)
@@ -53,7 +54,7 @@ export const handleChainAssets = ({ urlParams }: { urlParams: { address: string 
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const signer = yield* verifyWalletRequest(request)
-    yield* consumeChainQuota(signer)
+    yield* consumeChainQuota(request, signer)
     yield* assertChainAddressAllowed(signer, urlParams.address)
     const keys = yield* heliusKeysOrFail
     const assets = yield* Effect.tryPromise({
@@ -163,56 +164,97 @@ const chainUnavailable = (cause: unknown) => {
 }
 
 // The chain reader proxies PAID Helius calls — an abused wallet key must not
-// be able to burn the shared provider budget. Per-signer bucket over the
-// rate_limits retention window (rows purge after ~10 min); generous enough
-// for normal browsing, hard against scripted scraping.
-const CHAIN_READS_PER_WINDOW = 60
-const consumeChainQuota = (signer: string) =>
+// be able to burn the shared provider budget. Three buckets over the
+// rate_limits retention window (rows purge after ~10 min): per signer, per
+// client IP (a throwaway keypair per request dodges the signer bucket, the
+// IP does not) and one global ceiling bounding the whole Helius spend.
+const CHAIN_WINDOW_MS = 10 * 60 * 1000
+const chainQuotas = () => ({
+  global: envInt('CHAIN_READS_GLOBAL_PER_WINDOW', 3000),
+  ip: envInt('CHAIN_READS_PER_IP_PER_WINDOW', 120),
+  signer: envInt('CHAIN_READS_PER_SIGNER_PER_WINDOW', 60),
+})
+
+// Same edge-stamped header policy as the HTTP rate limiter (index.ts): read
+// exactly one platform-owned header, never a client-mergeable chain.
+const chainClientIp = (request: HttpServerRequest.HttpServerRequest) => {
+  const name = (process.env['RATE_LIMIT_IP_HEADER'] ?? 'x-vercel-forwarded-for').toLowerCase()
+  return (
+    Option.getOrElse(Headers.get(request.headers, name), () => '')
+      .split(',')[0]
+      ?.trim() || 'unknown'
+  )
+}
+
+const bumpBucket = (bucket: string) =>
   Effect.gen(function* () {
     const { db } = yield* DatabaseService
-    const windowStart = new Date(Math.floor(Date.now() / (10 * 60 * 1000)) * 10 * 60 * 1000)
+    const windowStart = new Date(Math.floor(Date.now() / CHAIN_WINDOW_MS) * CHAIN_WINDOW_MS)
     const result = yield* Effect.tryPromise({
       catch: () => new RateLimited({ reason: 'rate limiter unavailable' }),
       try: () =>
         db.execute(sql`
           INSERT INTO rate_limits (bucket, window_start, count)
-          VALUES (${`chain:${signer}`}, ${windowStart.toISOString()}, 1)
+          VALUES (${bucket}, ${windowStart.toISOString()}, 1)
           ON CONFLICT (bucket, window_start) DO UPDATE SET count = rate_limits.count + 1
           RETURNING count
         `),
     })
-    const count = Number((result as unknown as { rows?: { count: number }[] }).rows?.[0]?.count ?? 0)
-    if (count > CHAIN_READS_PER_WINDOW) {
-      return yield* Effect.fail(
-        new RateLimited({ reason: `chain read quota exceeded (${CHAIN_READS_PER_WINDOW} per 10 minutes)` }),
-      )
+    return Number((result as unknown as { rows?: { count: number }[] }).rows?.[0]?.count ?? 0)
+  })
+
+const consumeChainQuota = (request: HttpServerRequest.HttpServerRequest, signer: string) =>
+  Effect.gen(function* () {
+    const quotas = chainQuotas()
+    const [bySigner, byIp, global] = yield* Effect.all([
+      bumpBucket(`chain:signer:${signer}`),
+      bumpBucket(`chain:ip:${chainClientIp(request)}`),
+      bumpBucket('chain:global'),
+    ])
+    if (bySigner > quotas.signer || byIp > quotas.ip || global > quotas.global) {
+      return yield* Effect.fail(new RateLimited({ reason: 'chain read quota exceeded — retry in a few minutes' }))
     }
   })
 
-// The proxy burns a PAID Helius budget — arbitrary addresses would make the
-// API a free indexer for anyone holding a member key (audit M-8). Members may
-// query their own linked wallets plus protocol addresses the product
-// legitimately displays (tontine pot, treasury); a signed-in wallet may
-// always read ITS OWN address — the signature already proves ownership, and
-// the shared read quota still bounds abuse. Admins stay unrestricted.
+// The proxy burns a PAID Helius budget and exposes member history — it is
+// NOT a public indexer (audit M-8). A signer may read:
+//   - protocol addresses the product displays (tontine pot, treasury);
+//   - its own address, and every address linked to its member (canonical +
+//     aliases);
+//   - addresses in its member's own address book (how a watched account is
+//     made readable);
+//   - members that chose a public profile (their dashboard is public anyway).
+// Admins stay unrestricted. Anything else — unknown OR private member —
+// fails with the SAME error, so the endpoint is not a membership oracle.
 const CHAIN_PUBLIC_TARGETS = new Set([FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS])
+export const chainTargetAllowed = async (db: Db, signer: string, target: string): Promise<boolean> => {
+  if (isAdminAddress(signer) || CHAIN_PUBLIC_TARGETS.has(target) || signer === target) return true
+  const rows = await db.execute(sql`
+    WITH me AS (
+      SELECT ${users.id} AS id FROM ${users} WHERE ${addressLinkedToUser(signer)} LIMIT 1
+    ),
+    target_member AS (
+      SELECT ${users.id} AS id, ${users.isPublic} AS is_public FROM ${users}
+      WHERE ${users.address} = ${target}
+        OR ${users.id} IN (SELECT ${userAddresses.userId} FROM ${userAddresses} WHERE ${userAddresses.address} = ${target})
+      LIMIT 1
+    )
+    SELECT
+      EXISTS (SELECT 1 FROM me JOIN target_member ON me.id = target_member.id) AS own,
+      EXISTS (SELECT 1 FROM target_member WHERE is_public) AS public_member,
+      EXISTS (
+        SELECT 1 FROM ${addressBook} WHERE ${addressBook.address} = ${target}
+          AND ${addressBook.userId} IN (SELECT id FROM me)
+      ) AS in_book
+  `)
+  const row = (rows as unknown as { rows?: { in_book: boolean; own: boolean; public_member: boolean }[] }).rows?.[0]
+  return !!row && (row.own || row.public_member || row.in_book)
+}
+
 const assertChainAddressAllowed = (signer: string, target: string) =>
   Effect.gen(function* () {
-    if (isAdminAddress(signer) || CHAIN_PUBLIC_TARGETS.has(target) || signer === target) return
-    // Any member-linked address (main or alias) is readable by an
-    // authenticated signer — transaction history is public on-chain data
-    // and the shared quota still bounds Helius abuse. This is what lets a
-    // watched member account show its ledger.
-    const isMemberTarget = yield* withDb(async (db) => {
-      const rows = await db
-        .select({ address: users.address })
-        .from(users)
-        .leftJoin(userAddresses, eq(users.id, userAddresses.userId))
-        .where(or(eq(users.address, target), eq(userAddresses.address, target)))
-        .limit(1)
-      return rows.length > 0
-    })
-    if (!isMemberTarget) {
+    const allowed = yield* withDb((db) => chainTargetAllowed(db, signer, target))
+    if (!allowed) {
       return yield* Effect.fail(new AuthForbidden({ address: signer }))
     }
   })

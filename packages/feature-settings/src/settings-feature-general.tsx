@@ -1,5 +1,4 @@
-import { useAccountActive } from '@workspace/db-react/use-account-active'
-import { envAdminAddresses } from '@workspace/env/env'
+import { useIsAdmin } from '@workspace/db-react/use-is-admin'
 import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { UiCard } from '@workspace/ui/components/ui-card'
@@ -19,8 +18,7 @@ export function SettingsFeatureGeneral() {
   const page = useSettingsPage({ pageId: 'general' })
   // The apiEndpoint override is admin-only: a malicious endpoint could serve a
   // poisoned address book and redirect outgoing transfers.
-  const account = useAccountActive()
-  const isAdmin = envAdminAddresses().includes(account.publicKey)
+  const isAdmin = useIsAdmin()
   return (
     <div className="space-y-2 md:space-y-4">
       <UiCard

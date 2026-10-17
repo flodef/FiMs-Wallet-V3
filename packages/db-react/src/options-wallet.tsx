@@ -11,8 +11,7 @@ import { walletUpdate } from '@workspace/db/wallet/wallet-update'
 import type { WalletUpdateInput } from '@workspace/db/wallet/wallet-update-input'
 import { walletUpdateOrder } from '@workspace/db/wallet/wallet-update-order'
 import type { WalletUpdateOrderInput } from '@workspace/db/wallet/wallet-update-order-input'
-import { optionsSetting } from './options-setting.tsx'
-import { queryClient } from './query-client.tsx'
+import { invalidateWalletGraph } from './invalidate-wallet-graph.tsx'
 
 export type WalletCreateMutateOptions = MutateOptions<string, Error, { input: WalletCreateInput }>
 export type WalletDeleteMutateOptions = MutateOptions<void, Error, { id: string }>
@@ -25,22 +24,13 @@ export const optionsWallet = {
   create: (ctx: DbContext, props: WalletCreateMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ input }: { input: WalletCreateInput }) => walletCreate(ctx, input),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsSetting.findMany(ctx, {}))
-        queryClient.invalidateQueries(optionsWallet.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
   delete: (ctx: DbContext, props: WalletDeleteMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ id }: { id: string }) => walletDelete(ctx, id),
-      onSuccess: () => {
-        // The deletion can clear or move activeAccountId — settings must
-        // revalidate too so the loader redirects instead of the tree
-        // crashing on a dangling active id.
-        queryClient.invalidateQueries(optionsSetting.findMany(ctx, {}))
-        queryClient.invalidateQueries(optionsWallet.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
   findMany: (ctx: DbContext, input: WalletFindManyInput) =>
@@ -56,25 +46,19 @@ export const optionsWallet = {
   reprotect: (ctx: DbContext, props: WalletReprotectMutateOptions = {}) =>
     mutationOptions({
       mutationFn: (input: WalletReprotectInput) => walletReprotect(ctx, input),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsWallet.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
   update: (ctx: DbContext, props: WalletUpdateMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ id, input }: { id: string; input: WalletUpdateInput }) => walletUpdate(ctx, id, input),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsWallet.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
   updateOrder: (ctx: DbContext, props: WalletUpdateOrderMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ input }: { input: WalletUpdateOrderInput }) => walletUpdateOrder(ctx, input),
-      onSuccess: () => {
-        queryClient.invalidateQueries(optionsWallet.findMany(ctx, {}))
-      },
+      onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
 }
