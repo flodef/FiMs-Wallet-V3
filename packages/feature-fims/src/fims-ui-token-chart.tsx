@@ -106,7 +106,7 @@ export function FimsUiTokenChart() {
                     String(name ?? ''),
                   ]}
                   labelFormatter={(label) =>
-                    typeof label === 'string' ? new Date(label).toLocaleDateString() : String(label ?? '')
+                    typeof label === 'string' ? formatDateTime(label, { dateStyle: 'medium' }) : String(label ?? '')
                   }
                 />
                 <Legend />

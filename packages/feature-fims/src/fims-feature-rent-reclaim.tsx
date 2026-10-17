@@ -12,6 +12,7 @@ import { useAccountGetTransactionSigner } from '@workspace/db-react/use-account-
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useTranslation } from '@workspace/i18n'
 import { formatLamports } from '@workspace/i18n/format'
+import { localizedErrorMessage } from '@workspace/i18n/localized-error'
 import { formatSimulationFailure } from '@workspace/solana-client/format-simulation-failure'
 import { sendSimulatedPreparedTransaction } from '@workspace/solana-client/send-prepared-transaction'
 import {
@@ -172,7 +173,7 @@ export function FimsFeatureRentReclaim() {
     setBusy(false)
     if (lastError) {
       reportGasTopupError(lastError)
-      toastError(`${t(($) => $.rentReclaimError)}: ${lastError}`)
+      toastError(`${t(($) => $.rentReclaimError)}: ${localizedErrorMessage(lastError)}`)
       return
     }
     toastSuccess(t(($) => $.rentReclaimSuccess, { count: checked.length }))

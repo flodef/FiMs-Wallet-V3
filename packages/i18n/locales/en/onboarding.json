@@ -53,7 +53,6 @@
   "indexOptionDemoGuide": "The demo creates a fake wallet on devnet and walks you through the sections: portfolio, FiMs, community, tontine, votes, explorer…\n\nNo real funds, everything is cleaned up on exit. Replayable anytime from Settings → Guided tour.",
   "indexOptionDemoTitle": "Help me understand",
   "indexOptionExistingTitle": "I already have a wallet",
-  "indexOptionExternalConnected": "Wallet connected — continue",
   "indexOptionExternalGuide": "Your keys stay in the wallet extension — every transaction is signed there, FiMs never sees your keys.\n\nThe safest choice if you already use a Solana wallet.",
   "indexOptionExternalTitle": "External wallet (Solflare, Jupiter…)",
   "indexOptionImportAction": "Import my recovery phrase",

@@ -44,7 +44,7 @@ export function createStakeAccountMutationOptions({
     },
     onSuccess: async ({ signature }) => {
       await invalidateStakeAccountQueries({ address, client, network, queryClient })
-      toastSuccess(`Stake transaction confirmed: ${ellipsify(signature, 6, '...')}`)
+      toastSuccess(i18n.t(($) => $.toastStakeCreated, { ns: 'ui', signature: ellipsify(signature, 6, '...') }))
     },
   })
 }

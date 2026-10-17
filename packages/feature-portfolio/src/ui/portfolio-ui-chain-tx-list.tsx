@@ -2,6 +2,7 @@ import type { Network } from '@workspace/db/network/network'
 import { useSetting } from '@workspace/db-react/use-setting'
 import { ExplorerUiExplorerIcon } from '@workspace/feature-explorer/ui/explorer-ui-explorer-icon'
 import { useTranslation } from '@workspace/i18n'
+import { formatNumber } from '@workspace/i18n/format'
 import { type ExplorerProvider, explorerProviders } from '@workspace/solana-client/get-explorer-url'
 import { Badge } from '@workspace/ui/components/badge'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
@@ -31,7 +32,7 @@ const KIND_STYLE: Record<ChainTxKind, string> = {
 function formatAmount(amount: number): string {
   const abs = Math.abs(amount)
   const digits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6
-  return amount.toLocaleString(undefined, { maximumFractionDigits: digits })
+  return formatNumber(amount, { maximumFractionDigits: digits })
 }
 
 function ChainTxItem({ network, tx }: { network: Network; tx: ChainTransaction }) {

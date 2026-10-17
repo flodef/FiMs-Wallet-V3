@@ -1,14 +1,15 @@
 import { useTranslation } from '@workspace/i18n'
+import { formatMoney, formatNumber } from '@workspace/i18n/format'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import type { TokenPnl } from '../data-access/chain-pnl.ts'
 
 function usd(value: null | number | undefined): string {
   if (value === null || value === undefined) return '—'
-  return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} $`
+  return formatMoney(value, 'USD')
 }
 
 function qty(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  return formatNumber(value, { maximumFractionDigits: 4 })
 }
 
 function signedClass(value: null | number | undefined): string {

@@ -15,7 +15,11 @@ export function useExplorerBookmarkTransaction({ signature }: { signature: Signa
     toggle: async () => {
       try {
         const result = await mutationToggle.mutateAsync({ signature })
-        toastSuccess(`Bookmark ${result === 'created' ? 'added' : 'removed'}`)
+        toastSuccess(
+          result === 'created'
+            ? i18n.t(($) => $.bookmarkAdded, { ns: 'explorer' })
+            : i18n.t(($) => $.bookmarkRemoved, { ns: 'explorer' }),
+        )
       } catch (e) {
         console.log(e)
         toastError(i18n.t(($) => $.toastBookmarkToggleFailed, { ns: 'ui' }))

@@ -53,7 +53,6 @@
   "indexOptionDemoGuide": "La demo crea una billetera ficticia en devnet y te guía por las secciones: portfolio, FiMs, comunidad, tontina, votos, explorador…\n\nSin fondos reales, todo se limpia al salir. Rejugable desde Ajustes → Visita guiada.",
   "indexOptionDemoTitle": "Ayúdame a entender",
   "indexOptionExistingTitle": "Ya tengo una billetera",
-  "indexOptionExternalConnected": "Billetera conectada — continuar",
   "indexOptionExternalGuide": "Tus claves permanecen en la extensión — cada transacción se firma ahí, FiMs nunca ve tus claves.\n\nLa opción más segura si ya usas una billetera Solana.",
   "indexOptionExternalTitle": "Billetera externa (Solflare, Jupiter…)",
   "indexOptionImportAction": "Importar mi frase de recuperación",

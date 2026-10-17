@@ -4,7 +4,7 @@ import { useAccountCreate } from '@workspace/db-react/use-account-create'
 import { useAccountsForWalletLive } from '@workspace/db-react/use-accounts-for-wallet-live'
 import { useWalletDeriveAndCreateAccount } from '@workspace/db-react/use-wallet-derive-and-create-account'
 import { useWalletFindUnique } from '@workspace/db-react/use-wallet-find-unique'
-import { useTranslation } from '@workspace/i18n'
+import { i18n, useTranslation } from '@workspace/i18n'
 import { importKeyPairToPublicKeySecretKey } from '@workspace/keypair/import-key-pair-to-public-key-secret-key'
 import { Button } from '@workspace/ui/components/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@workspace/ui/components/item'
@@ -48,7 +48,7 @@ export function SettingsFeatureWalletAddAccount() {
 
     try {
       await deriveAccount.mutateAsync({ index: accountsRef.current?.length ?? 0, item: wallet })
-      toastSuccess(`Account derived for ${wallet.name}`)
+      toastSuccess(i18n.t(($) => $.toastAccountDerived, { name: wallet.name, ns: 'ui' }))
     } catch (e) {
       toastError(e)
     }
@@ -73,7 +73,7 @@ export function SettingsFeatureWalletAddAccount() {
       await createAccountMutation.mutateAsync({
         input: { name: ellipsify(publicKey), publicKey, secretKey, type: 'Imported', walletId: wallet.id },
       })
-      toastSuccess(`Account imported for ${wallet.name}`)
+      toastSuccess(i18n.t(($) => $.toastAccountImported, { name: wallet.name, ns: 'ui' }))
     } catch (e) {
       toastError(e)
     }
@@ -88,7 +88,7 @@ export function SettingsFeatureWalletAddAccount() {
       await createAccountMutation.mutateAsync({
         input: { name: ellipsify(input), publicKey: input, type: 'Watched', walletId },
       })
-      toastSuccess(`Account watched for ${wallet?.name}`)
+      toastSuccess(i18n.t(($) => $.toastAccountWatched, { name: wallet?.name ?? '', ns: 'ui' }))
     } catch (e) {
       toastError(e)
     }

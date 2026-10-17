@@ -41,7 +41,7 @@ export function closeStakeAccountMutationOptions({
     },
     onSuccess: async (signature) => {
       await invalidateStakeAccountQueries({ address, client, network, queryClient })
-      toastSuccess(`Stake account closed: ${ellipsify(signature, 6, '...')}`)
+      toastSuccess(i18n.t(($) => $.toastStakeClosed, { ns: 'ui', signature: ellipsify(signature, 6, '...') }))
     },
   })
 }

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -38,14 +38,12 @@ function errorCodes(): Set<string> {
       }
     }
   }
-  for (const dir of [
-    'packages/core/src',
-    'packages/db/src',
-    'packages/vault/src',
-    'packages/db-react/src',
-    'packages/solana-client/src',
-  ]) {
-    walk(join(root, dir))
+  // Every package's src — feature packages throw AppError codes too, and the
+  // guard only helps if it sees them all.
+  for (const pkg of readdirSync(join(root, 'packages'), { withFileTypes: true })) {
+    if (!pkg.isDirectory()) continue
+    const src = join(root, 'packages', pkg.name, 'src')
+    if (existsSync(src)) walk(src)
   }
   return codes
 }

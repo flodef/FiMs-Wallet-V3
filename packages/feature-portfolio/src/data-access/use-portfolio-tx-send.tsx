@@ -33,19 +33,19 @@ export function portfolioTxSendMutationOptions({
     const { data: result, error: sendError } = await tryCatch(sendSimulatedPreparedTransaction(client, input))
 
     if (sendError) {
-      toastError(`Error sending ${tokenSymbol}`)
+      toastError(sendError)
       return
     }
 
     if (result?.signature) {
-      toastSuccess(`${tokenSymbol} has been sent!`)
+      toastSuccess(i18n.t(($) => $.toastTokenSent, { ns: 'ui', symbol: tokenSymbol }))
       return result
     }
     if (result?.simulation.status === 'failure') {
-      toastError(`${tokenSymbol} simulation failed`)
+      toastError(i18n.t(($) => $.toastSimulationFailed, { ns: 'ui' }))
       return result
     }
-    toastError(`Failed to send ${tokenSymbol}`)
+    toastError(i18n.t(($) => $.toastSendFailed, { ns: 'ui' }))
     return
   }
 
@@ -53,7 +53,7 @@ export function portfolioTxSendMutationOptions({
     const { data: result, error: sendError } = await tryCatch(sendSimulatedPreparedTransaction(client, input))
 
     if (sendError) {
-      toastError(`Error sending SOL: ${sendError}`)
+      toastError(sendError)
       return
     }
 

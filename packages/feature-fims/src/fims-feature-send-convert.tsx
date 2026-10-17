@@ -6,6 +6,7 @@ import type { Network } from '@workspace/db/network/network'
 import type { SendOverrideContext } from '@workspace/feature-portfolio/portfolio-modals'
 import { PortfolioUiTokenBalanceItem } from '@workspace/feature-portfolio/ui/portfolio-ui-token-balance-item'
 import { useTranslation } from '@workspace/i18n'
+import { formatNumber } from '@workspace/i18n/format'
 import { bigIntToDecimal } from '@workspace/solana-client/big-int-to-decimal'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
 import { uiAmountToBigInt } from '@workspace/solana-client/ui-amount-to-big-int'
@@ -108,7 +109,7 @@ export function FimsFeatureSendConvert({
     },
     onError: (error) => {
       reportGasTopupError(error)
-      toastError(`Swap + send failed: ${error.message}`)
+      toastError(error)
     },
     onSuccess: async (signature) => {
       if (signature) {
@@ -140,7 +141,7 @@ export function FimsFeatureSendConvert({
           <div className="space-y-1 text-sm">
             <div>
               {t(($) => $.sendConvertResult, {
-                amount: outAmount.toLocaleString(undefined, { maximumFractionDigits: outputDecimals }),
+                amount: formatNumber(outAmount, { maximumFractionDigits: outputDecimals }),
                 symbol: outputSymbol ?? '',
               })}
             </div>

@@ -40,7 +40,7 @@ export function deactivateStakeAccountMutationOptions({
       await queryClient.invalidateQueries({
         queryKey: getStakeAccountsQueryOptions({ address, client, network }).queryKey,
       })
-      toastSuccess(`Stake account deactivated: ${ellipsify(signature, 6, '...')}`)
+      toastSuccess(i18n.t(($) => $.toastStakeDeactivated, { ns: 'ui', signature: ellipsify(signature, 6, '...') }))
     },
   })
 }

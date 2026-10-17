@@ -2,6 +2,7 @@ import { assertIsAddress } from '@solana/kit'
 import { useAccountCreate } from '@workspace/db-react/use-account-create'
 import { useWalletFindUnique } from '@workspace/db-react/use-wallet-find-unique'
 import { i18n } from '@workspace/i18n'
+import { formatNumber } from '@workspace/i18n/format'
 import { importKeyPairToPublicKeySecretKey } from '@workspace/keypair/import-key-pair-to-public-key-secret-key'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
@@ -203,9 +204,7 @@ export function SettingsFeatureAccountGenerateVanity() {
               <h3 className="font-medium">Found Address!</h3>
               <div className="break-all rounded border bg-muted p-3 font-mono text-sm">{result.address}</div>
               {attempts > 0 ? (
-                <p className="text-muted-foreground text-xs">
-                  Found after checking {attempts.toLocaleString()} accounts.
-                </p>
+                <p className="text-muted-foreground text-xs">Found after checking {formatNumber(attempts)} accounts.</p>
               ) : null}
             </div>
 
@@ -246,7 +245,7 @@ export function SettingsFeatureAccountGenerateVanity() {
 
             {isPending ? (
               <div className="fade-in flex animate-in flex-col items-center justify-center gap-3 rounded-lg border bg-muted/50 p-6 text-center">
-                <div className="font-bold font-mono text-3xl">{attempts.toLocaleString()}</div>
+                <div className="font-bold font-mono text-3xl">{formatNumber(attempts)}</div>
                 <p className="text-muted-foreground text-sm">Accounts checked</p>
                 <Button onClick={handleCancel} variant="destructive">
                   Stop Generation

@@ -53,7 +53,6 @@
   "indexOptionDemoGuide": "La démo crée un portefeuille fictif sur devnet et vous fait visiter les sections : portfolio, FiMs, communauté, tontine, votes, explorer…\n\nAucun vrai fonds, tout est nettoyé en quittant. Rejouable depuis Paramètres → Visite guidée.",
   "indexOptionDemoTitle": "Aidez-moi à comprendre",
   "indexOptionExistingTitle": "J'ai déjà un portefeuille",
-  "indexOptionExternalConnected": "Wallet connecté — continuer",
   "indexOptionExternalGuide": "Vos clés restent dans l'extension wallet — chaque transaction est signée là-bas, FiMs ne voit jamais vos clés.\n\nLe choix le plus sûr si vous utilisez déjà un wallet Solana.",
   "indexOptionExternalTitle": "Wallet externe (Solflare, Jupiter…)",
   "indexOptionImportAction": "Importer ma phrase de récupération",
