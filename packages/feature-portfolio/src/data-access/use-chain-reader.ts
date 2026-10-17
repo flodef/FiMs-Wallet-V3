@@ -5,6 +5,7 @@ import type { Account } from '@workspace/db/account/account'
 import type { Database } from '@workspace/db/database'
 import { useAccountMessageSigner } from '@workspace/db-react/use-account-message-signer'
 import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
+import { useCallback, useSyncExternalStore } from 'react'
 import { chainGetAssets, chainGetHistory, chainGetLabels } from './chain-api.ts'
 
 const PAGE_SIZE = 100
@@ -23,7 +24,7 @@ async function syncChainHistory(db: Database, signer: MessagePartialSigner, addr
   const state = await db.chainSyncState.get(address)
   if (state?.complete) {
     // Only top-up new transactions — the old history is fully cached.
-    await syncNewest(db, signer, address, undefined)
+    await syncNewest(db, signer, address)
     return true
   }
   // Composite PK [address, signature] — the query already filtered on address.
@@ -41,20 +42,20 @@ async function syncChainHistory(db: Database, signer: MessagePartialSigner, addr
       for (const tx of fresh) known.add(tx.signature)
     }
     if (!res.cursor) {
+      // End of history — only now is `complete` allowed.
       complete = true
       break
     }
-    if (fresh.length !== rows.length) {
+    if (fresh.length !== rows.length && resume && resume !== cursor) {
       // Reached the cached region — jump straight to the persisted resume
       // point instead of re-paging rows we already have.
-      if (resume && resume !== cursor) {
-        cursor = resume
-        resume = undefined
-        continue
-      }
-      complete = true
-      break
+      cursor = resume
+      resume = undefined
+      continue
     }
+    // Keep paging through the cached region: pre-upgrade caches have the
+    // newest N pages and NO resume point, so stopping here would mark a
+    // truncated history `complete` forever. Inserts are idempotent anyway.
     cursor = res.cursor
   }
   await db.chainSyncState.put({ address, complete, oldestCursor: complete ? null : (cursor ?? null) })
@@ -63,15 +64,9 @@ async function syncChainHistory(db: Database, signer: MessagePartialSigner, addr
 
 // Top-up pass used once history is fully backfilled: walk newest→oldest and
 // stop at the first known signature — everything older is already cached.
-async function syncNewest(
-  db: Database,
-  signer: MessagePartialSigner,
-  address: string,
-  stopAt: string | undefined,
-): Promise<void> {
+async function syncNewest(db: Database, signer: MessagePartialSigner, address: string): Promise<void> {
   const cached = await db.chainTransactions.where('address').equals(address).primaryKeys()
   const known = new Set(cached.map((key) => key[1]))
-  if (stopAt) known.add(stopAt)
   let cursor: string | undefined
   for (let page = 0; page < MAX_PAGES; page++) {
     const res = await chainGetHistory(signer, address, { cursor, limit: PAGE_SIZE })
@@ -84,8 +79,6 @@ async function syncNewest(
     cursor = res.cursor
   }
 }
-
-import { useCallback, useSyncExternalStore } from 'react'
 
 const consentListeners = new Set<() => void>()
 

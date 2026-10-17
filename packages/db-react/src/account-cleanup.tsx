@@ -19,6 +19,9 @@ export async function revokeExternalSession(address: string): Promise<void> {
 // whole wallet's accounts at once.
 export async function accountCleanup(ctx: DbContext, publicKey: string): Promise<void> {
   await ctx.db.chainTransactions.where('address').equals(publicKey).delete()
+  // Drop the sync cursor too — re-adding the address must not inherit a stale
+  // `{complete: true}` over an empty cache.
+  await ctx.db.chainSyncState.delete(publicKey)
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['chainAssets', publicKey] }),
     queryClient.invalidateQueries({ queryKey: ['chainHistory', publicKey] }),

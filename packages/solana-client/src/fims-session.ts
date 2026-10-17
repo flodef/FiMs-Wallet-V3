@@ -2,7 +2,7 @@ import { getBase64Decoder, type MessagePartialSigner } from '@solana/kit'
 import { sameBytes, signContentBytes } from './sign-content.ts'
 
 // ---------------------------------------------------------------------------
-// SIWS bearer sessions — one signature per week instead of one per request.
+// SIWS bearer sessions — one signature per 24h instead of one per request.
 // The message text is rebuilt byte-identically by the server (only the four
 // fields below travel over the wire). Shared by every API client (member and
 // chain reads) so a single wallet prompt covers all of them.
@@ -43,8 +43,11 @@ export async function fimsSessionToken(apiEndpoint: string, signer: MessageParti
         expiresAt: string
         token: string
       }
-      // Reuse a stored session while it has an hour of life left.
-      if (stored && Date.parse(stored.expiresAt) > Date.now() + 3_600_000) return stored.token
+      // Reuse a stored token until the server actually rejects it: the API
+      // applies sliding renewal server-side, so the stored expiresAt is stale
+      // and gating on it would force a fresh signature ~23h after mint anyway.
+      // Expired/unknown tokens get a transparent re-sign on the 401 retry.
+      if (stored?.token) return stored.token
     } catch {
       // corrupted or unavailable storage — mint a fresh session
     }

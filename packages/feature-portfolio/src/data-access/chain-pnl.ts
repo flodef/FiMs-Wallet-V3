@@ -187,6 +187,9 @@ export function aggregateFimsLedgerFlows(
 // the chain-side swap attribution would double-count the same economic
 // event. The chain keeps qtyIn/qtyOut for on-chain moves the ledger never
 // saw (direct transfers between members, gifts).
+// The ledger fully owns priced fields for the mints it covers — right while
+// FiMs-family tokens have no DEX-priced legs. If one ever lists on a DEX, the
+// chain-side cost basis for that mint would be silently dropped here.
 export function mergeLedgerFlows(chain: TokenFlow[], ledger: TokenFlow[]): TokenFlow[] {
   const merged = new Map<string, TokenFlow>(chain.map((f) => [flowKey(f.mint), { ...f }]))
   for (const lf of ledger) {

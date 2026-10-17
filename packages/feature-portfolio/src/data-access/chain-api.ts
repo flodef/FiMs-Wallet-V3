@@ -72,7 +72,7 @@ export async function chainGetLabels(signer: MessagePartialSigner): Promise<Chai
 }
 
 // Authenticated GET via the SIWS bearer session: one wallet signature covers
-// every chain read for a week — per-request signing made external wallets
+// every chain read for 24h — per-request signing made external wallets
 // pop a prompt per call (and concurrent prompts cancel each other).
 async function chainSignedGet<T>(
   signer: MessagePartialSigner,

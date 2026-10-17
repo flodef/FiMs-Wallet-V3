@@ -34,6 +34,8 @@ export function RequestFeatureDialog() {
       <div
         aria-label="Wallet request"
         aria-modal="true"
+        // Partial a11y: role/aria-modal are set, but focus trapping and Escape
+        // handling are still missing — a full dialog primitive is a follow-up.
         className="mx-4 w-full max-w-md rounded-lg bg-gray-900 p-6"
         role="dialog"
       >
