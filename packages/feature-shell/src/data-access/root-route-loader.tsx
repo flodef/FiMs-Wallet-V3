@@ -25,8 +25,13 @@ export function rootRouteLoader(ctx: AppContext) {
     let { settings } = loaded
     const writeSetting = async (key: 'activeAccountId' | 'activeNetworkId', value: string) => {
       await settingSetValue(ctx, key, value)
-      // Never mutate the cached rows in place — return a fresh array.
-      settings = settings.map((setting) => (setting.key === key ? { ...setting, value } : setting))
+      // Never mutate the cached rows in place — return a fresh array. A
+      // first-time write has no row to patch, so append a synthetic one:
+      // the returned snapshot must reflect what was just persisted.
+      const now = new Date()
+      settings = settings.some((setting) => setting.key === key)
+        ? settings.map((setting) => (setting.key === key ? { ...setting, value } : setting))
+        : [...settings, { createdAt: now, id: `pending:${key}`, key, updatedAt: now, value }]
     }
 
     // activeAccountId can point at a deleted account (external wallet

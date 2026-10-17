@@ -18,6 +18,7 @@ import type { Network } from '@workspace/db/network/network'
 import { networkFindMany } from '@workspace/db/network/network-find-many'
 import { hasAdminAccount, resolveActiveAccount, resolveAllowedNetwork } from '@workspace/db/session/resolve-session'
 import { settingFindUnique } from '@workspace/db/setting/setting-find-unique'
+import { settingSetValue } from '@workspace/db/setting/setting-set-value'
 import { walletCreate } from '@workspace/db/wallet/wallet-create'
 import type { WalletCreateInput } from '@workspace/db/wallet/wallet-create-input'
 import { walletFindMany } from '@workspace/db/wallet/wallet-find-many'
@@ -38,9 +39,18 @@ function createDbService(ctx: AppContext) {
           walletFindMany(ctx),
           settingFindUnique(ctx, 'activeAccountId'),
         ])
-        const { account } = resolveActiveAccount({ accounts, activeAccountId: activeAccountId?.value, wallets })
+        const { account, repaired } = resolveActiveAccount({
+          accounts,
+          activeAccountId: activeAccountId?.value,
+          wallets,
+        })
         if (!account) {
           throw new Error('No active account set')
+        }
+        // A signing request must not silently land on a different account
+        // than the UI shows — persist the repair like the web loader does.
+        if (repaired) {
+          await settingSetValue(ctx, 'activeAccountId', account.id)
         }
         return account
       },

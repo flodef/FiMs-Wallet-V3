@@ -264,6 +264,13 @@ Aucun.
 - **Remédiation** : restreindre `urlParams.address` aux adresses **liées au membre** (son
   canonical + aliases), ou liste blanche d'adresses protocolaires ; le cas d'usage « regarder
   une adresse arbitraire » n'existe pas dans le produit — à confirmer.
+- **Implémenté** : allowlist par `chainTargetAllowed` (soi-même canonical + aliases, tontine,
+  treasury, membres publics, **adresses non-membre de son propre carnet** — self-serve borné
+  par les quotas ; le carnet ne perce jamais la privacy d'un membre privé grâce au
+  `NOT EXISTS target_member`) + quotas triples signer (60) / IP (120) / global (3000) par
+  fenêtre 10 min. Note produit : un compte `Watched` local ne se synchronise PAS dans le
+  carnet serveur — regarder une adresse arbitraire ne la rend pas lisible tant que le membre
+  ne l'ajoute pas explicitement au carnet.
 
 ### M-9. `FIMS_YIELD_EXTRA_PROGRAMS` : élargissement de l'allowlist par env 🔶
 
@@ -449,7 +456,7 @@ Statut au commit « audit-2 fixes » — ✅ implémenté + vérifié, 🟡 impl
 - ✅ **M-5** — `ConfigChange::Admin` timelocké (variant 7, index borsh préservés), `propose_admin` supprimé, `accept_admin` finalise — vérifié on-chain (PoC)
 - ✅ **M-6** — `Pubkey::default()` rejeté pour Treasury/Delegate/Admin au `schedule_config` — PoC
 - ✅ **M-7** — Décision documentée : le warning existant couvre déjà l'attaque offline (« brute-force it offline, and a 4-digit PIN falls in seconds ») ; argon2 sur 10⁴ combinaisons < 10× de gain — pas de nouvelle dep crypto ; mitigation réelle = longueur recommandée + device-binding futur
-- ✅ **M-8** — Proxy chaîne restreint aux adresses liées du membre + tontine/treasury (admins illimités)
+- ✅ **M-8** — Proxy chaîne restreint : soi-même (canonical + aliases), tontine/treasury, membres publics, adresses non-membre du carnet propre (self-serve borné par quotas signer/IP/global ; le carnet ne rend jamais un membre privé lisible). Admins illimités
 - ✅ **M-9** — `FIMS_YIELD_EXTRA_PROGRAMS` fail-closed + documenté AGENTS.md comme changement de sécurité
 - ✅ **M-10** — Adresses admin rejetées comme canonical/alias member (createUser, updateUser, addUserAddress)
 - ✅ **M-11** — Client `neon()` déjà mutualisé (`sharedSql`) — vérifié, rien à changer

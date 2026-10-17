@@ -2,6 +2,7 @@ import { HttpApiBuilder, HttpServer } from '@effect/platform'
 import { neon } from '@neondatabase/serverless'
 import { Layer } from 'effect'
 import { ApiLive } from './http.js'
+import { firstForwardedIp, rateLimitIpHeader } from './rate-limit.js'
 
 // Per-IP rate limiting, two tiers:
 //   - reads  : per-instance memory only — cheap, stops naive bursts hitting
@@ -21,15 +22,10 @@ const buckets = new Map<string, { count: number; resetAt: number }>()
 // Read exactly ONE edge-stamped header — never a client-mergeable fallback
 // chain. A header the platform does not overwrite is attacker-controlled, so
 // trusting several means the first spoofable one wins (M-1: spoofed IP =
-// infinite fresh buckets + rate_limits table pollution).
-//   RATE_LIMIT_IP_HEADER env selects the header the deployed edge guarantees
-//   (e.g. "cf-connecting-ip" when Cloudflare fronts Vercel). Default is
-//   x-vercel-forwarded-for, stamped by the Vercel platform itself. Absent or
-//   empty → "unknown": every unidentified caller shares one bucket, so a
-//   misconfigured edge rate-limits itself rather than letting attackers roam.
+// infinite fresh buckets + rate_limits table pollution). The header choice
+// lives in rate-limit.ts, shared with the chain-proxy limiter.
 function clientIp(request: Request, env: Record<string, string | undefined>): string {
-  const header = env['RATE_LIMIT_IP_HEADER'] ?? 'x-vercel-forwarded-for'
-  return request.headers.get(header.toLowerCase())?.split(',')[0]?.trim() || 'unknown'
+  return firstForwardedIp(request.headers.get(rateLimitIpHeader(env).toLowerCase()))
 }
 
 function isRateLimitedMemory(key: string, max: number): boolean {

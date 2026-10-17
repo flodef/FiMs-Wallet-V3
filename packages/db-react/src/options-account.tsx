@@ -1,9 +1,7 @@
-import { type MutateOptions, mutationOptions, queryOptions } from '@tanstack/react-query'
+import { type MutateOptions, mutationOptions } from '@tanstack/react-query'
 import { accountCreate } from '@workspace/db/account/account-create'
 import type { AccountCreateInput } from '@workspace/db/account/account-create-input'
 import { accountDelete } from '@workspace/db/account/account-delete'
-import { accountFindMany } from '@workspace/db/account/account-find-many'
-import type { AccountFindManyInput } from '@workspace/db/account/account-find-many-input'
 import { accountReadSecretKey } from '@workspace/db/account/account-read-secret-key'
 import { accountSetActive } from '@workspace/db/account/account-set-active'
 import { accountUpdate } from '@workspace/db/account/account-update'
@@ -12,6 +10,7 @@ import { accountUpdateOrder } from '@workspace/db/account/account-update-order'
 import type { AccountUpdateOrderInput } from '@workspace/db/account/account-update-order-input'
 import type { DbContext } from '@workspace/db/db-context'
 import { invalidateWalletGraph } from './invalidate-wallet-graph.tsx'
+import { optionsAccountFindMany } from './wallet-graph-queries.ts'
 
 export type AccountCreateMutateOptions = MutateOptions<string, Error, { input: AccountCreateInput }>
 export type AccountDeleteMutateOptions = MutateOptions<void, Error, { id: string }>
@@ -33,11 +32,7 @@ export const optionsAccount = {
       onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),
-  findMany: (ctx: DbContext, input: AccountFindManyInput) =>
-    queryOptions({
-      queryFn: () => accountFindMany(ctx, input),
-      queryKey: ['accountFindMany', input],
-    }),
+  findMany: optionsAccountFindMany,
   readSecretKey: (ctx: DbContext, props: AccountReadSecretKeyMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ id }: { id: string }) => accountReadSecretKey(ctx, id),

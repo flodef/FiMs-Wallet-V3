@@ -12,6 +12,7 @@ import {
   heliusApiKeys,
   normalizeGtfaTransaction,
 } from '../../../helius.js'
+import { firstForwardedIp, rateLimitIpHeader } from '../../../rate-limit.js'
 import { AuthForbidden, isAdminAddress, verifyWalletRequest } from '../../../services/auth/service.js'
 import { ChainUnavailable, RateLimited } from '../api.js'
 import { addressLinkedToUser } from '../helpers.js'
@@ -175,15 +176,11 @@ const chainQuotas = () => ({
   signer: envInt('CHAIN_READS_PER_SIGNER_PER_WINDOW', 60),
 })
 
-// Same edge-stamped header policy as the HTTP rate limiter (index.ts): read
-// exactly one platform-owned header, never a client-mergeable chain.
+// Same edge-stamped header as the HTTP rate limiter (shared policy lives in
+// rate-limit.ts): read exactly one platform-owned header, first hop only.
 const chainClientIp = (request: HttpServerRequest.HttpServerRequest) => {
-  const name = (process.env['RATE_LIMIT_IP_HEADER'] ?? 'x-vercel-forwarded-for').toLowerCase()
-  return (
-    Option.getOrElse(Headers.get(request.headers, name), () => '')
-      .split(',')[0]
-      ?.trim() || 'unknown'
-  )
+  const name = rateLimitIpHeader(process.env).toLowerCase()
+  return firstForwardedIp(Option.getOrElse(Headers.get(request.headers, name), () => undefined))
 }
 
 const bumpBucket = (bucket: string) =>
@@ -206,24 +203,35 @@ const bumpBucket = (bucket: string) =>
 const consumeChainQuota = (request: HttpServerRequest.HttpServerRequest, signer: string) =>
   Effect.gen(function* () {
     const quotas = chainQuotas()
-    const [bySigner, byIp, global] = yield* Effect.all([
-      bumpBucket(`chain:signer:${signer}`),
-      bumpBucket(`chain:ip:${chainClientIp(request)}`),
-      bumpBucket('chain:global'),
-    ])
+    // Unbounded: three independent counters on the same connection pool —
+    // serializing them would add ~2 Neon round-trips of latency per read.
+    const [bySigner, byIp, global] = yield* Effect.all(
+      [
+        bumpBucket(`chain:signer:${signer}`),
+        bumpBucket(`chain:ip:${chainClientIp(request)}`),
+        bumpBucket('chain:global'),
+      ],
+      { concurrency: 'unbounded' },
+    )
     if (bySigner > quotas.signer || byIp > quotas.ip || global > quotas.global) {
       return yield* Effect.fail(new RateLimited({ reason: 'chain read quota exceeded — retry in a few minutes' }))
     }
   })
 
-// The proxy burns a PAID Helius budget and exposes member history — it is
-// NOT a public indexer (audit M-8). A signer may read:
+// The proxy burns a PAID Helius budget and exposes member history (audit
+// M-8). A signer may read:
 //   - protocol addresses the product displays (tontine pot, treasury);
 //   - its own address, and every address linked to its member (canonical +
 //     aliases);
-//   - addresses in its member's own address book (how a watched account is
-//     made readable);
-//   - members that chose a public profile (their dashboard is public anyway).
+//   - members that chose a public profile (their dashboard is public anyway);
+//   - NON-member addresses in its member's own address book.
+// The book clause is self-serve by design — any member can index arbitrary
+// non-member addresses, bounded by the signer/IP/global quotas rather than
+// by the allowlist. But it must not punch through member privacy: booking
+// a PRIVATE member's (or alias) address does NOT make it readable, hence
+// the NOT EXISTS guard below. And it is one-directional — a local Watched
+// account never syncs to the server book, so watching an address does not
+// by itself make it readable; the member adds it to the book explicitly.
 // Admins stay unrestricted. Anything else — unknown OR private member —
 // fails with the SAME error, so the endpoint is not a membership oracle.
 const CHAIN_PUBLIC_TARGETS = new Set([FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS])
@@ -245,6 +253,7 @@ export const chainTargetAllowed = async (db: Db, signer: string, target: string)
       EXISTS (
         SELECT 1 FROM ${addressBook} WHERE ${addressBook.address} = ${target}
           AND ${addressBook.userId} IN (SELECT id FROM me)
+          AND NOT EXISTS (SELECT 1 FROM target_member)
       ) AS in_book
   `)
   const row = (rows as unknown as { rows?: { in_book: boolean; own: boolean; public_member: boolean }[] }).rows?.[0]
