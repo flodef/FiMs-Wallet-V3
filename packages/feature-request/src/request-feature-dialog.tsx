@@ -7,7 +7,6 @@ import { RequestUiSignIn } from './ui/request-ui-sign-in.tsx'
 import { RequestUiSignMessage } from './ui/request-ui-sign-message.tsx'
 import { RequestUiSignTransaction } from './ui/request-ui-sign-transaction.tsx'
 
-// TODO: Use a real dialog component with proper styling and accessibility
 export function RequestFeatureDialog() {
   const [request, setRequest] = useState<Request | null>(null)
 
@@ -32,7 +31,12 @@ export function RequestFeatureDialog() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="mx-4 w-full max-w-md rounded-lg bg-gray-900 p-6">
+      <div
+        aria-label="Wallet request"
+        aria-modal="true"
+        className="mx-4 w-full max-w-md rounded-lg bg-gray-900 p-6"
+        role="dialog"
+      >
         {(() => {
           switch (request.type) {
             case 'connect':

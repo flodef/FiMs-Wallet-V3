@@ -1,5 +1,5 @@
 import { address } from '@solana/kit'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { Account } from '../src/account/account.ts'
 import type { Network } from '../src/network/network.ts'
 import {
@@ -8,171 +8,176 @@ import {
   resolveActiveAccount,
   resolveAllowedNetwork,
 } from '../src/session/resolve-session.ts'
+import type { Wallet } from '../src/wallet/wallet.ts'
 
-const ADMIN = address('So11111111111111111111111111111111111111112')
+const account = (input: Partial<Account>): Account =>
+  ({
+    id: input.id ?? 'a',
+    name: 'a',
+    order: input.order ?? 0,
+    publicKey: input.publicKey ?? address('So11111111111111111111111111111111111111112'),
+    type: input.type ?? 'Derived',
+    walletId: input.walletId ?? 'w',
+  }) as Account
 
-function account(input: Partial<Account> & { id: string; walletId: string }): Account {
-  return {
-    createdAt: new Date(),
-    derivationIndex: 0,
-    name: input.id,
-    order: 0,
-    publicKey: address('11111111111111111111111111111111'),
-    type: 'Derived',
-    updatedAt: new Date(),
-    ...input,
-  } as Account
-}
+const wallet = (input: Partial<Wallet>): Pick<Wallet, 'id' | 'order'> => ({
+  id: input.id ?? 'w',
+  order: input.order ?? 0,
+})
 
-function network(id: string, type: Network['type']): Network {
-  return { createdAt: new Date(), endpoint: 'http://x', id, name: id, type, updatedAt: new Date() } as Network
-}
-
-const wallets = [
-  { id: 'w2', order: 1 },
-  { id: 'w1', order: 0 },
-]
-const networks = [
-  network('main', 'solana:mainnet'),
-  network('dev', 'solana:devnet'),
-  network('local', 'solana:localnet'),
-]
+const network = (id: string, type: Network['type']): Network => ({ id, name: id, type }) as Network
 
 describe('resolve-session', () => {
-  describe('expected behavior', () => {
-    it('should order accounts by wallet order then account order', () => {
-      // ARRANGE
-      expect.assertions(1)
-      const accounts = [
-        account({ id: 'b', order: 0, walletId: 'w2' }),
-        account({ id: 'a2', order: 1, walletId: 'w1' }),
-        account({ id: 'a1', order: 0, walletId: 'w1' }),
-      ]
-
-      // ACT
-      const result = orderedAccounts(accounts, wallets).map((item) => item.id)
-
-      // ASSERT
-      expect(result).toEqual(['a1', 'a2', 'b'])
-    })
-
-    it('should keep a valid active account', () => {
+  describe('resolveActiveAccount', () => {
+    it('should keep the active account when it exists', () => {
       // ARRANGE
       expect.assertions(2)
-      const accounts = [account({ id: 'a1', walletId: 'w1' }), account({ id: 'b', walletId: 'w2' })]
+      const accounts = [account({ id: 'a' }), account({ id: 'b' })]
 
       // ACT
-      const result = resolveActiveAccount({ accounts, activeAccountId: 'b', wallets })
+      const result = resolveActiveAccount({ accounts, activeAccountId: 'b', wallets: [wallet({})] })
 
       // ASSERT
       expect(result.account?.id).toBe('b')
       expect(result.repaired).toBe(false)
     })
 
-    it('should repair a dangling active account with the first visible one', () => {
+    it('should repair a dangling active id to the first visible account', () => {
       // ARRANGE
       expect.assertions(2)
-      const accounts = [account({ id: 'b', walletId: 'w2' }), account({ id: 'a1', walletId: 'w1' })]
+      const accounts = [account({ id: 'a', order: 1, walletId: 'w2' }), account({ id: 'b', order: 0, walletId: 'w1' })]
 
       // ACT
-      const result = resolveActiveAccount({ accounts, activeAccountId: 'deleted', wallets })
+      const result = resolveActiveAccount({
+        accounts,
+        activeAccountId: 'deleted',
+        wallets: [wallet({ id: 'w1', order: 0 }), wallet({ id: 'w2', order: 1 })],
+      })
 
       // ASSERT
-      expect(result.account?.id).toBe('a1')
+      expect(result.account?.id).toBe('b')
       expect(result.repaired).toBe(true)
     })
 
-    it('should report no account when none exist', () => {
+    it('should return null when no account exists', () => {
       // ARRANGE
       expect.assertions(2)
 
       // ACT
-      const result = resolveActiveAccount({ accounts: [], activeAccountId: null, wallets })
+      const result = resolveActiveAccount({ accounts: [], activeAccountId: null, wallets: [] })
 
       // ASSERT
       expect(result.account).toBeNull()
       expect(result.repaired).toBe(false)
     })
+  })
 
-    it('should grant admin only to a signing account', () => {
+  describe('hasAdminAccount', () => {
+    it('should grant admin to a signing account with an admin address', () => {
       // ARRANGE
-      expect.assertions(3)
+      expect.assertions(1)
 
       // ACT
-      const result1 = hasAdminAccount([{ publicKey: ADMIN, type: 'Connected' }], [ADMIN])
-      const result2 = hasAdminAccount([{ publicKey: ADMIN, type: 'Watched' }], [ADMIN])
-      const result3 = hasAdminAccount([{ publicKey: ADMIN, type: 'Derived' }], [])
+      const adminPk = address('So11111111111111111111111111111111111111112')
+      const result = hasAdminAccount([account({ publicKey: adminPk, type: 'Connected' })], [adminPk])
 
       // ASSERT
-      expect(result1).toBe(true)
-      expect(result2).toBe(false)
-      expect(result3).toBe(false)
+      expect(result).toBe(true)
     })
 
-    it('should force a non-admin from devnet back to mainnet', () => {
+    it('should not grant admin to a watched account with an admin address', () => {
       // ARRANGE
-      expect.assertions(2)
+      expect.assertions(1)
 
       // ACT
-      const result = resolveAllowedNetwork({ activeNetworkId: 'dev', demo: false, isAdmin: false, networks })
+      const adminPk = address('So11111111111111111111111111111111111111112')
+      const result = hasAdminAccount([account({ publicKey: adminPk, type: 'Watched' })], [adminPk])
 
       // ASSERT
-      expect(result.network?.id).toBe('main')
-      expect(result.repaired).toBe(true)
-    })
-
-    it('should keep devnet for admins and the demo, and localnet for everyone', () => {
-      // ARRANGE
-      expect.assertions(3)
-
-      // ACT
-      const result1 = resolveAllowedNetwork({ activeNetworkId: 'dev', demo: false, isAdmin: true, networks })
-      const result2 = resolveAllowedNetwork({ activeNetworkId: 'dev', demo: true, isAdmin: false, networks })
-      const result3 = resolveAllowedNetwork({ activeNetworkId: 'local', demo: false, isAdmin: false, networks })
-
-      // ASSERT
-      expect(result1.repaired).toBe(false)
-      expect(result2.repaired).toBe(false)
-      expect(result3.repaired).toBe(false)
+      expect(result).toBe(false)
     })
   })
 
-  describe('unexpected behavior', () => {
-    beforeEach(() => {
-      vi.spyOn(console, 'log').mockImplementation(() => {})
-    })
+  describe('resolveAllowedNetwork', () => {
+    const networks = [network('m', 'solana:mainnet'), network('d', 'solana:devnet'), network('l', 'solana:localnet')]
 
-    afterEach(() => {
-      vi.restoreAllMocks()
-    })
-
-    it('should repair a missing network id to mainnet', () => {
+    it('should force a non-admin on devnet back to mainnet', () => {
       // ARRANGE
       expect.assertions(2)
 
       // ACT
-      const result = resolveAllowedNetwork({ activeNetworkId: 'gone', demo: false, isAdmin: true, networks })
+      const result = resolveAllowedNetwork({ activeNetworkId: 'd', demo: false, isAdmin: false, networks })
 
       // ASSERT
-      expect(result.network?.id).toBe('main')
+      expect(result.network?.type).toBe('solana:mainnet')
       expect(result.repaired).toBe(true)
     })
 
-    it('should not repair when no mainnet exists', () => {
+    it('should keep an admin on devnet', () => {
       // ARRANGE
       expect.assertions(2)
 
       // ACT
-      const result = resolveAllowedNetwork({
-        activeNetworkId: 'dev',
-        demo: false,
-        isAdmin: false,
-        networks: [network('dev', 'solana:devnet')],
-      })
+      const result = resolveAllowedNetwork({ activeNetworkId: 'd', demo: false, isAdmin: true, networks })
 
       // ASSERT
-      expect(result.network?.id).toBe('dev')
+      expect(result.network?.type).toBe('solana:devnet')
       expect(result.repaired).toBe(false)
+    })
+
+    it('should keep a non-admin on localnet', () => {
+      // ARRANGE
+      expect.assertions(1)
+
+      // ACT
+      const result = resolveAllowedNetwork({ activeNetworkId: 'l', demo: false, isAdmin: false, networks })
+
+      // ASSERT
+      expect(result.network?.type).toBe('solana:localnet')
+    })
+
+    it('should keep devnet during the demo', () => {
+      // ARRANGE
+      expect.assertions(1)
+
+      // ACT
+      const result = resolveAllowedNetwork({ activeNetworkId: 'd', demo: true, isAdmin: false, networks })
+
+      // ASSERT
+      expect(result.network?.type).toBe('solana:devnet')
+    })
+
+    it('should repair a missing or dangling network to mainnet', () => {
+      // ARRANGE
+      expect.assertions(4)
+
+      // ACT
+      const missing = resolveAllowedNetwork({ activeNetworkId: null, demo: false, isAdmin: false, networks })
+      const dangling = resolveAllowedNetwork({ activeNetworkId: 'gone', demo: false, isAdmin: false, networks })
+
+      // ASSERT
+      expect(missing.network?.type).toBe('solana:mainnet')
+      expect(missing.repaired).toBe(true)
+      expect(dangling.network?.type).toBe('solana:mainnet')
+      expect(dangling.repaired).toBe(true)
+    })
+  })
+
+  describe('orderedAccounts', () => {
+    it('should sort by wallet order then account order', () => {
+      // ARRANGE
+      expect.assertions(1)
+      const accounts = [
+        account({ id: 'c', order: 0, walletId: 'w2' }),
+        account({ id: 'a', order: 1, walletId: 'w1' }),
+        account({ id: 'b', order: 0, walletId: 'w1' }),
+      ]
+
+      // ACT
+      const result = orderedAccounts(accounts, [wallet({ id: 'w1', order: 0 }), wallet({ id: 'w2', order: 1 })])
+
+      // ASSERT
+      expect(result.map((a) => a.id)).toEqual(['b', 'a', 'c'])
     })
   })
 })

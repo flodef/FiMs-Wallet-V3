@@ -115,3 +115,91 @@ export function computeTokenPnl(flows: TokenFlow[], usdPrices: Map<string, numbe
     return { ...f, avgBuyUsd, basisComplete, netQty, realizedUsd, unrealizedUsd, usdPrice }
   })
 }
+
+// ─── Protocol-ledger flows (FiMs, FLiP, FiMsSOL) ────────────────────────────
+// Mint/redeem and conversions are plain transfers on-chain — no stable leg,
+// no price — so the on-chain analysis above can never build their cost basis.
+// The FiMs ledger records the exact EUR value of every member operation:
+// `amount` = signed token units, `movement` = signed EUR value. Gifts
+// (donation/payment/tontine) move units without proceeds — they only count
+// toward quantity, like unpriced transfers do on-chain.
+
+export interface FimsLedgerRow {
+  amount: null | string
+  movement: number
+  token: null | string
+  type: null | string
+}
+
+const LEDGER_GIFT_TYPES = new Set(['donation', 'payment', 'tontine'])
+
+// Rows are per (token, user): deposit/withdrawal/conversion/cex are capital
+// flows priced at |movement| EUR — converted to USD here so they merge into
+// the chain-side TokenFlow shape.
+export function aggregateFimsLedgerFlows(
+  rows: FimsLedgerRow[],
+  mintBySymbol: ReadonlyMap<string, string>,
+  usdPerEur: number,
+): TokenFlow[] {
+  const byMint = new Map<string, TokenFlow>()
+  for (const row of rows) {
+    if (!row.token || row.amount === null) continue
+    const mint = mintBySymbol.get(row.token)
+    if (!mint) continue
+    const amount = Number(row.amount)
+    if (!Number.isFinite(amount) || amount === 0) continue
+    let flow = byMint.get(mint)
+    if (!flow) {
+      flow = {
+        boughtQty: 0,
+        boughtUsd: 0,
+        mint,
+        qtyIn: 0,
+        qtyOut: 0,
+        soldQty: 0,
+        soldUsd: 0,
+        symbol: row.token,
+      }
+      byMint.set(mint, flow)
+    }
+    const eur = Math.abs(row.movement)
+    const usd = eur * usdPerEur
+    if (amount > 0) {
+      flow.qtyIn += amount
+      if (!LEDGER_GIFT_TYPES.has(row.type ?? '')) {
+        flow.boughtQty += amount
+        flow.boughtUsd += usd
+      }
+    } else {
+      const out = Math.abs(amount)
+      flow.qtyOut += out
+      if (!LEDGER_GIFT_TYPES.has(row.type ?? '')) {
+        flow.soldQty += out
+        flow.soldUsd += usd
+      }
+    }
+  }
+  return [...byMint.values()]
+}
+
+// Overlay ledger flows onto chain flows for the same mint. When the ledger
+// covers a mint it OWNS the priced fields — its EUR values are exact, while
+// the chain-side swap attribution would double-count the same economic
+// event. The chain keeps qtyIn/qtyOut for on-chain moves the ledger never
+// saw (direct transfers between members, gifts).
+export function mergeLedgerFlows(chain: TokenFlow[], ledger: TokenFlow[]): TokenFlow[] {
+  const merged = new Map<string, TokenFlow>(chain.map((f) => [flowKey(f.mint), { ...f }]))
+  for (const lf of ledger) {
+    const key = flowKey(lf.mint)
+    const existing = merged.get(key)
+    if (!existing) {
+      merged.set(key, lf)
+      continue
+    }
+    existing.boughtQty = lf.boughtQty
+    existing.boughtUsd = lf.boughtUsd
+    existing.soldQty = lf.soldQty
+    existing.soldUsd = lf.soldUsd
+  }
+  return [...merged.values()]
+}

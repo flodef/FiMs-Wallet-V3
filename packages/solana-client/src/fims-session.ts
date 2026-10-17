@@ -11,7 +11,7 @@ export function fimsSessionMessage(host: string, address: string, nonce: string,
   return (
     `${host} wants you to sign in with your Solana account:\n` +
     `${address}\n\n` +
-    'Signs you in to the FiMs API for 7 days. This does not authorize transactions.\n\n' +
+    'Signs you in to the FiMs API for 24 hours. This does not authorize transactions.\n\n' +
     `URI: ${host}\n` +
     'Version: 1\n' +
     'Chain ID: solana\n' +
@@ -83,10 +83,50 @@ export async function fimsSessionToken(apiEndpoint: string, signer: MessageParti
 }
 
 export function fimsInvalidateSession(apiEndpoint: string, signer: MessagePartialSigner): void {
-  const key = `${apiEndpoint}|${signer.address}`
+  fimsDropSession(apiEndpoint, signer.address)
+}
+
+function fimsDropSession(apiEndpoint: string, address: string): void {
+  const key = `${apiEndpoint}|${address}`
   sessionCache.delete(key)
   try {
     localStorage.removeItem(`fims.session|${key}`)
+  } catch {
+    // storage unavailable
+  }
+}
+
+// Explicit disconnect/reset path: revoke the bearer token server-side (best
+// effort — a dead API must not block the local unlink), then drop it locally.
+export async function fimsRevokeSession(apiEndpoint: string, address: string): Promise<void> {
+  const storedKey = `fims.session|${apiEndpoint}|${address}`
+  let token: null | string = null
+  try {
+    token = (JSON.parse(localStorage.getItem(storedKey) ?? 'null') as null | { token: string })?.token ?? null
+  } catch {
+    // corrupted or unavailable storage — nothing to revoke remotely
+  }
+  fimsDropSession(apiEndpoint, address)
+  if (!token) return
+  try {
+    await fetch(`${apiEndpoint.replace(/\/+$/, '')}/fims/session`, {
+      headers: { authorization: `Bearer ${token}` },
+      method: 'DELETE',
+    })
+  } catch {
+    // offline or API down — the token dies with its TTL anyway
+  }
+}
+
+// Wipe every stored bearer session — the database reset path must not leave
+// valid tokens behind for accounts that no longer exist locally.
+export function fimsClearAllSessions(): void {
+  sessionCache.clear()
+  try {
+    const keys = Object.keys(localStorage).filter((key) => key.startsWith('fims.session|'))
+    for (const key of keys) {
+      localStorage.removeItem(key)
+    }
   } catch {
     // storage unavailable
   }

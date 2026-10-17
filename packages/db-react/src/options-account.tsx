@@ -9,6 +9,7 @@ import type { AccountUpdateInput } from '@workspace/db/account/account-update-in
 import { accountUpdateOrder } from '@workspace/db/account/account-update-order'
 import type { AccountUpdateOrderInput } from '@workspace/db/account/account-update-order-input'
 import type { DbContext } from '@workspace/db/db-context'
+import { accountCleanup } from './account-cleanup.ts'
 import { invalidateWalletGraph } from './invalidate-wallet-graph.tsx'
 import { optionsAccountFindMany } from './wallet-graph-queries.ts'
 
@@ -28,7 +29,14 @@ export const optionsAccount = {
     }),
   delete: (ctx: DbContext, props: AccountDeleteMutateOptions = {}) =>
     mutationOptions({
-      mutationFn: ({ id }: { id: string }) => accountDelete(ctx, id),
+      mutationFn: async ({ id }: { id: string }) => {
+        // Read first: after accountDelete the row (and its publicKey) is gone.
+        const account = await ctx.db.accounts.get(id)
+        await accountDelete(ctx, id)
+        if (account) {
+          await accountCleanup(ctx, account.publicKey)
+        }
+      },
       onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),

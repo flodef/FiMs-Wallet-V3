@@ -67,11 +67,22 @@ function verifyBearerSession(request: HttpServerRequest.HttpServerRequest) {
     if (!row) return yield* Effect.fail(new AuthUnauthorized({ reason: 'unknown session token' }))
     if (row.expiresAt.getTime() < Date.now())
       return yield* Effect.fail(new AuthUnauthorized({ reason: 'session expired' }))
-    // Opportunistic touch — last_seen feeds session monitoring.
-    if (Math.random() < 0.05) {
+    // Sliding renewal: extend the session once it is running low — at most one
+    // write per SESSION_RENEW_MS window per token. The opportunistic touch
+    // (last_seen monitoring) rides the same write when renewal is due.
+    const renew = row.expiresAt.getTime() - Date.now() < SESSION_RENEW_MS
+    if (renew || Math.random() < 0.05) {
       yield* Effect.tryPromise({
         catch: () => new DatabaseError({ cause: 'session touch failed' }),
-        try: () => db.update(fimsSessions).set({ lastSeenAt: new Date() }).where(eq(fimsSessions.tokenHash, tokenHash)),
+        try: () =>
+          db
+            .update(fimsSessions)
+            .set(
+              renew
+                ? { expiresAt: new Date(Date.now() + SESSION_TTL_MS), lastSeenAt: new Date() }
+                : { lastSeenAt: new Date() },
+            )
+            .where(eq(fimsSessions.tokenHash, tokenHash)),
       }).pipe(Effect.ignoreLogged)
     }
     // Same cadence: purge dead sessions so the table stays audit-meaningful.
@@ -277,7 +288,12 @@ export function verifyAddressSignature(
 // Bearer sessions (SIWS sign-in — one signature, then `Authorization: Bearer`)
 // ---------------------------------------------------------------------------
 
-export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export const SESSION_TTL_MS = 24 * 60 * 60 * 1000
+// Sliding renewal: a session in use never re-prompts for a signature — it is
+// extended transparently once it has less than this much life left. A stolen
+// token that goes unused still dies within the TTL.
+export const SESSION_RENEW_MS = 12 * 60 * 60 * 1000
+export const MAX_SESSIONS_PER_ADDRESS = 5
 
 /**
  * Canonical Sign-In-With-Solana message the client signs to mint a session.
@@ -289,13 +305,20 @@ export function fimsSessionMessage(host: string, address: string, nonce: string,
   return (
     `${host} wants you to sign in with your Solana account:\n` +
     `${address}\n\n` +
-    'Signs you in to the FiMs API for 7 days. This does not authorize transactions.\n\n' +
+    'Signs you in to the FiMs API for 24 hours. This does not authorize transactions.\n\n' +
     `URI: ${host}\n` +
     'Version: 1\n' +
     'Chain ID: solana\n' +
     `Nonce: ${nonce}\n` +
     `Issued At: ${issuedAt}`
   )
+}
+
+// Pre-24h-TTL bundles signed the same envelope with a "7 days" statement.
+// Accept it so a stale SPA keeps working until its next reload — the expiry
+// that matters is server-side anyway.
+function fimsSessionMessageLegacy(host: string, address: string, nonce: string, issuedAt: string): string {
+  return fimsSessionMessage(host, address, nonce, issuedAt).replace('for 24 hours', 'for 7 days')
 }
 
 /**
@@ -333,8 +356,10 @@ export function createSession(
       catch: () => new AuthUnauthorized({ reason: 'malformed signature or address' }),
       try: () => {
         const canonical = new TextEncoder().encode(fimsSessionMessage(host, body.address, body.nonce, body.issuedAt))
+        const legacy = new TextEncoder().encode(fimsSessionMessageLegacy(host, body.address, body.nonce, body.issuedAt))
         const content = signedBytes ?? canonical
-        return canonicalWithin(content, canonical) && ed25519.verify(signature, content, publicKey)
+        const textValid = canonicalWithin(content, canonical) || canonicalWithin(content, legacy)
+        return textValid && ed25519.verify(signature, content, publicKey)
       },
     })
     if (!valid) return yield* fail('bad signature')
@@ -363,6 +388,22 @@ export function createSession(
       try: () =>
         db.insert(fimsSessions).values({ address: body.address, expiresAt, lastSeenAt: new Date(), tokenHash }),
     })
+    // Bound sessions per address — disposable signers cannot grow the table
+    // (or a token collection) unboundedly; the least recently seen dies first.
+    yield* Effect.tryPromise({
+      catch: () => new DatabaseError({ cause: 'session cap failed' }),
+      try: () =>
+        db.execute(sql`
+          DELETE FROM fims_sessions
+          WHERE address = ${body.address}
+            AND token_hash NOT IN (
+              SELECT token_hash FROM fims_sessions
+              WHERE address = ${body.address}
+              ORDER BY last_seen_at DESC
+              LIMIT ${MAX_SESSIONS_PER_ADDRESS}
+            )
+        `),
+    }).pipe(Effect.ignoreLogged)
     return { expiresAt, token }
   })
 }

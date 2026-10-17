@@ -483,6 +483,30 @@ describe('fims-sessions', () => {
       expect(signer).toBe(address)
     })
 
+    it('should accept a session minted by a pre-24h bundle (legacy statement)', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const db = makeReplayAwareDb()
+      const nonce = 'a1b2c3d4e5f6a7b8'
+      const issuedAt = new Date().toISOString()
+      // The signed bytes carry the old "7 days" statement; the canonical
+      // rebuilt text now says "24 hours" — the stale bundle must still pass.
+      const legacyMessage = fimsSessionMessage(HOST, address, nonce, issuedAt).replace('for 24 hours', 'for 7 days')
+      const body = {
+        address,
+        issuedAt,
+        nonce,
+        signature: b64(ed25519.sign(new TextEncoder().encode(legacyMessage), privateKey)),
+        signedMessage: b64(new TextEncoder().encode(legacyMessage)),
+      }
+
+      // ACT
+      const session = await run(createSession(createRequest(), body), db)
+
+      // ASSERT
+      expect(session.token).toHaveLength(64)
+    })
+
     it('should revoke the session on delete', async () => {
       // ARRANGE
       expect.assertions(1)

@@ -1,4 +1,5 @@
 import { ExplorerUiLinkAddress } from '@workspace/feature-explorer/ui/explorer-ui-link-address'
+import { formatNumber } from '@workspace/i18n/format'
 import type { VoteAccount } from '@workspace/solana-client-react/use-get-vote-accounts'
 import { Badge } from '@workspace/ui/components/badge'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
@@ -7,7 +8,6 @@ import { ToolsUiStakeAccountCardField } from './tools-ui-stake-account-card-fiel
 import { formatStakePercent, toBigIntLamports } from './tools-ui-stake-utils.ts'
 
 const LAMPORTS_PER_SOL = 1_000_000_000n
-const SOL_FORMATTER = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 
 export function ToolsUiStakeCreateValidatorCard({
   className,
@@ -47,7 +47,7 @@ export function ToolsUiStakeCreateValidatorCard({
       <div className="mt-4 grid grid-cols-2 gap-3">
         <ToolsUiStakeAccountCardField
           label="Active stake"
-          value={`${SOL_FORMATTER.format(Number(toBigIntLamports(voteAccount.activatedStake) / LAMPORTS_PER_SOL))} SOL`}
+          value={`${formatNumber(Number(toBigIntLamports(voteAccount.activatedStake) / LAMPORTS_PER_SOL), { maximumFractionDigits: 0 })} SOL`}
         />
         <ToolsUiStakeAccountCardField
           label="Network stake"

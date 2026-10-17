@@ -122,6 +122,6 @@ See `AGENTS.md` for conventions (Biome: single quotes, no semicolons,
 
 - ✅ V3 deployed on Vercel, wallet functional, Neon data live
 - ⬜ `wallet.fims.fi` still points to V2 — switch pending decision
-- ⬜ 1 %/10 % debt rule: outgoing-action blocking implemented app-side
+- ⬜ 1 %/10 % debt rule: implemented app-side as an automatic carve on outgoing amounts (progressive deduction, not a block)
 - ⬜ Business validation pending: 53 "crypto donation" rows + the duplicate
   846,50 € sheet line

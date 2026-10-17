@@ -1,4 +1,5 @@
 import type { Wallet } from '@workspace/db/wallet/wallet'
+import { walletIsExternal } from '@workspace/db/wallet/wallet-is-external'
 import { useTranslation } from '@workspace/i18n'
 import { Badge } from '@workspace/ui/components/badge'
 import { Item, ItemActions, ItemContent, ItemTitle } from '@workspace/ui/components/item'
@@ -20,10 +21,8 @@ export function SettingsUiWalletListItem({
     unsecured: t(($) => $.walletProtectionUnsecured),
   })
   // Keys live in the external wallet extension, not in our storage — the
-  // protection badge is its name, not "Unsecured". Rows written before the
-  // flag persisted are still external: only they have an empty
-  // derivationPath.
-  const isExternal = !!wallet.externalWallet || wallet.derivationPath.length === 0
+  // protection badge says "External", not "Unsecured".
+  const isExternal = walletIsExternal(wallet)
 
   return (
     <Item key={wallet.id} role="listitem" variant={activeId === wallet.id ? 'muted' : 'outline'}>

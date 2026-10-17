@@ -8,15 +8,70 @@ import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { chainGetAssets, chainGetHistory, chainGetLabels } from './chain-api.ts'
 
 const PAGE_SIZE = 100
+// Per-run page budget shared by the newest pass and the backfill — the next
+// refetch resumes where this run stopped instead of leaving gaps forever.
 const MAX_PAGES = 10
 
-// Incremental sync: Helius pages newest→oldest via `cursor`. We walk pages
-// until we hit a signature already in Dexie — the rest of the history is
-// cached — or a short page marks the end. Only the delta is fetched.
-async function syncChainHistory(db: Database, signer: MessagePartialSigner, address: string): Promise<void> {
+// Incremental sync in two phases over the same page walk:
+//  1. newest → stop at the first signature already cached;
+//  2. if the backfill never finished, keep paging past the cached region —
+//     Helius `cursor` just continues into older history — until the budget
+//     runs out or the API stops handing out cursors (history fully fetched).
+// The resume point persists in `chainSyncState` so a cut sync (closed tab,
+// API down) resumes instead of never reaching old transactions.
+async function syncChainHistory(db: Database, signer: MessagePartialSigner, address: string): Promise<boolean> {
+  const state = await db.chainSyncState.get(address)
+  if (state?.complete) {
+    // Only top-up new transactions — the old history is fully cached.
+    await syncNewest(db, signer, address, undefined)
+    return true
+  }
   // Composite PK [address, signature] — the query already filtered on address.
   const cached = await db.chainTransactions.where('address').equals(address).primaryKeys()
   const known = new Set(cached.map((key) => key[1]))
+  let cursor: string | undefined
+  let resume = state?.oldestCursor ?? undefined
+  let complete = false
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const res = await chainGetHistory(signer, address, { cursor, limit: PAGE_SIZE })
+    const rows = res.transactions
+    const fresh = rows.filter((tx) => !known.has(tx.signature))
+    if (fresh.length) {
+      await db.chainTransactions.bulkPut(fresh.map((tx) => ({ ...tx, address })))
+      for (const tx of fresh) known.add(tx.signature)
+    }
+    if (!res.cursor) {
+      complete = true
+      break
+    }
+    if (fresh.length !== rows.length) {
+      // Reached the cached region — jump straight to the persisted resume
+      // point instead of re-paging rows we already have.
+      if (resume && resume !== cursor) {
+        cursor = resume
+        resume = undefined
+        continue
+      }
+      complete = true
+      break
+    }
+    cursor = res.cursor
+  }
+  await db.chainSyncState.put({ address, complete, oldestCursor: complete ? null : (cursor ?? null) })
+  return complete
+}
+
+// Top-up pass used once history is fully backfilled: walk newest→oldest and
+// stop at the first known signature — everything older is already cached.
+async function syncNewest(
+  db: Database,
+  signer: MessagePartialSigner,
+  address: string,
+  stopAt: string | undefined,
+): Promise<void> {
+  const cached = await db.chainTransactions.where('address').equals(address).primaryKeys()
+  const known = new Set(cached.map((key) => key[1]))
+  if (stopAt) known.add(stopAt)
   let cursor: string | undefined
   for (let page = 0; page < MAX_PAGES; page++) {
     const res = await chainGetHistory(signer, address, { cursor, limit: PAGE_SIZE })
@@ -25,10 +80,49 @@ async function syncChainHistory(db: Database, signer: MessagePartialSigner, addr
     if (fresh.length) {
       await db.chainTransactions.bulkPut(fresh.map((tx) => ({ ...tx, address })))
     }
-    // Hit already-cached history → done; no cursor → end of history.
     if (!res.cursor || fresh.length !== rows.length) return
     cursor = res.cursor
   }
+}
+
+import { useCallback, useSyncExternalStore } from 'react'
+
+const consentListeners = new Set<() => void>()
+
+// Reading an address signed by a DIFFERENT account leaks the link
+// "signer X reads target Y" to the API — so it only happens after an
+// explicit click. Consent is remembered per (signer, target) pair for the
+// session: revoking/forgetting is just closing the tab.
+const consentKey = (signer: string, target: string) => `chainReadConsent|${signer}|${target}`
+
+function consented(signer: string, target: string): boolean {
+  if (signer === target) return true
+  try {
+    return sessionStorage.getItem(consentKey(signer, target)) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function useChainReadConsent(signerAccount: Account | undefined, target: null | string) {
+  const subscribe = useCallback((onChange: () => void) => {
+    consentListeners.add(onChange)
+    return () => consentListeners.delete(onChange)
+  }, [])
+  const granted = useSyncExternalStore(subscribe, () =>
+    signerAccount && target ? consented(signerAccount.publicKey, target) : true,
+  )
+  const needed = !!signerAccount && !!target && !granted
+  const grant = useCallback(() => {
+    if (!signerAccount || !target) return
+    try {
+      sessionStorage.setItem(consentKey(signerAccount.publicKey, target), '1')
+    } catch {
+      // storage unavailable — consent simply won't persist
+    }
+    for (const listener of consentListeners) listener()
+  }, [signerAccount, target])
+  return { grant, needed }
 }
 
 // The chain API needs a signed session but the signed address does not
@@ -73,34 +167,52 @@ function chainHistoryQueryOptions({
       const signer = await signerFor(signerAccount)
       // Sync failure (API down, rate limit) must not blank cached history —
       // that's the point of the local store. Empty cache → error surfaces.
+      let complete: boolean
       try {
-        await syncChainHistory(db, signer, address)
+        complete = await syncChainHistory(db, signer, address)
       } catch (error) {
         const cached = await db.chainTransactions.where('address').equals(address).count()
         if (!cached) throw error
+        complete = (await db.chainSyncState.get(address))?.complete ?? false
       }
       const rows = await db.chainTransactions.where('address').equals(address).sortBy('timestamp')
-      return rows.reverse() // newest first
+      return { complete, transactions: rows.reverse() } // newest first
     },
     queryKey: ['chainHistory', address],
   })
 }
 
-export function useChainHistory({ account, address }: { account: Account; address: null | string }) {
+export function useChainHistory({
+  account,
+  address,
+  enabled = true,
+}: {
+  account: Account
+  address: null | string
+  enabled?: boolean
+}) {
   const ctx = useAppContext()
   const signerFor = useAccountMessageSigner()
   const signerAccount = useChainSignerAccount(account)
   return useQuery({
     ...chainHistoryQueryOptions({ address: address ?? '', db: ctx.db, signerAccount, signerFor }),
-    enabled: Boolean(address) && !!signerAccount,
+    enabled: enabled && Boolean(address) && !!signerAccount,
   })
 }
 
-export function useChainAssets({ account, address }: { account: Account; address: null | string }) {
+export function useChainAssets({
+  account,
+  address,
+  enabled = true,
+}: {
+  account: Account
+  address: null | string
+  enabled?: boolean
+}) {
   const signerFor = useAccountMessageSigner()
   const signerAccount = useChainSignerAccount(account)
   return useQuery({
-    enabled: Boolean(address) && !!signerAccount,
+    enabled: enabled && Boolean(address) && !!signerAccount,
     queryFn: async () => {
       if (!signerAccount) throw new Error('No signing-capable account')
       return chainGetAssets(await signerFor(signerAccount), address ?? '')

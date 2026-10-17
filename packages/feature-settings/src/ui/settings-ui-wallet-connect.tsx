@@ -97,8 +97,12 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
         })
       }
       // The connect is an intent to use the wallet — activate it so it does
-      // not sit inert while another account stays active.
-      const targetId = lastAddedId ?? accounts.find((a) => a.walletId === walletId)?.id
+      // not sit inert while another account stays active. The extension's
+      // first authorized account is the one the user picked.
+      const targetId =
+        lastAddedId ??
+        accounts.find((a) => a.walletId === walletId && a.publicKey === walletAccounts[0]?.address)?.id ??
+        accounts.find((a) => a.walletId === walletId)?.id
       if (targetId) {
         await setActive.mutateAsync({ id: targetId })
       }
@@ -116,8 +120,9 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
       {detected.map((wallet) => (
         <Item key={wallet.name} variant="outline">
           <ItemMedia variant="icon">
-            {wallet.icon ? (
-              // External wallet icon (data URI provided by wallet-standard)
+            {/* wallet-standard icons are data: URIs; an extension could
+                otherwise smuggle a tracking-pixel URL into the settings UI. */}
+            {wallet.icon?.startsWith('data:image/') ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img alt="" className="size-4" src={wallet.icon} />
             ) : null}

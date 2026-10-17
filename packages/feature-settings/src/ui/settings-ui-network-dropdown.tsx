@@ -1,5 +1,5 @@
 import type { Network } from '@workspace/db/network/network'
-
+import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import {
   DropdownMenu,
@@ -20,11 +20,12 @@ export function SettingsUiNetworkDropdown({
   items: Network[]
   setActive: (id: string) => Promise<void>
 }) {
+  const { t } = useTranslation('settings')
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline">
-          <UiIcon icon="network" /> {activeNetwork?.name ?? 'Select Network'}
+          <UiIcon icon="network" /> {activeNetwork?.name ?? t(($) => $.selectNetwork)}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
@@ -41,7 +42,7 @@ export function SettingsUiNetworkDropdown({
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/settings/networks">Network settings</Link>
+          <Link to="/settings/networks">{t(($) => $.networkSettings)}</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

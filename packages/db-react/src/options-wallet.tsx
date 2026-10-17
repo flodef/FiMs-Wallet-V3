@@ -9,6 +9,7 @@ import { walletUpdate } from '@workspace/db/wallet/wallet-update'
 import type { WalletUpdateInput } from '@workspace/db/wallet/wallet-update-input'
 import { walletUpdateOrder } from '@workspace/db/wallet/wallet-update-order'
 import type { WalletUpdateOrderInput } from '@workspace/db/wallet/wallet-update-order-input'
+import { accountCleanup } from './account-cleanup.ts'
 import { invalidateWalletGraph } from './invalidate-wallet-graph.tsx'
 import { optionsWalletFindMany } from './wallet-graph-queries.ts'
 
@@ -28,7 +29,14 @@ export const optionsWallet = {
     }),
   delete: (ctx: DbContext, props: WalletDeleteMutateOptions = {}) =>
     mutationOptions({
-      mutationFn: ({ id }: { id: string }) => walletDelete(ctx, id),
+      mutationFn: async ({ id }: { id: string }) => {
+        // Read first: walletDelete removes the accounts with the wallet.
+        const accounts = await ctx.db.accounts.where('walletId').equals(id).toArray()
+        await walletDelete(ctx, id)
+        for (const account of accounts) {
+          await accountCleanup(ctx, account.publicKey)
+        }
+      },
       onSuccess: () => invalidateWalletGraph(ctx),
       ...props,
     }),

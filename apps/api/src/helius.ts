@@ -230,9 +230,11 @@ export function normalizeGtfaTransaction(
     source: programs[0] ?? null,
     timestamp,
     transfers,
-    // No parsed type in GTFA — both-directions flow is treated as a swap for
-    // P&L counter-value attribution, everything else is a transfer.
-    type: mixed ? 'SWAP' : 'TRANSFER',
+    // No parsed type in GTFA — only tag a swap when a known DEX program
+    // actually ran inside the tx AND value flowed both ways for the watched
+    // address. Rent refunds, carve recipients or payment bundles also move
+    // both ways but are not swaps: pricing them would fake a cost basis.
+    type: mixed && programs.length ? 'SWAP' : 'TRANSFER',
   }
 }
 

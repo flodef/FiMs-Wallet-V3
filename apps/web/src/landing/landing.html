@@ -320,6 +320,16 @@
     /* Clip horizontal overflow: glow orbs extend past the section edges. */
     overflow-x: clip;
   }
+  /* Safari < 16 has no `overflow: clip` — hidden is the safe fallback.
+      (longhand only — the shorthand would trip the CSS linter) */
+  @supports not (overflow-x: clip) {
+    html,
+    body,
+    section {
+      overflow-x: hidden;
+    }
+  }
+
   .eyebrow {
     margin-bottom: 1rem;
     font-size: 0.78rem;

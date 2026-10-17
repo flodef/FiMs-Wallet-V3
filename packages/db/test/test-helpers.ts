@@ -74,7 +74,7 @@ export function testSettingSetInput(value?: string): [SettingKey, string] {
 export function testWalletCreateInput(input: Partial<WalletCreateInput> = {}): WalletCreateInput {
   return {
     derivationPath: 'd',
-    mnemonic: 'baz',
+    mnemonic: 'test-mnemonic-never-appears-in-base64-ciphertext',
     name: randomName('wallet'),
     ...input,
   }

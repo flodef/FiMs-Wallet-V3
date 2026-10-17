@@ -1,4 +1,5 @@
 import type { Wallet } from '@workspace/db/wallet/wallet'
+import { walletIsExternal } from '@workspace/db/wallet/wallet-is-external'
 import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import {
@@ -36,9 +37,7 @@ export function SettingsUiWalletMenu({
   const [openDelete, setOpenDelete] = useState(false)
   const [openExport, setOpenExport] = useState(false)
   const [openTransfer, setOpenTransfer] = useState(false)
-  // Rows written before externalWallet persisted only carry an empty
-  // derivationPath — both markers mean "no secrets here".
-  const isExternal = !!wallet.externalWallet || wallet.derivationPath.length === 0
+  const isExternal = walletIsExternal(wallet)
   return (
     <Fragment>
       <DropdownMenu>

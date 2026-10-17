@@ -1,5 +1,6 @@
 import type { Account } from '@workspace/db/account/account'
 import type { NetworkType } from '@workspace/db/network/network-type'
+import { revokeExternalSession } from '@workspace/db-react/account-cleanup'
 import { useAccountUpdate } from '@workspace/db-react/use-account-update'
 import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
@@ -103,9 +104,10 @@ export function SettingsUiAccountMenu({
       <SettingsUiBottomSheetExportAccountSecretKey account={account} open={openExport} setOpen={setOpenExport} />
       <SettingsUiBottomSheetMigrateAccount account={account} open={openMigrate} setOpen={setOpenMigrate} />
       <UiConfirm
-        action={() =>
-          updateMutation.mutateAsync({ id: account.id, input: { externalWallet: undefined, type: 'Watched' } })
-        }
+        action={async () => {
+          await updateMutation.mutateAsync({ id: account.id, input: { externalWallet: undefined, type: 'Watched' } })
+          await revokeExternalSession(account.publicKey)
+        }}
         actionLabel={t(($) => $.accountDisconnectAction)}
         description={t(($) => $.accountDisconnectDescription)}
         onOpenChange={setOpenDisconnect}

@@ -1,11 +1,10 @@
 import type { Lamports } from '@solana/kit'
-import { formatLamports } from '@workspace/i18n/format'
+import { formatLamports, formatNumber } from '@workspace/i18n/format'
 import type { StakeAccount } from '@workspace/solana-client/get-stake-accounts'
 import { solToLamports } from '@workspace/solana-client/sol-to-lamports'
 import type { VoteAccount } from '@workspace/solana-client-react/use-get-vote-accounts'
 
 const DEACTIVATION_EPOCH_INACTIVE = '18446744073709551615'
-const STAKE_PERCENT_FORMATTER = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 })
 
 export function canCloseStakeAccount(account: StakeAccount, authority: string) {
   return (
@@ -47,7 +46,7 @@ export function formatStakePercent(stake: bigint, total: bigint) {
   }
 
   const basisPoints = (stake * 10000n) / total
-  return `${STAKE_PERCENT_FORMATTER.format(Number(basisPoints) / 100)}%`
+  return `${formatNumber(Number(basisPoints) / 100, { maximumFractionDigits: 2 })}%`
 }
 
 export function formatStakeSol(account: StakeAccount) {

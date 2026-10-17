@@ -1,5 +1,3 @@
-import type { Account } from '@workspace/db/account/account'
-import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useNetworkLive } from '@workspace/db-react/use-network-live'
 import { useSetting } from '@workspace/db-react/use-setting'
 import { SettingsUiWalletConnect } from '@workspace/feature-settings/ui/settings-ui-wallet-connect'
@@ -7,7 +5,7 @@ import { useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { cn } from '@workspace/ui/lib/utils'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { demoStart } from './demo/demo-store.tsx'
 
@@ -18,9 +16,8 @@ export function OnboardingFeatureIndex({ redirectTo }: { redirectTo: string }) {
   const { t } = useTranslation('onboarding')
   const navigate = useNavigate()
   const networks = useNetworkLive()
-  const accounts = useAccountsLive()
   const [activeNetworkId, setActiveNetworkId] = useSetting('activeNetworkId')
-  const [activeAccountId, setActiveAccountId] = useSetting('activeAccountId')
+  const [activeAccountId] = useSetting('activeAccountId')
   const [expanded, setExpanded] = useState<'demo' | 'existing' | 'new' | null>(null)
 
   async function handleStartDemo() {
@@ -32,32 +29,6 @@ export function OnboardingFeatureIndex({ redirectTo }: { redirectTo: string }) {
     demoStart({ accountId: activeAccountId, networkId: previousNetworkId })
     await navigate('import')
   }
-
-  const externalConnected = accounts.some((account: Account) => !!account.externalWallet)
-
-  // Connecting an external wallet creates accounts but does not pick one:
-  // without an active account the root loader would bounce the user straight
-  // back here on Continue.
-  const firstExternal = accounts.find((account) => !!account.externalWallet)
-  useEffect(() => {
-    if (firstExternal && !activeAccountId) {
-      setActiveAccountId(firstExternal.id).catch((error) => console.warn('onboarding: activate failed', error))
-    }
-  }, [firstExternal, activeAccountId, setActiveAccountId])
-
-  // A successful connect goes straight to the app — but only once an
-  // account is active, otherwise the root loader bounces back here.
-  const [pendingNav, setPendingNav] = useState(false)
-  useEffect(() => {
-    if (!pendingNav || !firstExternal) {
-      return
-    }
-    if (!activeAccountId) {
-      setActiveAccountId(firstExternal.id).catch((error) => console.warn('onboarding: activate failed', error))
-      return
-    }
-    void navigate(redirectTo)
-  }, [pendingNav, firstExternal, activeAccountId, setActiveAccountId, navigate, redirectTo])
 
   return (
     <div className="flex flex-col items-center gap-6">
@@ -98,13 +69,8 @@ export function OnboardingFeatureIndex({ redirectTo }: { redirectTo: string }) {
                 {t(($) => $.indexOptionExternalGuide)}
               </p>
               <div className="mt-3">
-                <SettingsUiWalletConnect onConnected={() => setPendingNav(true)} />
+                <SettingsUiWalletConnect onConnected={() => navigate(redirectTo)} />
               </div>
-              {externalConnected ? (
-                <Button className="mt-3 w-full" onClick={() => navigate(redirectTo)}>
-                  {t(($) => $.indexOptionExternalConnected)}
-                </Button>
-              ) : null}
             </div>
           </div>
         </OptionCard>

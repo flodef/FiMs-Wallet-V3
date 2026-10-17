@@ -7,8 +7,8 @@ import { useFimsTransactions, useFimsUserHistoric } from './use-fims.tsx'
 
 // Legacy spreadsheet rule: a member owes the tontine rate (min 10%) of their
 // gains, minus what they already gave (donation + tontine transactions).
-// While this debt is positive the wallet blocks outgoing operations until
-// it is settled.
+// While this debt is positive the wallet carves it from outgoing amounts —
+// deducted progressively at send time, never a hard block.
 export function useFimsDebt(member: FimsUser | null, account?: Account) {
   const historic = useFimsUserHistoric(member?.id, account)
   const transactions = useFimsTransactions(member ? { userId: member.id } : undefined, account)

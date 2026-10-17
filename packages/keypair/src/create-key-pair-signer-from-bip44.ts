@@ -30,7 +30,12 @@ export async function createKeyPairSignerFromBip44({
   if (to <= from) {
     throw new Error('to must be greater than from')
   }
-  // TODO: We may want to set a maximum range to derive?
+  // Unbounded ranges = unbounded work: a caller asking for thousands of
+  // derivations would freeze the thread (each derive is several HMAC-SHA512).
+  const MAX_DERIVE_RANGE = 64
+  if (to - from > MAX_DERIVE_RANGE) {
+    throw new Error(`cannot derive more than ${MAX_DERIVE_RANGE} accounts at once`)
+  }
   const results: KeyPairSigner[] = []
   const hd = await createHDKeyFromMnemonic({ mnemonic, passphrase })
 

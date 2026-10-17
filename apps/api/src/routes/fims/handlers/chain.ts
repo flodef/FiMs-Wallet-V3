@@ -62,13 +62,10 @@ export const handleChainAssets = ({ urlParams }: { urlParams: { address: string 
       catch: chainUnavailable,
       try: () => fetchHeliusAssets(keys, urlParams.address),
     })
-    const { symbols } = yield* withDb((db) => loadChainLabels(db, Option.some(signer)))
     // FiMs-family mints have no Helius price feed — the `tokens` table is the
     // protocol's own source: `value` is EUR per unit, and the USDC row gives
     // the EUR→USD conversion so the chain reader can price the P&L.
-    const tokenRows = yield* withDb((db) =>
-      db.select({ address: tokens.address, symbol: tokens.symbol, value: tokens.value }).from(tokens),
-    )
+    const { symbols, tokenRows } = yield* withDb((db) => loadChainLabels(db, Option.some(signer)))
     const usdcEur = tokenRows.find((row) => row.symbol === 'USDC')?.value ?? null
     const eurToUsd = usdcEur && usdcEur > 0 ? 1 / usdcEur : null
     const fimsUsdByMint = new Map(
@@ -104,8 +101,32 @@ interface ChainLabelRow {
 // wallets and name never leak through labels. Address-book entries stay
 // private to their owner: another member's labels can neither leak their
 // book nor let a member stamp a spoofed name onto shared history.
-async function loadChainLabels(db: Db, signer: Option.Option<string>) {
+interface ChainLabelsSnapshot {
+  labels: Map<string, { kind: ChainLabelRow['kind']; label: string }>
+  rows: ChainLabelRow[]
+  symbols: Map<string, string>
+  tokenRows: { address: null | string; symbol: string; value: null | number }[]
+}
+
+// Members, aliases, address books and token prices change rarely but were
+// re-queried on every chain call — 4 round-trips each. A short per-instance
+// cache keeps responses fresh enough while cutting the DB load sharply.
+const CHAIN_LABELS_TTL_MS = 60_000
+const chainLabelsCache = new Map<string, { expires: number; value: ChainLabelsSnapshot }>()
+
+async function loadChainLabels(db: Db, signer: Option.Option<string>): Promise<ChainLabelsSnapshot> {
   const signerAddress = Option.getOrNull(signer)
+  const cacheKey = `${signerAddress ?? ''}|${signerAddress !== null && isAdminAddress(signerAddress)}`
+  const hit = chainLabelsCache.get(cacheKey)
+  if (hit && hit.expires > Date.now()) return hit.value
+
+  const value = await loadChainLabelsUncached(db, signerAddress)
+  if (chainLabelsCache.size > 500) chainLabelsCache.clear()
+  chainLabelsCache.set(cacheKey, { expires: Date.now() + CHAIN_LABELS_TTL_MS, value })
+  return value
+}
+
+async function loadChainLabelsUncached(db: Db, signerAddress: null | string) {
   const memberVisible = (() => {
     if (!signerAddress) return eq(users.isPublic, true)
     if (isAdminAddress(signerAddress)) return undefined
@@ -128,7 +149,7 @@ async function loadChainLabels(db: Db, signer: Option.Option<string>) {
       .select({ address: addressBook.address, label: addressBook.label, type: addressBook.type })
       .from(addressBook)
       .where(ownBook),
-    db.select({ address: tokens.address, symbol: tokens.symbol }).from(tokens),
+    db.select({ address: tokens.address, symbol: tokens.symbol, value: tokens.value }).from(tokens),
   ])
 
   const labels = new Map<string, { kind: ChainLabelRow['kind']; label: string }>()
@@ -153,7 +174,7 @@ async function loadChainLabels(db: Db, signer: Option.Option<string>) {
     kind,
     label,
   }))
-  return { labels, rows, symbols }
+  return { labels, rows, symbols, tokenRows }
 }
 
 // Upstream failures never reach the client verbatim — an RPC error body or
