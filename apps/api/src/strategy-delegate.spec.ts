@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { encodeBase58, issueSharesIx, parseMemberDeposit, parseStrategyState, vaultAta } from './strategy-delegate'
+import { encodeBase58, parseMemberDeposit, parseStrategyState, vaultAta } from './strategy-codec'
+import { issueSharesIx } from './strategy-delegate'
 
 const PK = (n: number) => Uint8Array.from({ length: 32 }, (_, i) => (n + i) % 256)
 const u64le = (n: bigint) => new Uint8Array(new BigUint64Array([n]).buffer)
