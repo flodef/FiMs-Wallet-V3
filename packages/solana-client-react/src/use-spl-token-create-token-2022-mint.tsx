@@ -1,6 +1,7 @@
 import { mutationOptions, useMutation } from '@tanstack/react-query'
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
+import { i18n } from '@workspace/i18n'
 import type { SolanaClient } from '@workspace/solana-client/solana-client'
 import {
   type SplToken2022CreateTokenMintOptions,
@@ -14,10 +15,10 @@ export function splTokenCreateToken2022MintMutationOptions(client: SolanaClient)
   return mutationOptions({
     mutationFn: async (input: SplToken2022CreateTokenMintOptions) => splToken2022CreateTokenMint(client, input),
     onError: () => {
-      toastError('Failed to create token 2022 mint.')
+      toastError(i18n.t(($) => $.toastTokenMintCreateFailed, { ns: 'ui' }))
     },
     onSuccess: () => {
-      toastSuccess('Token 2022 mint created successfully')
+      toastSuccess(i18n.t(($) => $.toastTokenMintCreated, { ns: 'ui' }))
     },
   })
 }

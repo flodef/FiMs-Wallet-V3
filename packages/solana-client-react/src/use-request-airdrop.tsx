@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Network } from '@workspace/db/network/network'
+import { i18n } from '@workspace/i18n'
 import type { RequestAirdropOption } from '@workspace/solana-client/request-airdrop'
 import { requestAirdrop } from '@workspace/solana-client/request-airdrop'
 import type { SolanaClient } from '@workspace/solana-client/solana-client'
@@ -33,7 +34,7 @@ export function requestAirdropMutationOptions(client: SolanaClient, queryClient:
         queryKey: getAccountInfoQueryOptions({ address, client, network }).queryKey,
       })
 
-      toastSuccess('Airdrop requested successfully')
+      toastSuccess(i18n.t(($) => $.toastAirdropRequested, { ns: 'ui' }))
     },
   })
 }

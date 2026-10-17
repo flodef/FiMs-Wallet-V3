@@ -1,6 +1,6 @@
 import type { Address, Lamports } from '@solana/kit'
 import { ExplorerUiLinkAddress } from '@workspace/feature-explorer/ui/explorer-ui-link-address'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
+import { formatLamports } from '@workspace/i18n/format'
 import { solToLamports } from '@workspace/solana-client/sol-to-lamports'
 import type { CreateStakeAccountInput } from '@workspace/solana-client-react/use-create-stake-account'
 import type { VoteAccount } from '@workspace/solana-client-react/use-get-vote-accounts'
@@ -150,7 +150,7 @@ export function ToolsUiStakeCreateForm({
               ? 'Loading...'
               : walletBalance === undefined
                 ? '-'
-                : `${lamportsToSol(walletBalance)} SOL`
+                : `${formatLamports(walletBalance)} SOL`
           }
         />
       </div>

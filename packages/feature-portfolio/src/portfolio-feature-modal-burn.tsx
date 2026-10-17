@@ -2,7 +2,7 @@ import { type Address, isAddress } from '@solana/kit'
 import { tryCatch } from '@workspace/core/try-catch'
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
-import { useTranslation } from '@workspace/i18n'
+import { i18n, useTranslation } from '@workspace/i18n'
 import { isParsedTokenAccountData } from '@workspace/solana-client/get-token-account-info'
 import type { GetTransactionSigner } from '@workspace/solana-client/transaction-signer'
 import { uiAmountToBigInt } from '@workspace/solana-client/ui-amount-to-big-int'
@@ -99,7 +99,7 @@ function PortfolioFeatureBurn({
       confirm={async (input) => {
         const { data: transactionSigner, error } = await tryCatch(getTransactionSigner())
         if (error) {
-          toastError('Failed to get transaction signer.')
+          toastError(i18n.t(($) => $.toastSignerUnavailable, { ns: 'ui' }))
           return
         }
         const { signature } = await mutation.mutateAsync({

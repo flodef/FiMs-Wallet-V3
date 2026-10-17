@@ -1,6 +1,6 @@
 import type { Lamports } from '@solana/kit'
+import { formatLamports } from '@workspace/i18n/format'
 import type { StakeAccount } from '@workspace/solana-client/get-stake-accounts'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { solToLamports } from '@workspace/solana-client/sol-to-lamports'
 import type { VoteAccount } from '@workspace/solana-client-react/use-get-vote-accounts'
 
@@ -55,7 +55,7 @@ export function formatStakeSol(account: StakeAccount) {
     return '0'
   }
 
-  return lamportsToSol(BigInt(account.data.stake.delegation.stake))
+  return formatLamports(BigInt(account.data.stake.delegation.stake))
 }
 
 export function getPreferredVoteAccount(voteAccounts: readonly VoteAccount[]) {
@@ -116,7 +116,7 @@ export function getStakeAmountValidation({
   }
 
   if (rentReserve !== undefined && lamportsAmount <= rentReserve) {
-    return `Amount must be greater than the ${lamportsToSol(rentReserve)} SOL rent reserve.`
+    return `Amount must be greater than the ${formatLamports(rentReserve)} SOL rent reserve.`
   }
 
   if (walletBalance !== undefined && lamportsAmount > walletBalance) {

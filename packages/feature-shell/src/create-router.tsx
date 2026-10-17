@@ -5,6 +5,7 @@ import { optionsSetting } from '@workspace/db-react/options-setting'
 import { optionsWallet } from '@workspace/db-react/options-wallet'
 import { queryClient } from '@workspace/db-react/query-client'
 import { getEntrypoint } from '@workspace/env/get-entrypoint'
+import { FimsPortfolioPricingProvider } from '@workspace/feature-fims/fims-portfolio-pricing-provider'
 import { DemoTour } from '@workspace/feature-onboarding/demo/demo-tour'
 import { UiErrorBoundary } from '@workspace/ui/components/ui-error-boundary'
 import { UiLoaderFull } from '@workspace/ui/components/ui-loader-full'
@@ -42,10 +43,10 @@ export function createRouter(ctx: AppContext) {
     {
       children: getRoutes(),
       element: (
-        <>
+        <FimsPortfolioPricingProvider>
           <Outlet />
           <DemoTour />
-        </>
+        </FimsPortfolioPricingProvider>
       ),
       errorElement: <UiErrorBoundary />,
       hydrateFallbackElement: <UiLoaderFull />,

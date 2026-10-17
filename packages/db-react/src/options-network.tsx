@@ -7,6 +7,7 @@ import { networkFindMany } from '@workspace/db/network/network-find-many'
 import type { NetworkFindManyInput } from '@workspace/db/network/network-find-many-input'
 import { networkUpdate } from '@workspace/db/network/network-update'
 import type { NetworkUpdateInput } from '@workspace/db/network/network-update-input'
+import { i18n } from '@workspace/i18n'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { queryClient } from './query-client.tsx'
@@ -19,9 +20,9 @@ export const optionsNetwork = {
   create: (ctx: DbContext, props: NetworkCreateMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ input }: { input: NetworkCreateInput }) => networkCreate(ctx, input),
-      onError: () => toastError('Error creating network'),
+      onError: () => toastError(i18n.t(($) => $.toastNetworkCreateFailed, { ns: 'ui' })),
       onSuccess: () => {
-        toastSuccess('Network created')
+        toastSuccess(i18n.t(($) => $.toastNetworkCreated, { ns: 'ui' }))
         queryClient.invalidateQueries(optionsNetwork.findMany(ctx, {}))
       },
       ...props,
@@ -29,9 +30,9 @@ export const optionsNetwork = {
   delete: (ctx: DbContext, props: NetworkDeleteMutateOptions = {}) =>
     mutationOptions({
       mutationFn: ({ id }: { id: string }) => networkDelete(ctx, id),
-      onError: () => toastError('Error deleting network'),
+      onError: () => toastError(i18n.t(($) => $.toastNetworkDeleteFailed, { ns: 'ui' })),
       onSuccess: () => {
-        toastSuccess('Network deleted')
+        toastSuccess(i18n.t(($) => $.toastNetworkDeleted, { ns: 'ui' }))
         queryClient.invalidateQueries(optionsNetwork.findMany(ctx, {}))
       },
       ...props,
@@ -44,9 +45,9 @@ export const optionsNetwork = {
   update: (ctx: DbContext, props: NetworkUpdateMutateOptions) =>
     mutationOptions({
       mutationFn: ({ id, input }: { id: string; input: NetworkUpdateInput }) => networkUpdate(ctx, id, input),
-      onError: () => toastError('Error updating network'),
+      onError: () => toastError(i18n.t(($) => $.toastNetworkUpdateFailed, { ns: 'ui' })),
       onSuccess: () => {
-        toastSuccess('Network updated')
+        toastSuccess(i18n.t(($) => $.toastNetworkUpdated, { ns: 'ui' }))
         queryClient.invalidateQueries(optionsNetwork.findMany(ctx, {}))
       },
       ...props,

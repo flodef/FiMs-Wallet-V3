@@ -3,8 +3,8 @@ import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useGetTokenBalances } from '@workspace/feature-portfolio/data-access/use-get-token-balances'
 import { useTranslation } from '@workspace/i18n'
+import { formatLamports } from '@workspace/i18n/format'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { Button } from '@workspace/ui/components/button'
 import {
   Dialog,
@@ -89,14 +89,14 @@ export function FimsFeatureGasTopup() {
 
   const inAmount =
     quote.data && sourceToken ? formatTokenUnits(BigInt(quote.data.inAmount), sourceToken.decimals) : null
-  const outSol = quote.data ? lamportsToSol(BigInt(quote.data.outAmount)) : null
+  const outSol = quote.data ? formatLamports(BigInt(quote.data.outAmount)) : null
 
   return (
     <Dialog onOpenChange={(next) => !next && closeGasTopup()} open={open}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t(($) => $.gasTopupTitle)}</DialogTitle>
-          <DialogDescription>{t(($) => $.gasTopupBody, { reserve: lamportsToSol(10_000_000n) })}</DialogDescription>
+          <DialogDescription>{t(($) => $.gasTopupBody, { reserve: formatLamports(10_000_000n) })}</DialogDescription>
         </DialogHeader>
         {signature ? (
           <p className="text-green-600 text-sm dark:text-green-400">{t(($) => $.gasTopupSuccess)}</p>

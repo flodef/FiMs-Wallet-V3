@@ -1,7 +1,7 @@
 import type { Address } from '@solana/kit'
 import { ExplorerUiLinkAddress } from '@workspace/feature-explorer/ui/explorer-ui-link-address'
+import { formatLamports } from '@workspace/i18n/format'
 import type { StakeAccount } from '@workspace/solana-client/get-stake-accounts'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { Badge } from '@workspace/ui/components/badge'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import { Link } from 'react-router'
@@ -38,7 +38,7 @@ export function ToolsUiStakeAccountGrid({
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <ToolsUiStakeAccountCardField label="Stake" value={`${formatStakeSol(account)} SOL`} />
-              <ToolsUiStakeAccountCardField label="Balance" value={`${lamportsToSol(account.lamports)} SOL`} />
+              <ToolsUiStakeAccountCardField label="Balance" value={`${formatLamports(account.lamports)} SOL`} />
               <ToolsUiStakeAccountCardField
                 className="col-span-2"
                 label="Validator"

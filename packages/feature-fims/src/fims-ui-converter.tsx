@@ -1,4 +1,5 @@
 import { useTranslation } from '@workspace/i18n'
+import { formatNumber } from '@workspace/i18n/format'
 import { Input } from '@workspace/ui/components/input'
 import { Label } from '@workspace/ui/components/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
@@ -8,8 +9,6 @@ import { useMemo, useState } from 'react'
 import { useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatCurrency } from './fims-format.ts'
-
-const tokenAmountFormatter = new Intl.NumberFormat('fr-FR', { maximumSignificantDigits: 8 })
 
 type ConverterUnit = { eurValue: number; symbol: string }
 
@@ -47,7 +46,7 @@ export function FimsUiConverter() {
       ? '—'
       : to.symbol === 'EUR' || to.symbol === 'SOL' || to.symbol === 'USD'
         ? formatCurrency(eurTotal, to.symbol, rates)
-        : `${tokenAmountFormatter.format(eurTotal / to.eurValue)} ${to.symbol}`
+        : `${formatNumber(eurTotal / to.eurValue, { maximumSignificantDigits: 8 })} ${to.symbol}`
 
   return (
     <UiCard title={t(($) => $.converterTitle)}>

@@ -1,6 +1,7 @@
 import type { Address } from '@solana/kit'
 import { mutationOptions, type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Network } from '@workspace/db/network/network'
+import { i18n } from '@workspace/i18n'
 import { deactivateStakeAccount } from '@workspace/solana-client/deactivate-stake-account'
 import type { StakeAccount } from '@workspace/solana-client/get-stake-accounts'
 import type { SolanaClient } from '@workspace/solana-client/solana-client'
@@ -33,7 +34,7 @@ export function deactivateStakeAccountMutationOptions({
       })
     },
     onError: () => {
-      toastError('Failed to unstake account.')
+      toastError(i18n.t(($) => $.toastStakeDeactivateFailed, { ns: 'ui' }))
     },
     onSuccess: async (signature) => {
       await queryClient.invalidateQueries({

@@ -6,6 +6,7 @@ import { useWalletCreate } from '@workspace/db-react/use-wallet-create'
 import { useWalletDetermineName } from '@workspace/db-react/use-wallet-determine-name'
 import { useWalletGenerateWithAccount } from '@workspace/db-react/use-wallet-generate-with-account'
 import { envAllowUnsecuredWallets } from '@workspace/env/env'
+import { i18n } from '@workspace/i18n'
 import { derivationPaths } from '@workspace/keypair/derivation-paths'
 import { importKeyPairToPublicKeySecretKey } from '@workspace/keypair/import-key-pair-to-public-key-secret-key'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
@@ -44,7 +45,7 @@ export function useCreateNewWallet() {
         protection,
       })
       .then(() => {
-        toastSuccess('Wallet created!')
+        toastSuccess(i18n.t(($) => $.toastWalletCreated, { ns: 'ui' }))
         return true
       })
       .catch((error) => {
@@ -83,7 +84,7 @@ export function useCreateNewWalletFromPrivateKey() {
       await createAccountMutation.mutateAsync({
         input: { name: ellipsify(publicKey), publicKey, secretKey, type: 'Imported', walletId },
       })
-      toastSuccess('Wallet created!')
+      toastSuccess(i18n.t(($) => $.toastWalletCreated, { ns: 'ui' }))
       return true
     } catch (error) {
       toastError(error)
@@ -169,7 +170,7 @@ export function useImportWalletTransfer() {
           },
         })
       }
-      toastSuccess('Wallet imported!')
+      toastSuccess(i18n.t(($) => $.toastWalletImported, { ns: 'ui' }))
       return true
     } catch (error) {
       toastError(error)

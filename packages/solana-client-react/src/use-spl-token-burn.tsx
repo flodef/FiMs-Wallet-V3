@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Network } from '@workspace/db/network/network'
+import { i18n } from '@workspace/i18n'
 import type { SolanaClient } from '@workspace/solana-client/solana-client'
 import type { SplTokenBurnOptions } from '@workspace/solana-client/spl-token-burn'
 import { splTokenBurn } from '@workspace/solana-client/spl-token-burn'
@@ -17,7 +18,7 @@ export function splTokenBurnMutationOptions(client: SolanaClient, queryClient: Q
       return splTokenBurn(client, input)
     },
     onError: () => {
-      toastError('Failed to burn token.')
+      toastError(i18n.t(($) => $.toastTokenBurnFailed, { ns: 'ui' }))
     },
     onSuccess: (_, { account, transactionSigner: { address } }) => {
       queryClient.invalidateQueries({
@@ -32,7 +33,7 @@ export function splTokenBurnMutationOptions(client: SolanaClient, queryClient: Q
       queryClient.invalidateQueries({
         queryKey: getTokenAccountsQueryOptions({ address, client, network }).queryKey,
       })
-      toastSuccess('Token burned successfully')
+      toastSuccess(i18n.t(($) => $.toastTokenBurned, { ns: 'ui' }))
     },
   })
 }

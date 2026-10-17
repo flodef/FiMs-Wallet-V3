@@ -2,10 +2,10 @@ import type { Address } from '@solana/kit'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { Network } from '@workspace/db/network/network'
 import { useTranslation } from '@workspace/i18n'
+import { formatLamports } from '@workspace/i18n/format'
 import { assertSolanaPayTransactionSafe } from '@workspace/solana-client/assert-solana-pay-transaction-safe'
 import { fetchSolanaPayRequest } from '@workspace/solana-client/fetch-solana-pay-request'
 import { inspectWireTransaction } from '@workspace/solana-client/inspect-wire-transaction'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { signAndSendWireTransaction } from '@workspace/solana-client/sign-and-send-wire-transaction'
 import type { GetTransactionSigner } from '@workspace/solana-client/transaction-signer'
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
@@ -121,7 +121,7 @@ export function PortfolioFeatureModalPayRequest({
                 <span>SOL</span>
                 <span className={change.change < 0n ? 'text-destructive' : 'text-green-600'}>
                   {change.change > 0n ? '+' : ''}
-                  {lamportsToSol(change.change)}
+                  {formatLamports(change.change)}
                 </span>
               </div>
             ))}
@@ -130,7 +130,7 @@ export function PortfolioFeatureModalPayRequest({
                 <span>{ellipsify(change.mint)}</span>
                 <span className={change.change < 0n ? 'text-destructive' : 'text-green-600'}>
                   {change.change > 0n ? '+' : ''}
-                  {lamportsToSol(change.change, change.decimals)}
+                  {formatLamports(change.change, change.decimals)}
                 </span>
               </div>
             ))}
@@ -140,7 +140,7 @@ export function PortfolioFeatureModalPayRequest({
             {data.inspection.simulation.fee !== undefined ? (
               <div className="flex items-center justify-between border-t pt-1 font-mono text-xs">
                 <span className="text-muted-foreground">{t(($) => $.sendConfirmNetworkFee)}</span>
-                <span>{lamportsToSol(data.inspection.simulation.fee)} SOL</span>
+                <span>{formatLamports(data.inspection.simulation.fee)} SOL</span>
               </div>
             ) : null}
           </div>

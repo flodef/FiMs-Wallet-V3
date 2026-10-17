@@ -1,6 +1,6 @@
 import type { Address } from '@solana/kit'
+import { formatLamports } from '@workspace/i18n/format'
 import type { StakeAccount } from '@workspace/solana-client/get-stake-accounts'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { Button } from '@workspace/ui/components/button'
 import { UiConfirm } from '@workspace/ui/components/ui-confirm'
 import { ellipsify } from '@workspace/ui/lib/ellipsify'
@@ -34,7 +34,7 @@ export function ToolsUiStakeAccountAction({
         }
         actionLabel="Close"
         actionVariant="destructive"
-        description={`Withdraw ${lamportsToSol(account.lamports)} SOL and close ${ellipsify(account.pubkey, 6, '...')}.`}
+        description={`Withdraw ${formatLamports(account.lamports)} SOL and close ${ellipsify(account.pubkey, 6, '...')}.`}
         title="Close stake account"
         trigger={
           <Button disabled={actions.isPending} size="sm" variant="outline">
@@ -52,7 +52,7 @@ export function ToolsUiStakeAccountAction({
           await actions.deactivate(account)
         }}
         actionLabel="Unstake"
-        description={`Deactivate ${lamportsToSol(BigInt(account.data.stake?.delegation.stake ?? 0))} SOL from ${ellipsify(
+        description={`Deactivate ${formatLamports(BigInt(account.data.stake?.delegation.stake ?? 0))} SOL from ${ellipsify(
           account.pubkey,
           6,
           '...',

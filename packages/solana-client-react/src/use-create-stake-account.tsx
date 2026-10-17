@@ -1,6 +1,7 @@
 import type { Address, Lamports } from '@solana/kit'
 import { mutationOptions, type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Network } from '@workspace/db/network/network'
+import { i18n } from '@workspace/i18n'
 import { createStakeAccount } from '@workspace/solana-client/create-stake-account'
 import type { SolanaClient } from '@workspace/solana-client/solana-client'
 import type { GetTransactionSigner } from '@workspace/solana-client/transaction-signer'
@@ -39,7 +40,7 @@ export function createStakeAccountMutationOptions({
       })
     },
     onError: () => {
-      toastError('Failed to stake SOL.')
+      toastError(i18n.t(($) => $.toastStakeCreateFailed, { ns: 'ui' }))
     },
     onSuccess: async ({ signature }) => {
       await invalidateStakeAccountQueries({ address, client, network, queryClient })

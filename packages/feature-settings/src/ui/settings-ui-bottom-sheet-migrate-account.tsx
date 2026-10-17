@@ -3,7 +3,7 @@ import type { Account } from '@workspace/db/account/account'
 import { useAccountsLive } from '@workspace/db-react/use-accounts-live'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useTranslation } from '@workspace/i18n'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
+import { formatLamports } from '@workspace/i18n/format'
 import type { WalletMigrationPlan } from '@workspace/solana-client/plan-wallet-migration'
 import { Button } from '@workspace/ui/components/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
@@ -42,7 +42,7 @@ export function SettingsUiBottomSheetMigrateAccount({
 
   const destinations = accounts.filter((item) => item.id !== account.id)
   const destination = destinations.find((item) => item.id === destinationId)
-  const sol = (lamports: bigint) => lamportsToSol(lamports)
+  const sol = (lamports: bigint) => formatLamports(lamports)
   const hasWork = !!result && (result.batches.length > 0 || result.movedAssets.length > 0)
 
   function reset() {

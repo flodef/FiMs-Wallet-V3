@@ -26,6 +26,7 @@ describe('portfolio-ui-send-confirm-changes', () => {
       usdPrice: 1,
     },
     mint,
+    valueEur: null,
   }
 
   describe('expected behavior', () => {

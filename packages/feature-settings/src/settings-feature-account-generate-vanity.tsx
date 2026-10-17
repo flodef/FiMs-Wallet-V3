@@ -1,6 +1,7 @@
 import { assertIsAddress } from '@solana/kit'
 import { useAccountCreate } from '@workspace/db-react/use-account-create'
 import { useWalletFindUnique } from '@workspace/db-react/use-wallet-find-unique'
+import { i18n } from '@workspace/i18n'
 import { importKeyPairToPublicKeySecretKey } from '@workspace/keypair/import-key-pair-to-public-key-secret-key'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
@@ -173,7 +174,7 @@ export function SettingsFeatureAccountGenerateVanity() {
           walletId: wallet.id,
         },
       })
-      toastSuccess('Vanity account imported')
+      toastSuccess(i18n.t(($) => $.toastVanityAccountImported, { ns: 'ui' }))
       await navigate(`/settings/wallets/${wallet.id}`)
     } catch (copyError) {
       toastError(copyError instanceof Error ? copyError.message : 'Failed to import vanity account')

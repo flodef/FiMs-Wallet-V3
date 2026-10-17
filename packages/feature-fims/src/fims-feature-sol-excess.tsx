@@ -4,8 +4,8 @@ import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useGetTokenBalances } from '@workspace/feature-portfolio/data-access/use-get-token-balances'
 import { useTranslation } from '@workspace/i18n'
+import { formatLamports } from '@workspace/i18n/format'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { Button } from '@workspace/ui/components/button'
 import {
   Dialog,
@@ -85,8 +85,8 @@ export function FimsFeatureSolExcess() {
           <DialogTitle>{t(($) => $.solExcessTitle)}</DialogTitle>
           <DialogDescription>
             {t(($) => $.solExcessBody, {
-              excess: lamportsToSol(excess),
-              reserve: lamportsToSol(FIMS_SOL_GAS_RESERVE),
+              excess: formatLamports(excess),
+              reserve: formatLamports(FIMS_SOL_GAS_RESERVE),
             })}
           </DialogDescription>
         </DialogHeader>

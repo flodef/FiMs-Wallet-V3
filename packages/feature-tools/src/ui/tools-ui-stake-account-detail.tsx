@@ -1,7 +1,7 @@
 import type { Address } from '@solana/kit'
 import { ExplorerUiLinkAddress } from '@workspace/feature-explorer/ui/explorer-ui-link-address'
+import { formatLamports } from '@workspace/i18n/format'
 import type { StakeAccount } from '@workspace/solana-client/get-stake-accounts'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { Badge } from '@workspace/ui/components/badge'
 import { Table, TableBody, TableCell, TableRow } from '@workspace/ui/components/table'
 import { UiBackButton } from '@workspace/ui/components/ui-back-button'
@@ -42,7 +42,7 @@ export function ToolsUiStakeAccountDetail({
       </div>
       <Table>
         <TableBody>
-          <ToolsUiStakeAccountDetailRow label="Balance" value={`${lamportsToSol(account.lamports)} SOL`} />
+          <ToolsUiStakeAccountDetailRow label="Balance" value={`${formatLamports(account.lamports)} SOL`} />
           <ToolsUiStakeAccountDetailRow label="Delegated stake" value={`${formatStakeSol(account)} SOL`} />
           <ToolsUiStakeAccountDetailRow label="Validator" value={<ToolsUiStakeValidatorLink account={account} />} />
           <ToolsUiStakeAccountDetailRow
@@ -63,7 +63,7 @@ export function ToolsUiStakeAccountDetail({
           />
           <ToolsUiStakeAccountDetailRow
             label="Rent exempt reserve"
-            value={`${lamportsToSol(BigInt(account.data.meta.rentExemptReserve))} SOL`}
+            value={`${formatLamports(BigInt(account.data.meta.rentExemptReserve))} SOL`}
           />
         </TableBody>
       </Table>

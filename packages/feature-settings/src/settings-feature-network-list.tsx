@@ -1,7 +1,7 @@
 import { useNetworkDelete } from '@workspace/db-react/use-network-delete'
 import { useNetworkLive } from '@workspace/db-react/use-network-live'
 import { useSetting } from '@workspace/db-react/use-setting'
-import { useTranslation } from '@workspace/i18n'
+import { i18n, useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { toastError } from '@workspace/ui/lib/toast-error'
@@ -15,7 +15,7 @@ export function SettingsFeatureNetworkList() {
   const page = useSettingsPage({ pageId: 'networks' })
   const deleteMutation = useNetworkDelete({
     onError: (error) => toastError(error),
-    onSuccess: () => toastSuccess('Network deleted'),
+    onSuccess: () => toastSuccess(i18n.t(($) => $.toastNetworkDeleted, { ns: 'ui' })),
   })
   const networks = useNetworkLive()
   const [activeNetworkId] = useSetting('activeNetworkId')

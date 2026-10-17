@@ -30,7 +30,7 @@ export function PortfolioUiTokenBalanceItem({ item, showMenu = false }: { item: 
         </div>
         <div className="flex shrink-0 flex-col items-end gap-0.5">
           <div className="font-semibold text-sm">{item.balanceToken}</div>
-          <div className="text-muted-foreground/60 text-xs">${item.balanceUsd}</div>
+          <div className="text-muted-foreground/60 text-xs">{item.balanceValue}</div>
         </div>
       </Link>
       {showMenu ? <PortfolioUiTokenBalanceItemMenu item={item} /> : null}

@@ -1,6 +1,6 @@
 import { standardSchemaResolver } from '@hookform/resolvers/standard-schema'
 import { useSetting } from '@workspace/db-react/use-setting'
-import { useTranslation } from '@workspace/i18n'
+import { i18n, useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@workspace/ui/components/form'
 import { Input } from '@workspace/ui/components/input'
@@ -28,7 +28,7 @@ export function SettingsFeatureGeneralApiSettings() {
 
   async function submit(input: ApiSettingsForm) {
     await setApiEndpoint(input.apiEndpoint)
-    toastSuccess('API Endpoint value updated')
+    toastSuccess(i18n.t(($) => $.toastApiEndpointUpdated, { ns: 'ui' }))
   }
 
   return (

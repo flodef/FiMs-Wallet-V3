@@ -1,6 +1,7 @@
 import { mutationOptions, type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import { tryCatch } from '@workspace/core/try-catch'
 import type { Network } from '@workspace/db/network/network'
+import { i18n } from '@workspace/i18n'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
 import {
   type SendSimulatedPreparedTransactionResult,
@@ -57,14 +58,14 @@ export function portfolioTxSendMutationOptions({
     }
 
     if (result?.signature) {
-      toastSuccess('SOL has been sent!')
+      toastSuccess(i18n.t(($) => $.toastSolSent, { ns: 'ui' }))
       return result
     }
     if (result?.simulation.status === 'failure') {
-      toastError('SOL simulation failed')
+      toastError(i18n.t(($) => $.toastSimulationFailed, { ns: 'ui' }))
       return result
     }
-    toastError('Failed to send SOL')
+    toastError(i18n.t(($) => $.toastSendFailed, { ns: 'ui' }))
     return
   }
 

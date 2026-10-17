@@ -27,6 +27,10 @@ export default defineConfig({
     ],
     input: '../../**/src/**/*.{js,jsx,ts,tsx}',
     output: 'locales/{{language}}/{{namespace}}.json',
+    // Error codes are resolved dynamically (`error${AppError.name}` in
+    // localized-error.ts) — the extractor cannot see them, and without this
+    // it silently deletes every translated error message.
+    preservePatterns: ['ui:error*'],
   },
   locales: ['en', 'es', 'fr'],
   types: {

@@ -4,6 +4,7 @@ import { tryCatch } from '@workspace/core/try-catch'
 import type { Account } from '@workspace/db/account/account'
 import type { Network } from '@workspace/db/network/network'
 import { networkGetLabel } from '@workspace/db/network/network-get-label'
+import { i18n } from '@workspace/i18n'
 import { TOKEN_2022_PROGRAM_ADDRESS, TOKEN_PROGRAM_ADDRESS } from '@workspace/solana-client/constants'
 import type { SplToken2022CreateTokenMint } from '@workspace/solana-client/spl-token-2022-create-token-mint'
 import type { SplTokenCreateTokenMint } from '@workspace/solana-client/spl-token-create-token-mint'
@@ -75,7 +76,7 @@ export default function ToolsFeatureCreateToken({
     }
     const { data: transactionSigner, error } = await tryCatch(getTransactionSigner())
     if (error) {
-      toastError('Failed to get transaction signer.')
+      toastError(i18n.t(($) => $.toastSignerUnavailable, { ns: 'ui' }))
       return
     }
     let res: SplTokenCreateTokenMint | SplToken2022CreateTokenMint

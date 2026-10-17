@@ -1,6 +1,7 @@
 import type { Address } from '@solana/kit'
 import { mutationOptions, type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Network } from '@workspace/db/network/network'
+import { i18n } from '@workspace/i18n'
 import { closeStakeAccount } from '@workspace/solana-client/close-stake-account'
 import type { StakeAccount } from '@workspace/solana-client/get-stake-accounts'
 import type { SolanaClient } from '@workspace/solana-client/solana-client'
@@ -36,7 +37,7 @@ export function closeStakeAccountMutationOptions({
       })
     },
     onError: () => {
-      toastError('Failed to close stake account.')
+      toastError(i18n.t(($) => $.toastStakeCloseFailed, { ns: 'ui' }))
     },
     onSuccess: async (signature) => {
       await invalidateStakeAccountQueries({ address, client, network, queryClient })

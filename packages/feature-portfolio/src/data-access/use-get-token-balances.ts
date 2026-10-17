@@ -1,7 +1,6 @@
 import type { Address } from '@solana/kit'
 import type { Network } from '@workspace/db/network/network'
 import { formatBalance } from '@workspace/feature-explorer/data-access/format-balance'
-import { bigIntToDecimal } from '@workspace/solana-client/big-int-to-decimal'
 import { NATIVE_MINT } from '@workspace/solana-client/constants'
 import type { GetTokenAccountsResult } from '@workspace/solana-client/get-token-accounts'
 import type { TokenMetadata } from '@workspace/solana-client/get-token-metadata-jupiter'
@@ -9,95 +8,123 @@ import { useGetBalance } from '@workspace/solana-client-react/use-get-balance'
 import { useGetTokenAccounts } from '@workspace/solana-client-react/use-get-token-accounts'
 import { useGetTokenMetadataJupiter } from '@workspace/solana-client-react/use-get-token-metadata-jupiter'
 import { useMemo } from 'react'
-import { formatBalanceUsd } from './format-balance-usd.ts'
+import { type PortfolioPricing, tokenValueEur, usePortfolioPricing } from './portfolio-pricing.tsx'
 
 export interface TokenBalance {
   account: Address
   balance: bigint
   balanceToken?: string
-  balanceUsd?: string
+  // Formatted value in the user's display currency ('—' when unpriced).
+  balanceValue?: string
   decimals: number
   metadata?: TokenMetadata | undefined
   mint: Address
+  // Value in EUR, null when no price source knows the mint.
+  valueEur: null | number
+}
+
+export interface TokenBalancesState {
+  isError: boolean
+  isLoading: boolean
+  // One token program could not be read — balances are incomplete.
+  isPartial: boolean
+  items: TokenBalance[]
+  refetch: () => void
+}
+
+// Full state (loading / error / partial) for screens that must tell the user
+// why the list is empty or incomplete.
+export function useGetTokenBalancesState({ address, network }: { address: Address; network: Network }) {
+  const balanceQuery = useGetBalance({ address, network })
+  const tokenAccountsQuery = useGetTokenAccounts({ address, network })
+  const pricing = usePortfolioPricing()
+  const tokenAccounts = tokenAccountsQuery.data
+
+  const mints = useMemo(() => {
+    return [NATIVE_MINT, ...(tokenAccounts ?? []).map((t) => t.account.data.parsed.info.mint)]
+  }, [tokenAccounts])
+
+  const metadata = useGetTokenMetadataJupiter(mints)
+  const isLoading = balanceQuery.isLoading || tokenAccountsQuery.isLoading
+
+  const items = useMemo(
+    () =>
+      isLoading
+        ? []
+        : mergeTokenBalances({
+            account: address,
+            balance: balanceQuery.data?.value ?? 0n,
+            metadata: metadata.data ?? [],
+            pricing,
+            tokenAccounts: tokenAccounts ?? [],
+          }),
+    [address, balanceQuery.data, isLoading, metadata.data, pricing, tokenAccounts],
+  )
+
+  return {
+    isError: balanceQuery.isError || tokenAccountsQuery.isError,
+    isLoading,
+    isPartial: tokenAccountsQuery.isPartial,
+    items,
+    refetch: () => {
+      void balanceQuery.refetch()
+      void tokenAccountsQuery.refetch()
+    },
+  } satisfies TokenBalancesState
 }
 
 export function useGetTokenBalances({ address, network }: { address: Address; network: Network }) {
-  const { data: dataBalance, isLoading: isLoadingBalance } = useGetBalance({ address, network })
-  const { data: dataTokenAccounts, isLoading: isLoadingTokenAccounts } = useGetTokenAccounts({ address, network })
-
-  const mints = useMemo(() => {
-    return [NATIVE_MINT, ...(dataTokenAccounts ?? []).map((t) => t.account.data.parsed.info.mint)]
-  }, [dataTokenAccounts])
-
-  const metadata = useGetTokenMetadataJupiter(mints)
-
-  return isLoadingBalance || isLoadingTokenAccounts
-    ? []
-    : mergeData({
-        account: address,
-        balance: dataBalance?.value ?? 0n,
-        metadata: metadata.data ?? [],
-        tokenAccounts: dataTokenAccounts ?? [],
-      })
+  return useGetTokenBalancesState({ address, network }).items
 }
 
-function mergeData({
+export function mergeTokenBalances({
   account,
   balance,
   metadata,
+  pricing,
   tokenAccounts,
 }: {
   account: Address
   balance: bigint
   metadata: TokenMetadata[]
+  pricing: PortfolioPricing
   tokenAccounts: GetTokenAccountsResult
 }): TokenBalance[] {
-  const solMint = NATIVE_MINT
-  const solMetadata = metadata.find((m) => m.id === solMint)
-  const solDecimals = solMetadata?.decimals ?? 9
-  const solBalance: TokenBalance = {
+  const build = (input: Omit<TokenBalance, 'balanceToken' | 'balanceValue' | 'valueEur'>): TokenBalance => {
+    const valueEur = tokenValueEur({ ...input, usdPrice: input.metadata?.usdPrice }, pricing)
+    return {
+      ...input,
+      balanceToken: formatBalance({ balance: input.balance, decimals: input.decimals }),
+      balanceValue: valueEur === null ? '—' : pricing.format(valueEur),
+      valueEur,
+    }
+  }
+  const solMetadata = metadata.find((m) => m.id === NATIVE_MINT)
+  const solBalance = build({
     account,
     balance,
-    balanceToken: formatBalance({ balance, decimals: solDecimals }),
-    balanceUsd: formatBalanceUsd({
-      balance,
-      decimals: solDecimals,
-      usdPrice: solMetadata?.usdPrice ?? 0,
-    }),
-    decimals: solDecimals,
+    decimals: solMetadata?.decimals ?? 9,
     metadata: solMetadata,
-    mint: solMint,
-  }
-
-  const tokenBalances: TokenBalance[] = tokenAccounts.map((account) => {
-    const mint = account.account.data.parsed.info.mint
-    const tokenMetadata = metadata.find((m) => m.id === mint)
-    const balance = BigInt(account.account.data.parsed.info.tokenAmount.amount)
-    const decimals = account.account.data.parsed.info.tokenAmount.decimals
-
-    return {
-      account: account.pubkey,
-      balance,
-      balanceToken: formatBalance({ balance, decimals }),
-      balanceUsd: formatBalanceUsd({
-        balance,
-        decimals,
-        usdPrice: tokenMetadata?.usdPrice ?? 0,
-      }),
-      decimals,
-      metadata: tokenMetadata,
-      mint,
-    }
+    mint: NATIVE_MINT,
   })
 
-  return [solBalance, ...tokenBalances].sort((a, b) => {
-    const metadataSort = (b.metadata ? 1 : 0) - (a.metadata ? 1 : 0)
-    if (metadataSort !== 0) {
-      return metadataSort
-    }
-    const aValue = bigIntToDecimal(a.balance, a.decimals) * (a.metadata?.usdPrice ?? 0)
-    const bValue = bigIntToDecimal(b.balance, b.decimals) * (b.metadata?.usdPrice ?? 0)
+  const tokenBalances = tokenAccounts.map((tokenAccount) => {
+    const info = tokenAccount.account.data.parsed.info
+    const mint = info.mint
+    return build({
+      account: tokenAccount.pubkey,
+      balance: BigInt(info.tokenAmount.amount),
+      decimals: info.tokenAmount.decimals,
+      // FiMs-family mints are unknown to Jupiter: the protocol's own label
+      // names them instead of an ellipsified mint.
+      metadata: metadata.find((m) => m.id === mint) ?? pricing.metadata?.get(mint),
+      mint,
+    })
+  })
 
-    return bValue - aValue
+  // Priced tokens first (by value), then the rest.
+  return [solBalance, ...tokenBalances].sort((a, b) => {
+    const priced = (b.valueEur !== null ? 1 : 0) - (a.valueEur !== null ? 1 : 0)
+    return priced || (b.valueEur ?? 0) - (a.valueEur ?? 0)
   })
 }

@@ -1,4 +1,5 @@
 import { useTranslation } from '@workspace/i18n'
+import { formatDateTime, formatNumber } from '@workspace/i18n/format'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { useMemo } from 'react'
@@ -19,9 +20,6 @@ const PALETTE = [
   '#6366f1',
   '#84cc16',
 ]
-
-const dateTickFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: '2-digit' })
-const percentTickFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
 
 type Series = { base: number; points: Map<string, number>; symbol: string }
 
@@ -91,18 +89,20 @@ export function FimsUiTokenChart() {
                   className="text-xs"
                   dataKey="date"
                   minTickGap={40}
-                  tickFormatter={(iso: string) => dateTickFormatter.format(new Date(iso))}
+                  tickFormatter={(iso: string) => formatDateTime(iso, { month: 'short', year: '2-digit' })}
                   tickLine={false}
                 />
                 <YAxis
                   className="text-xs"
-                  tickFormatter={(v: number) => percentTickFormatter.format(v)}
+                  tickFormatter={(v: number) => formatNumber(v, { maximumFractionDigits: 0 })}
                   tickLine={false}
                   width={44}
                 />
                 <Tooltip
                   formatter={(value, name) => [
-                    typeof value === 'number' ? percentTickFormatter.format(value) : String(value ?? '—'),
+                    typeof value === 'number'
+                      ? formatNumber(value, { maximumFractionDigits: 0 })
+                      : String(value ?? '—'),
                     String(name ?? ''),
                   ]}
                   labelFormatter={(label) =>

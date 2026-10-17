@@ -1,17 +1,7 @@
-const currencyFormatters: Record<string, Intl.NumberFormat> = {
-  EUR: new Intl.NumberFormat('fr-FR', { currency: 'EUR', maximumFractionDigits: 2, style: 'currency' }),
-  USD: new Intl.NumberFormat('en-US', { currency: 'USD', maximumFractionDigits: 2, style: 'currency' }),
-}
-// SOL is not an ISO 4217 code — formatted manually.
-const solFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 4 })
-const percentFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1, style: 'percent' })
-const dateFormatter = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-const dateTimeFormatter = new Intl.DateTimeFormat('fr-FR', {
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  month: 'short',
-})
+import { formatDateTime as formatLocaleDateTime, formatMoney, formatNumber } from '@workspace/i18n/format'
+
+// Every formatter follows the language chosen in Settings (formatLocale) —
+// no hardcoded 'fr-FR' / 'en-US'.
 
 export type FimsCurrency = 'EUR' | 'SOL' | 'USD'
 
@@ -28,21 +18,21 @@ export function formatCurrency(
   currency: FimsCurrency = 'EUR',
   rates: FimsCurrencyRates = DEFAULT_RATES,
 ) {
+  // SOL is not an ISO 4217 code — formatted manually.
   if (currency === 'SOL') {
-    return rates.sol > 0 ? `${solFormatter.format(value * rates.sol)} SOL` : '—'
+    return rates.sol > 0 ? `${formatNumber(value * rates.sol, { maximumFractionDigits: 4 })} SOL` : '—'
   }
-  const converted = currency === 'USD' ? value * rates.usd : value
-  return (currencyFormatters[currency] ?? currencyFormatters['EUR'] ?? new Intl.NumberFormat()).format(converted)
+  return formatMoney(currency === 'USD' ? value * rates.usd : value, currency)
 }
 
 export function formatPercent(value: number) {
-  return percentFormatter.format(value)
+  return formatNumber(value, { maximumFractionDigits: 1, style: 'percent' })
 }
 
 export function formatDate(iso: string) {
-  return dateFormatter.format(new Date(iso))
+  return formatLocaleDateTime(iso, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export function formatDateTime(iso: string) {
-  return dateTimeFormatter.format(new Date(iso))
+  return formatLocaleDateTime(iso, { day: 'numeric', hour: '2-digit', minute: '2-digit', month: 'short' })
 }

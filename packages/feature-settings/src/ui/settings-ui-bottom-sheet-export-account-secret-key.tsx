@@ -1,7 +1,7 @@
 import type { Account } from '@workspace/db/account/account'
 import { useAccountReadSecretKey } from '@workspace/db-react/use-account-read-secret-key'
 import { useWalletFindUnique } from '@workspace/db-react/use-wallet-find-unique'
-import { useTranslation } from '@workspace/i18n'
+import { i18n, useTranslation } from '@workspace/i18n'
 import { Button } from '@workspace/ui/components/button'
 import { UiBottomSheet } from '@workspace/ui/components/ui-bottom-sheet'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
@@ -44,7 +44,7 @@ export function SettingsUiBottomSheetExportAccountSecretKey({
   async function handleShowSecretKey() {
     const session = sessionRef.current
     if (!wallet) {
-      toastError('Wallet not found')
+      toastError(i18n.t(($) => $.errorWalletNotFound, { ns: 'ui' }))
       return
     }
 

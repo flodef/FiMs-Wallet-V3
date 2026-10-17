@@ -25,6 +25,7 @@ describe('portfolio-ui-send-confirm', () => {
       usdPrice: 1,
     },
     mint: address('So11111111111111111111111111111111111111112'),
+    valueEur: null,
   }
 
   describe('expected behavior', () => {

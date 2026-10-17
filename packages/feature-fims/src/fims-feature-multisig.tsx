@@ -10,8 +10,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Account } from '@workspace/db/account/account'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useTranslation } from '@workspace/i18n'
+import { formatLamports } from '@workspace/i18n/format'
 import { getLatestBlockhash } from '@workspace/solana-client/get-latest-blockhash'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import type { SolanaClient } from '@workspace/solana-client/solana-client'
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { Badge } from '@workspace/ui/components/badge'
@@ -61,7 +61,7 @@ function randomAddress(): Address {
 }
 
 function formatSol(lamports: bigint): string {
-  return `${lamportsToSol(lamports)} SOL`
+  return `${formatLamports(lamports)} SOL`
 }
 
 export function FimsFeatureMultisig({ account }: { account: Account }) {

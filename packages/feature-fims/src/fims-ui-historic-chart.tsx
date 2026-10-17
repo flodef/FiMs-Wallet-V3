@@ -1,10 +1,9 @@
 import { useTranslation } from '@workspace/i18n'
+import { formatDateTime } from '@workspace/i18n/format'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatDate } from './fims-format.ts'
 
 export type HistoricChartPoint = { date: string; invested: number; total: null | number }
-
-const dateTickFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: '2-digit' })
 
 // Shared invested-vs-value area chart (member history, tontine, treasury).
 export function FimsUiHistoricChart({
@@ -26,7 +25,7 @@ export function FimsUiHistoricChart({
             className="text-xs"
             dataKey="date"
             minTickGap={40}
-            tickFormatter={(iso: string) => dateTickFormatter.format(new Date(iso))}
+            tickFormatter={(iso: string) => formatDateTime(iso, { month: 'short', year: '2-digit' })}
             tickLine={false}
           />
           <YAxis className="text-xs" tickFormatter={(value: number) => format(value)} tickLine={false} width={90} />

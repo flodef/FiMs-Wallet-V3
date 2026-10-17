@@ -13,22 +13,37 @@ export interface GetTokenAccountsOptions {
 
 export type GetTokenAccountsResult = GetTokenAccountsForProgramIdResult['value']
 
-export async function getTokenAccounts(
+export interface GetTokenAccountsDetailedResult {
+  accounts: GetTokenAccountsResult
+  // Token programs whose fetch failed — the list above is then incomplete
+  // and the UI must say so instead of showing a silently partial wallet.
+  failedPrograms: Address[]
+}
+
+// Each program fetch is independent: a Token-2022 failure must not hide the
+// legacy-token accounts (and vice-versa) — but a total failure still rejects,
+// so an empty wallet is never fabricated from two errors.
+export async function getTokenAccountsDetailed(
   client: SolanaClient,
   { address }: GetTokenAccountsOptions,
-): Promise<GetTokenAccountsResult> {
-  // Each program fetch is independent: a T22 parse/rpc failure must not hide
-  // the legacy-token accounts (and vice-versa) — but a total failure still
-  // surfaces as an error, not an empty wallet.
-  const [tokenAccounts, token2022Accounts] = await Promise.allSettled([
-    getTokenAccountsForProgramId(client, { address, programId: TOKEN_PROGRAM_ADDRESS }),
-    getTokenAccountsForProgramId(client, { address, programId: TOKEN_2022_PROGRAM_ADDRESS }),
-  ])
-  if (tokenAccounts.status === 'rejected' && token2022Accounts.status === 'rejected') {
-    throw tokenAccounts.reason
+): Promise<GetTokenAccountsDetailedResult> {
+  const programs = [TOKEN_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS]
+  const settled = await Promise.allSettled(
+    programs.map((programId) => getTokenAccountsForProgramId(client, { address, programId })),
+  )
+  const firstFailure = settled.find((result) => result.status === 'rejected')
+  if (firstFailure && settled.every((result) => result.status === 'rejected')) {
+    throw firstFailure.reason
   }
-  return [
-    ...(tokenAccounts.status === 'fulfilled' ? tokenAccounts.value.value : []),
-    ...(token2022Accounts.status === 'fulfilled' ? token2022Accounts.value.value : []),
-  ]
+  return {
+    accounts: settled.flatMap((result) => (result.status === 'fulfilled' ? result.value.value : [])),
+    failedPrograms: programs.filter((_, index) => settled[index]?.status === 'rejected'),
+  }
+}
+
+export async function getTokenAccounts(
+  client: SolanaClient,
+  options: GetTokenAccountsOptions,
+): Promise<GetTokenAccountsResult> {
+  return (await getTokenAccountsDetailed(client, options)).accounts
 }

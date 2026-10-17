@@ -11,8 +11,8 @@ import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useAccountGetTransactionSigner } from '@workspace/db-react/use-account-get-transaction-signer'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useTranslation } from '@workspace/i18n'
+import { formatLamports } from '@workspace/i18n/format'
 import { formatSimulationFailure } from '@workspace/solana-client/format-simulation-failure'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { sendSimulatedPreparedTransaction } from '@workspace/solana-client/send-prepared-transaction'
 import {
   getStakeAccountsQueryOptions,
@@ -196,7 +196,7 @@ export function FimsFeatureRentReclaim() {
         <DialogHeader>
           <DialogTitle>{t(($) => $.rentReclaimTitle)}</DialogTitle>
           <DialogDescription>
-            {t(($) => $.rentReclaimDescription, { count: reclaimable.length, total: lamportsToSol(totalSol) })}
+            {t(($) => $.rentReclaimDescription, { count: reclaimable.length, total: formatLamports(totalSol) })}
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-64 space-y-2 overflow-y-auto">
@@ -215,7 +215,7 @@ export function FimsFeatureRentReclaim() {
                 <span className="text-muted-foreground text-xs">
                   {item.kind === 'stake' ? 'Stake' : item.mint ? ellipsify(item.mint, 4, '…') : ''}
                 </span>
-                <span className="font-medium">{lamportsToSol(item.lamports)} SOL</span>
+                <span className="font-medium">{formatLamports(item.lamports)} SOL</span>
               </div>
             )
           })}
@@ -226,7 +226,7 @@ export function FimsFeatureRentReclaim() {
           </Button>
           <Button disabled={busy || !checked.length} onClick={() => void handleConfirm()}>
             {busy ? <UiLoader className="size-4" /> : null}
-            {t(($) => $.rentReclaimConfirm, { total: lamportsToSol(totalSol) })}
+            {t(($) => $.rentReclaimConfirm, { total: formatLamports(totalSol) })}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,7 +1,7 @@
 import { type Address, createNoopSigner, type Instruction } from '@solana/kit'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from '@workspace/i18n'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
+import { formatLamports } from '@workspace/i18n/format'
 import {
   type SimulatePreparedTransactionResult,
   simulatePreparedTransaction,
@@ -29,8 +29,8 @@ export function squadsEstimateCost(input: {
   return { fee, other, total }
 }
 
-function formatLamports(lamports: bigint | undefined): string {
-  return lamports == null ? '—' : `${lamportsToSol(lamports)} SOL`
+function formatSol(lamports: bigint | undefined): string {
+  return lamports == null ? '—' : `${formatLamports(lamports)} SOL`
 }
 
 // Simulates the (unsigned) transaction to price it: sigVerify is off in the
@@ -86,23 +86,23 @@ export function SquadsCostPreview({
       <div className="font-medium">{t(($) => $.multisigCostTitle)}</div>
       <div className="flex justify-between text-muted-foreground">
         <span>{t(($) => $.multisigCostNetwork)}</span>
-        <span className="font-mono">{formatLamports(cost.fee)}</span>
+        <span className="font-mono">{formatSol(cost.fee)}</span>
       </div>
       {protocolFee != null && protocolFee > 0n ? (
         <div className="flex justify-between text-muted-foreground">
           <span>{t(($) => $.multisigCostProtocol)}</span>
-          <span className="font-mono">{formatLamports(protocolFee)}</span>
+          <span className="font-mono">{formatSol(protocolFee)}</span>
         </div>
       ) : null}
       {rent != null && rent > 0n ? (
         <div className="flex justify-between text-muted-foreground">
           <span>{t(($) => $.multisigCostAccounts)}</span>
-          <span className="font-mono">≈ {formatLamports(rent)}</span>
+          <span className="font-mono">≈ {formatSol(rent)}</span>
         </div>
       ) : null}
       <div className="flex justify-between font-medium">
         <span>{t(($) => $.multisigCostTotal)}</span>
-        <span className="font-mono">≈ {formatLamports(cost.total)}</span>
+        <span className="font-mono">≈ {formatSol(cost.total)}</span>
       </div>
       {estimate.data.status === 'failure' ? (
         <p className="text-muted-foreground">{t(($) => $.multisigCostEstimateOnly)}</p>

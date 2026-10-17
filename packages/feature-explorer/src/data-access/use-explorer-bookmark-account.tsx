@@ -1,7 +1,7 @@
 import type { Address } from '@solana/kit'
 import { useBookmarkAccountFindByAddress } from '@workspace/db-react/use-bookmark-account-find-by-address'
 import { useBookmarkAccountToggle } from '@workspace/db-react/use-bookmark-account-toggle'
-import { useTranslation } from '@workspace/i18n'
+import { i18n, useTranslation } from '@workspace/i18n'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 
@@ -18,7 +18,7 @@ export function useExplorerBookmarkAccount({ address }: { address: Address }) {
         toastSuccess(result === 'created' ? t(($) => $.bookmarkAdded) : t(($) => $.bookmarkRemoved))
       } catch (e) {
         console.log(e)
-        toastError('Error toggling bookmark')
+        toastError(i18n.t(($) => $.toastBookmarkToggleFailed, { ns: 'ui' }))
       }
     },
   }

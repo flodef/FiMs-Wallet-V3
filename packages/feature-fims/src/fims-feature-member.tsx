@@ -3,6 +3,7 @@ import type { Account } from '@workspace/db/account/account'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { PortfolioUiAccountButtons } from '@workspace/feature-portfolio/ui/portfolio-ui-account-buttons'
 import { useTranslation } from '@workspace/i18n'
+import { formatNumber } from '@workspace/i18n/format'
 import { useGetBalance } from '@workspace/solana-client-react/use-get-balance'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
@@ -129,9 +130,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
                 {positions.map((p) => (
                   <TableRow key={p.symbol}>
                     <TableCell className="font-medium">{p.symbol}</TableCell>
-                    <TableCell className="text-right">
-                      {p.units.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}
-                    </TableCell>
+                    <TableCell className="text-right">{formatNumber(p.units, { maximumFractionDigits: 4 })}</TableCell>
                     <TableCell className="text-right">{p.avgBuyPrice != null ? format(p.avgBuyPrice) : '—'}</TableCell>
                     <TableCell className="text-right">
                       {p.currentValue != null ? format(p.currentValue) : '—'}

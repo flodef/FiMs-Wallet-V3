@@ -637,7 +637,9 @@
       "devDependencies": {
         "@types/bun": "catalog:",
         "@workspace/config-typescript": "workspace:*",
+        "@workspace/config-vitest": "workspace:*",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "react": "catalog:",
@@ -691,6 +693,7 @@
         "@solana/kit": "catalog:",
         "@tanstack/react-query": "catalog:",
         "@workspace/db": "workspace:*",
+        "@workspace/i18n": "workspace:*",
         "@workspace/solana-client": "workspace:*",
         "@workspace/ui": "workspace:*",
       },

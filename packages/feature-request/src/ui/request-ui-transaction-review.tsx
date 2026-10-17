@@ -3,12 +3,12 @@ import type { SolanaSignTransactionInput } from '@solana/wallet-standard-feature
 import { useQuery } from '@tanstack/react-query'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useTranslation } from '@workspace/i18n'
+import { formatLamports } from '@workspace/i18n/format'
 import {
   formatSimulatedTransactionChange,
   getSimulatedTransactionChangeRows,
 } from '@workspace/solana-client/get-simulated-transaction-change-rows'
 import { inspectWireTransaction } from '@workspace/solana-client/inspect-wire-transaction'
-import { lamportsToSol } from '@workspace/solana-client/lamports-to-sol'
 import { useSolanaClient } from '@workspace/solana-client-react/use-solana-client'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
@@ -97,7 +97,7 @@ export function RequestUiTransactionReview({
       {inspection.data.simulation.fee != null ? (
         <div className="flex items-center justify-between rounded-md border p-3">
           <span className="text-muted-foreground">{t(($) => $.networkFee)}</span>
-          <span className="font-mono">{lamportsToSol(inspection.data.simulation.fee)} SOL</span>
+          <span className="font-mono">{formatLamports(inspection.data.simulation.fee)} SOL</span>
         </div>
       ) : null}
 
