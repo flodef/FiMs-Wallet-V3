@@ -36,6 +36,9 @@ export class SessionAuthError extends Error {
 // stored token would each start their own mint and stack N signature prompts.
 const sessionCache = new Map<string, Promise<string>>()
 const mintCache = new Map<string, Promise<string>>()
+// Generation counter per session key: revoke bumps it, an in-flight mint
+// compares before persisting — a token minted across a revoke dies unused.
+const mintEpoch = new Map<string, number>()
 
 export async function fimsSessionToken(apiEndpoint: string, signer: MessagePartialSigner): Promise<string> {
   const key = `${apiEndpoint}|${signer.address}`
@@ -58,7 +61,7 @@ export async function fimsSessionToken(apiEndpoint: string, signer: MessageParti
     }
     let minting = mintCache.get(key)
     if (!minting) {
-      minting = mintSession(apiEndpoint, signer, storedKey).finally(() => mintCache.delete(key))
+      minting = mintSession(apiEndpoint, signer, storedKey, key).finally(() => mintCache.delete(key))
       mintCache.set(key, minting)
     }
     return minting
@@ -67,7 +70,13 @@ export async function fimsSessionToken(apiEndpoint: string, signer: MessageParti
   return promise
 }
 
-async function mintSession(apiEndpoint: string, signer: MessagePartialSigner, storedKey: string): Promise<string> {
+async function mintSession(
+  apiEndpoint: string,
+  signer: MessagePartialSigner,
+  storedKey: string,
+  key: string,
+): Promise<string> {
+  const epoch = mintEpoch.get(key) ?? 0
   const host = new URL(apiEndpoint).host
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map((b) => b.toString(16).padStart(2, '0'))
@@ -91,6 +100,19 @@ async function mintSession(apiEndpoint: string, signer: MessagePartialSigner, st
     throw new SessionAuthError(res.status, text.slice(0, 200))
   }
   const { expiresAt, token } = (await res.json()) as { expiresAt: string; token: string }
+  if ((mintEpoch.get(key) ?? 0) !== epoch) {
+    // The session was revoked while this mint was in flight — kill the fresh
+    // token server-side instead of persisting a bearer nobody wanted.
+    try {
+      await fetch(`${apiEndpoint.replace(/\/+$/, '')}/fims/session`, {
+        headers: { authorization: `Bearer ${token}` },
+        method: 'DELETE',
+      })
+    } catch {
+      // offline — the orphan token dies with its TTL anyway
+    }
+    throw new SessionAuthError(401, 'session revoked')
+  }
   try {
     localStorage.setItem(storedKey, JSON.stringify({ expiresAt, token }))
   } catch {
@@ -117,9 +139,12 @@ function fimsDropSession(apiEndpoint: string, address: string): void {
 // effort — a dead API must not block the local unlink), then drop it locally.
 export async function fimsRevokeSession(apiEndpoint: string, address: string): Promise<void> {
   // An in-flight mint could resolve AFTER the drop and write a fresh token —
-  // killing its entry makes the revoke stick (401 invalidation keeps it:
-  // that is what deduplicates the re-sign).
-  const storedKey = `fims.session|${apiEndpoint}|${address}`
+  // bump the epoch so its persist step self-revokes, and stop deduplicating
+  // it (401 invalidation keeps mintCache: that is what shares the re-sign).
+  const key = `${apiEndpoint}|${address}`
+  mintEpoch.set(key, (mintEpoch.get(key) ?? 0) + 1)
+  mintCache.delete(key)
+  const storedKey = `fims.session|${key}`
   let token: null | string = null
   try {
     token = (JSON.parse(localStorage.getItem(storedKey) ?? 'null') as null | { token: string })?.token ?? null

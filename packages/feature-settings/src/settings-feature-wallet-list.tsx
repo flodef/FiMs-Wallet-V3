@@ -1,4 +1,5 @@
 import type { Wallet } from '@workspace/db/wallet/wallet'
+import { walletIsExternal } from '@workspace/db/wallet/wallet-is-external'
 import { useAccountActive } from '@workspace/db-react/use-account-active'
 import { useWalletDelete } from '@workspace/db-react/use-wallet-delete'
 import { useWalletLive } from '@workspace/db-react/use-wallet-live'
@@ -21,9 +22,10 @@ export function SettingsFeatureWalletList() {
     // "Disconnected" for external wallets — nothing was deleted locally.
     onSuccess: (_, { id }) =>
       toastSuccess(
-        wallets.find((wallet) => wallet.id === id)?.derivationPath.length === 0
-          ? t(($) => $.accountDisconnectSuccess)
-          : t(($) => $.walletDeleteSuccess),
+        (() => {
+          const w = wallets.find((wallet) => wallet.id === id)
+          return w && walletIsExternal(w) ? t(($) => $.accountDisconnectSuccess) : t(($) => $.walletDeleteSuccess)
+        })(),
       ),
   })
   const updateOrderMutation = useWalletUpdateOrder({

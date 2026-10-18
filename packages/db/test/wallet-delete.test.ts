@@ -151,6 +151,19 @@ describe('wallet-delete', () => {
       )
     })
 
+    it('should not delete an active IMPORTED-KEY wallet even though its derivationPath is empty', async () => {
+      // ARRANGE — imported private-key wallets share the empty path with
+      // external wallets; the marker must not confuse the delete guard.
+      expect.assertions(1)
+      const id = await walletCreate(ctx, testWalletCreateInput({ derivationPath: '', mnemonic: '' }))
+      await accountCreate(ctx, testAccountCreateInput({ walletId: id }))
+
+      // ACT & ASSERT
+      await expect(walletDelete(ctx, id)).rejects.toThrow(
+        'You cannot delete the active wallet. Please change wallets and try again.',
+      )
+    })
+
     it('should throw an error when deleting a wallet fails', async () => {
       // ARRANGE
       expect.assertions(1)

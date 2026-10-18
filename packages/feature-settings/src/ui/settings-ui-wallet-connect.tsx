@@ -49,11 +49,19 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
       if (!walletAccounts.length) {
         throw new AppError('noAccountAuthorized', 'No account authorized')
       }
-      // Legacy rows were written before externalWallet was persisted — they
-      // are recognizable by an empty derivationPath and the wallet name.
+      // Legacy rows were written before externalWallet was persisted —
+      // recognizable by an empty derivationPath and the wallet name. The
+      // heal match must ALSO require all its accounts to be secret-free (Connected/Watched)
+      // (Connected/Watched): an imported-key wallet that happens to share
+      // the name would otherwise get re-stamped external and lose the
+      // active-wallet delete guard.
+      const allSecretFree = (walletId: string) =>
+        accounts.every((a) => a.walletId !== walletId || a.type === 'Connected' || a.type === 'Watched')
       const existingWallet =
         wallets.find((item) => item.externalWallet === wallet.name) ??
-        wallets.find((item) => item.derivationPath === '' && item.name === wallet.name.slice(0, 20))
+        wallets.find(
+          (item) => item.derivationPath === '' && item.name === wallet.name.slice(0, 20) && allSecretFree(item.id),
+        )
       if (existingWallet && !existingWallet.externalWallet) {
         await updateWallet.mutateAsync({ id: existingWallet.id, input: { externalWallet: wallet.name } })
       }
