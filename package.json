@@ -19,7 +19,7 @@
     "@solana/react": "8.4.0",
     "@solana/wallet-standard-chains": "1.1.2",
     "@solana/wallet-standard-features": "1.5.0",
-    "@tailwindcss/vite": "4.2.4",
+    "@tailwindcss/vite": "4.3.3",
     "@tanstack/query-async-storage-persister": "5.100.9",
     "@tanstack/react-query": "5.100.9",
     "@tanstack/react-query-persist-client": "5.100.9",
