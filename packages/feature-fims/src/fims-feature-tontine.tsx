@@ -19,6 +19,7 @@ export function FimsFeatureTontine({ account }: { account: Account }) {
   const users = useFimsUsers()
   const tontineId = (users.data ?? []).find((u) => u.name.toLowerCase() === 'tontine')?.id
   const historic = useFimsUserHistoric(tontineId)
+  // Intentionally unfiltered: the tontine view needs donation rows across members.
   const transactions = useFimsTransactions()
   const latest = historic.data?.at(-1)
   const nameById = new Map((users.data ?? []).map((u) => [u.id, u.name]))

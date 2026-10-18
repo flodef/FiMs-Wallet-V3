@@ -30,7 +30,12 @@ export class SessionAuthError extends Error {
   }
 }
 
+// Two layers: `sessionCache` deduplicates token resolution (stored or minted)
+// and IS dropped on invalidation; `mintCache` deduplicates the actual signing
+// round-trip and survives it — otherwise N concurrent 401s on an expired
+// stored token would each start their own mint and stack N signature prompts.
 const sessionCache = new Map<string, Promise<string>>()
+const mintCache = new Map<string, Promise<string>>()
 
 export async function fimsSessionToken(apiEndpoint: string, signer: MessagePartialSigner): Promise<string> {
   const key = `${apiEndpoint}|${signer.address}`
@@ -51,38 +56,47 @@ export async function fimsSessionToken(apiEndpoint: string, signer: MessageParti
     } catch {
       // corrupted or unavailable storage — mint a fresh session
     }
-    const host = new URL(apiEndpoint).host
-    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-    const issuedAt = new Date().toISOString()
-    const content = new TextEncoder().encode(fimsSessionMessage(host, signer.address, nonce, issuedAt))
-    const { signature, signedMessage } = await signContentBytes(signer, content)
-    const res = await fetch(`${apiEndpoint.replace(/\/+$/, '')}/fims/session`, {
-      body: JSON.stringify({
-        address: signer.address,
-        issuedAt,
-        nonce,
-        signature: getBase64Decoder().decode(signature),
-        signedMessage: sameBytes(signedMessage, content) ? undefined : getBase64Decoder().decode(signedMessage),
-      }),
-      headers: { 'content-type': 'application/json' },
-      method: 'POST',
-    })
-    if (!res.ok) {
-      const text = await res.text()
-      throw new SessionAuthError(res.status, text.slice(0, 200))
+    let minting = mintCache.get(key)
+    if (!minting) {
+      minting = mintSession(apiEndpoint, signer, storedKey).finally(() => mintCache.delete(key))
+      mintCache.set(key, minting)
     }
-    const { expiresAt, token } = (await res.json()) as { expiresAt: string; token: string }
-    try {
-      localStorage.setItem(storedKey, JSON.stringify({ expiresAt, token }))
-    } catch {
-      // storage unavailable — the in-memory cache still covers this page
-    }
-    return token
+    return minting
   })().finally(() => sessionCache.delete(key))
   sessionCache.set(key, promise)
   return promise
+}
+
+async function mintSession(apiEndpoint: string, signer: MessagePartialSigner, storedKey: string): Promise<string> {
+  const host = new URL(apiEndpoint).host
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+  const issuedAt = new Date().toISOString()
+  const content = new TextEncoder().encode(fimsSessionMessage(host, signer.address, nonce, issuedAt))
+  const { signature, signedMessage } = await signContentBytes(signer, content)
+  const res = await fetch(`${apiEndpoint.replace(/\/+$/, '')}/fims/session`, {
+    body: JSON.stringify({
+      address: signer.address,
+      issuedAt,
+      nonce,
+      signature: getBase64Decoder().decode(signature),
+      signedMessage: sameBytes(signedMessage, content) ? undefined : getBase64Decoder().decode(signedMessage),
+    }),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new SessionAuthError(res.status, text.slice(0, 200))
+  }
+  const { expiresAt, token } = (await res.json()) as { expiresAt: string; token: string }
+  try {
+    localStorage.setItem(storedKey, JSON.stringify({ expiresAt, token }))
+  } catch {
+    // storage unavailable — the in-memory cache still covers this page
+  }
+  return token
 }
 
 export function fimsInvalidateSession(apiEndpoint: string, signer: MessagePartialSigner): void {
@@ -125,6 +139,7 @@ export async function fimsRevokeSession(apiEndpoint: string, address: string): P
 // valid tokens behind for accounts that no longer exist locally.
 export function fimsClearAllSessions(): void {
   sessionCache.clear()
+  mintCache.clear()
   try {
     const keys = Object.keys(localStorage).filter((key) => key.startsWith('fims.session|'))
     for (const key of keys) {
