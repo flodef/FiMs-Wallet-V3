@@ -9,7 +9,7 @@ import { walletUpdate } from '@workspace/db/wallet/wallet-update'
 import type { WalletUpdateInput } from '@workspace/db/wallet/wallet-update-input'
 import { walletUpdateOrder } from '@workspace/db/wallet/wallet-update-order'
 import type { WalletUpdateOrderInput } from '@workspace/db/wallet/wallet-update-order-input'
-import { accountCleanup } from './account-cleanup.ts'
+import { accountCleanup } from './account-cleanup.tsx'
 import { invalidateWalletGraph } from './invalidate-wallet-graph.tsx'
 import { optionsWalletFindMany } from './wallet-graph-queries.ts'
 

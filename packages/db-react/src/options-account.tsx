@@ -9,7 +9,7 @@ import type { AccountUpdateInput } from '@workspace/db/account/account-update-in
 import { accountUpdateOrder } from '@workspace/db/account/account-update-order'
 import type { AccountUpdateOrderInput } from '@workspace/db/account/account-update-order-input'
 import type { DbContext } from '@workspace/db/db-context'
-import { accountCleanup } from './account-cleanup.ts'
+import { accountCleanup } from './account-cleanup.tsx'
 import { invalidateWalletGraph } from './invalidate-wallet-graph.tsx'
 import { optionsAccountFindMany } from './wallet-graph-queries.ts'
 

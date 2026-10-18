@@ -488,4 +488,18 @@ Statut au commit « audit-2 fixes » — ✅ implémenté + vérifié, 🟡 impl
 - 🔶 `RATE_LIMIT_IP_HEADER` à confirmer selon l'edge réel (CF devant Vercel ?)
 - 🔶 Rôles Postgres, envs `FIMS_*_YIELD_ASSET`, audit externe
 
+## 12. Suivi — revue qualité (Q-01 → Q-21)
+
+Statut au commit `4995fc6` — la passe qualité post-audit est implémentée et vérifiée (887 tests verts, types + lint + cspell propres).
+
+- ✅ **Q-01→Q-03** — Proxy chaîne restreint (anti-oracle, quotas), loader/cache cohérents (`resolveActiveAccount`), prix FiMs dans le portefeuille + état d'erreur partiel + formats localisés
+- ✅ **Q-04** — P&L FiMs/FLiP/FSOL depuis le ledger membre (EUR exacts injectés via `PortfolioLedgerContext`) ; `SWAP` tagué seulement si un programme DEX connu tourne dans la tx
+- ✅ **Q-05/Q-06** — Backfill historique reprenable (table `chainSyncState`, Dexie v5) + consentement explicite par session pour les lectures d'adresses tierces (signer ≠ cible visible par l'API)
+- ✅ **Q-07** — Politique réseau partagée loader/background, `useIsAdmin()`
+- ✅ **Q-08→Q-11, Q-16** — `externalWallet` explicite (migration v4) + `walletIsExternal`, déconnexion = révocation session + purge cache, effets onboarding supprimés, `useSetting` stable, `walletDelete` tolérant + fallback par `order`, sessions 24 h + renouvellement glissant + plafond 5/adresse + wipe au reset, connect active le compte choisi dans l'extension
+- ✅ **Q-12→Q-15, Q-18, Q-19** — i18n sweep (toasts, formats, locale date-fns, test de garde locales), drift docs/corrigé + spec parité fee-config↔landing, fallback `@supports` landing + icônes `data:` seulement, échec partiel token accounts observable, tests flaky fixés + timeouts vitest, cache labels API 60 s
+- ✅ **Q-21** — Borne dérivation HD (64), `role="dialog"` sur le popup de requête
+- ⬜ **Q-17 (partiel)** — Résolveurs et mutations couverts ; la couche React (`db-react` hooks, `feature-shell` loader, `feature-settings` connect) reste peu testée, smoke e2e Playwright hors CI
+- ⬜ **Q-20 (partiel)** — `strategy-delegate` découpé (`strategy-codec.ts`) ; restent `api.ts` (866), `custodial.ts` (675), `use-jupiter.tsx` (690), `fims-feature-multisig.tsx` (968)
+
 *Fin du rapport.*
