@@ -53,6 +53,7 @@ export class Database extends Dexie {
     this.version(3).stores(stores)
     this.version(4).stores(stores).upgrade(migrateExternalWalletMarker)
     this.version(5).stores(stores)
+    this.version(6).stores(stores).upgrade(repairExternalWalletMarker)
 
     this.accounts.hook('reading', accountReadingHook)
     this.wallets.hook('reading', walletReadingHook)
@@ -72,9 +73,13 @@ function walletReadingHook(wallet: WalletInternal | undefined) {
 }
 
 // Wallets created for an external connection before `externalWallet` was
-// persisted carry only an empty derivationPath. Backfill the marker so the
-// empty-path heuristic can fade out: prefer the wallet-standard name stored
-// on its Connected accounts, fall back to the (possibly truncated) name.
+// persisted carry only an empty derivationPath — but so do imported
+// private-key wallets, which DO hold secrets. Discriminate on the accounts:
+// external connections produce only Connected/Watched rows (no secretKey),
+// imported wallets produce key-holding rows. Only backfill the former, so
+// the empty-path heuristic can fade out without mislabeling real wallets:
+// prefer the wallet-standard name stored on its Connected accounts, fall
+// back to the (possibly truncated) name.
 async function migrateExternalWalletMarker(transaction: Transaction): Promise<void> {
   const accounts = transaction.table<AccountInternal, string>('accounts')
   const wallets = transaction.table<WalletInternal, string>('wallets')
@@ -86,11 +91,40 @@ async function migrateExternalWalletMarker(transaction: Transaction): Promise<vo
 
   for (const wallet of legacyWallets) {
     const walletAccounts = await accounts.where('walletId').equals(wallet.id).raw().toArray()
+    // Imported-key wallets share the empty derivationPath but hold secrets —
+    // stamping `externalWallet` on them would bypass the active-wallet
+    // delete guard (key loss) and show the wrong "Disconnect" UX.
+    if (walletAccounts.length === 0 || walletAccounts.some((a) => a.type !== 'Connected' && a.type !== 'Watched')) {
+      continue
+    }
     const name = walletAccounts.find((account) => account.externalWallet)?.externalWallet ?? wallet.name
     await wallets.update(wallet.id, { externalWallet: name })
     for (const account of walletAccounts) {
       if (!account.externalWallet) {
         await accounts.update(account.id, { externalWallet: name })
+      }
+    }
+  }
+}
+
+// v4 backfilled `externalWallet` on every wallet with an empty
+// derivationPath — but imported private-key wallets share that shape and
+// the stamp is persisted, so the v4 fix alone can't undo devices that
+// already ran it. v6 clears the marker wherever a key-holding account
+// (anything but Connected/Watched) proves the wallet is not external.
+async function repairExternalWalletMarker(transaction: Transaction): Promise<void> {
+  const accounts = transaction.table<AccountInternal, string>('accounts')
+  const wallets = transaction.table<WalletInternal, string>('wallets')
+  for (const wallet of await wallets.toCollection().raw().toArray()) {
+    if (!wallet.externalWallet) continue
+    const walletAccounts = await accounts.where('walletId').equals(wallet.id).raw().toArray()
+    const real = walletAccounts.some((account) => account.type !== 'Connected' && account.type !== 'Watched')
+    if (real) {
+      await wallets.update(wallet.id, { externalWallet: undefined })
+      for (const account of walletAccounts) {
+        if (account.externalWallet) {
+          await accounts.update(account.id, { externalWallet: undefined })
+        }
       }
     }
   }

@@ -8,6 +8,7 @@ import { createContext, useContext } from 'react'
 // (mint/redeem are plain transfers, not swaps).
 export interface PortfolioLedgerRow {
   amount: null | string
+  donationAmount?: null | string
   movement: number
   token: null | string
   type: null | string

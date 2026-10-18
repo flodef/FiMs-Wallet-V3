@@ -500,6 +500,6 @@ Statut au commit `4995fc6` — la passe qualité post-audit est implémentée et
 - ✅ **Q-12→Q-15, Q-18, Q-19** — i18n sweep (toasts, formats, locale date-fns, test de garde locales), drift docs/corrigé + spec parité fee-config↔landing, fallback `@supports` landing + icônes `data:` seulement, échec partiel token accounts observable, tests flaky fixés + timeouts vitest, cache labels API 60 s
 - ✅ **Q-21** — Borne dérivation HD (64), `role="dialog"` sur le popup de requête
 - ⬜ **Q-17 (partiel)** — Résolveurs et mutations couverts ; la couche React (`db-react` hooks, `feature-shell` loader, `feature-settings` connect) reste peu testée, smoke e2e Playwright hors CI
-- ⬜ **Q-20 (partiel)** — `strategy-delegate` découpé (`strategy-codec.ts`) ; restent `api.ts` (866), `custodial.ts` (675), `use-jupiter.tsx` (690), `fims-feature-multisig.tsx` (968)
+- ⬜ **Q-20 (partiel)** — `strategy-delegate` découpé (`strategy-codec.ts`) ; restent `custodial.ts` (675), `fims-feature-multisig.tsx` (968) — `api.ts`→`api-schemas.ts` et `use-jupiter.tsx`→`jupiter-wire.ts` extraits
 
 *Fin du rapport.*

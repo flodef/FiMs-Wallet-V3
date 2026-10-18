@@ -78,6 +78,12 @@ async function syncNewest(db: Database, signer: MessagePartialSigner, address: s
     if (!res.cursor || fresh.length !== rows.length) return
     cursor = res.cursor
   }
+  // Exhausted MAX_PAGES still inside a fresh region (>MAX_PAGES×100 txs
+  // between syncs): dropping the flag would mark a truncated history
+  // complete forever. Persist the frontier — the next incomplete sync
+  // re-walks the newest rows (now cached), jumps to this cursor via the
+  // resume path and continues deeper, one window per pass.
+  await db.chainSyncState.put({ address, complete: false, oldestCursor: cursor ?? null })
 }
 
 const consentListeners = new Set<() => void>()

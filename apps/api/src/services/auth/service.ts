@@ -315,6 +315,8 @@ export function fimsSessionMessage(host: string, address: string, nonce: string,
 }
 
 // Pre-24h-TTL bundles signed the same envelope with a "7 days" statement.
+// TODO(shim): remove the legacy variant once deployed clients have rolled
+// past the 24h wording — it only exists for rolling-deploy compatibility.
 // Accept it so a stale SPA keeps working until its next reload — the expiry
 // that matters is server-side anyway.
 function fimsSessionMessageLegacy(host: string, address: string, nonce: string, issuedAt: string): string {
@@ -399,7 +401,7 @@ export function createSession(
             AND token_hash NOT IN (
               SELECT token_hash FROM fims_sessions
               WHERE address = ${body.address}
-              ORDER BY last_seen_at DESC
+              ORDER BY last_seen_at DESC NULLS LAST
               LIMIT ${MAX_SESSIONS_PER_ADDRESS}
             )
         `),

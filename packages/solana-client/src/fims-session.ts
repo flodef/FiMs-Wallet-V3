@@ -116,6 +116,9 @@ function fimsDropSession(apiEndpoint: string, address: string): void {
 // Explicit disconnect/reset path: revoke the bearer token server-side (best
 // effort — a dead API must not block the local unlink), then drop it locally.
 export async function fimsRevokeSession(apiEndpoint: string, address: string): Promise<void> {
+  // An in-flight mint could resolve AFTER the drop and write a fresh token —
+  // killing its entry makes the revoke stick (401 invalidation keeps it:
+  // that is what deduplicates the re-sign).
   const storedKey = `fims.session|${apiEndpoint}|${address}`
   let token: null | string = null
   try {

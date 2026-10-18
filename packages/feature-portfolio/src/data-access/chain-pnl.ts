@@ -126,6 +126,7 @@ export function computeTokenPnl(flows: TokenFlow[], usdPrices: Map<string, numbe
 
 export interface FimsLedgerRow {
   amount: null | string
+  donationAmount?: null | string
   movement: number
   token: null | string
   type: null | string
@@ -171,10 +172,13 @@ export function aggregateFimsLedgerFlows(
         flow.boughtUsd += usd
       }
     } else {
-      const out = Math.abs(amount)
+      // donation_amount is extra units ON TOP of an outflow — a gift, so it
+      // leaves via qtyOut but never counts as soldQty/soldUsd proceeds.
+      const donation = Number(row.donationAmount ?? 0)
+      const out = Math.abs(amount) + (Number.isFinite(donation) ? donation : 0)
       flow.qtyOut += out
       if (!LEDGER_GIFT_TYPES.has(row.type ?? '')) {
-        flow.soldQty += out
+        flow.soldQty += Math.abs(amount)
         flow.soldUsd += usd
       }
     }
