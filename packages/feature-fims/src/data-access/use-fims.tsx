@@ -92,9 +92,13 @@ export function useFimsMember(address: string, account?: Account) {
   return { ...users, member: users.data?.[0] ?? null }
 }
 
-export function useFimsTransactions(params?: { userId?: number }, account?: Account) {
+export function useFimsTransactions(params?: { userId?: number }, account?: Account, enabled = true) {
   const signedGetAll = useFimsSignedGetAll(account)
   return useQuery({
+    // Without enabled the query still fires with no userId — the API then
+    // returns every transaction the signer can see, an unbounded paginated
+    // fetch whose rows must never leak into per-address calculations.
+    enabled,
     queryFn: () =>
       signedGetAll<FimsTransaction>('/transactions', {
         ...(params?.userId ? { userId: String(params.userId) } : {}),

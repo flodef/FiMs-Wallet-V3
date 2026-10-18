@@ -11,7 +11,7 @@ import { useFimsTransactions, useFimsUserHistoric } from './use-fims.tsx'
 // deducted progressively at send time, never a hard block.
 export function useFimsDebt(member: FimsUser | null, account?: Account) {
   const historic = useFimsUserHistoric(member?.id, account)
-  const transactions = useFimsTransactions(member ? { userId: member.id } : undefined, account)
+  const transactions = useFimsTransactions(member ? { userId: member.id } : undefined, account, !!member)
 
   const debt = useMemo(() => {
     if (!member) return null

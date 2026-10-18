@@ -35,7 +35,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
   const { isLoading, member } = useFimsMember(address, account)
   const snsDomain = useSnsDomain(address)
   const historic = useFimsUserHistoric(member?.id, account)
-  const transactions = useFimsTransactions(member ? { userId: member.id } : undefined, account)
+  const transactions = useFimsTransactions(member ? { userId: member.id } : undefined, account, !!member)
   const tokens = useFimsTokens()
   const positions = useMemo(
     () => computeFimsPositions(transactions.data ?? [], tokens.data ?? []),

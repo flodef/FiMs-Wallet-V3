@@ -50,7 +50,9 @@ describe('wallet-delete', () => {
       await accountCreate(ctx, testAccountCreateInput({ walletId: id }))
       // Simulate the dangling-pointer state the loader repairs: the setting
       // is gone but accounts exist. Deletion must not brick on it.
-      await ctx.db.settings.delete('activeAccountId')
+      // (`key` is a unique index, not the primary key — a plain delete(id)
+      // would silently miss the row.)
+      await ctx.db.settings.where('key').equals('activeAccountId').delete()
 
       // ACT
       await walletDelete(ctx, id)

@@ -53,7 +53,13 @@ export function FimsPortfolioLedgerProvider({ children }: { children: ReactNode 
     // invoked unconditionally inside the consumer component's render.
     const member = useFimsMember(address, signer)
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const transactions = useFimsTransactions(member.member ? { userId: member.member.id } : undefined, signer)
+    const transactions = useFimsTransactions(
+      member.member ? { userId: member.member.id } : undefined,
+      signer,
+      // A watched non-member address must not fold every member's ledger
+      // into its P&L — no member, no fetch, no rows.
+      !!member.member,
+    )
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const tokens = useFimsTokens()
     return useMemo(
