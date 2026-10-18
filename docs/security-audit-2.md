@@ -499,7 +499,7 @@ Statut au commit `4995fc6` — la passe qualité post-audit est implémentée et
 - ✅ **Q-08→Q-11, Q-16** — `externalWallet` explicite (migration v4) + `walletIsExternal`, déconnexion = révocation session + purge cache, effets onboarding supprimés, `useSetting` stable, `walletDelete` tolérant + fallback par `order`, sessions 24 h + renouvellement glissant + plafond 5/adresse + wipe au reset, connect active le compte choisi dans l'extension
 - ✅ **Q-12→Q-15, Q-18, Q-19** — i18n sweep (toasts, formats, locale date-fns, test de garde locales), drift docs/corrigé + spec parité fee-config↔landing, fallback `@supports` landing + icônes `data:` seulement, échec partiel token accounts observable, tests flaky fixés + timeouts vitest, cache labels API 60 s
 - ✅ **Q-21** — Borne dérivation HD (64), `role="dialog"` sur le popup de requête
-- 🟡 **Q-17** — Résolveurs, mutations delete, loader `feature-shell` (3 tests), matcher externe `feature-settings` (3 tests), setting mutation couverts ; hooks React et smoke e2e Playwright hors CI restent ouverts
+- 🟡 **Q-17** — Résolveurs, mutations delete, loader `feature-shell` (3 tests), matcher externe `feature-settings` (3 tests), setting mutation couverts ; restent ouverts : les autres hooks React au-delà de useSetting
 - ✅ **Q-20** — Les cinq fichiers sont découpés : `strategy-delegate`→`strategy-codec.ts`, `api.ts`→`api-schemas.ts`, `use-jupiter.tsx`→`jupiter-wire.ts`, `custodial.ts`→`custodial-products.ts`, `fims-feature-multisig.tsx`→`fims-ui-multisig-proposals.tsx` + `fims-multisig-helpers.ts`
 
 *Fin du rapport.*

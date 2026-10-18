@@ -33,8 +33,10 @@ test.beforeEach(async ({ page }) => {
         version: '1.0.0',
       }
       window.addEventListener('wallet-standard:app-ready', (event) => {
-        const detail = (event as CustomEvent<{ register: (w: unknown[]) => void }>).detail
-        detail.register([wallet])
+        const detail = (event as CustomEvent<{ register: (w: unknown) => void }>).detail
+        // register() is variadic and takes the wallet itself — passing an
+        // array registers THE ARRAY as the wallet (name/features undefined).
+        detail.register(wallet)
       })
     },
     [FAKE_ADDRESS],
