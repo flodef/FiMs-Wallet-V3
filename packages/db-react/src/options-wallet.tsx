@@ -34,7 +34,11 @@ export const optionsWallet = {
         const accounts = await ctx.db.accounts.where('walletId').equals(id).toArray()
         await walletDelete(ctx, id)
         for (const account of accounts) {
-          await accountCleanup(ctx, account.publicKey).catch(() => {})
+          // Best-effort — a Dexie/cache hiccup must not flip the mutation to
+          // error and skip invalidateWalletGraph, but keep it observable.
+          await accountCleanup(ctx, account.publicKey).catch((error: unknown) =>
+            console.warn('account cleanup failed', error),
+          )
         }
       },
       onSuccess: () => invalidateWalletGraph(ctx),
