@@ -2,7 +2,7 @@
   "catalog": {
     "@base-ui/react": "1.4.1",
     "@beeman/testcontainers": "1.2.2",
-    "@cloudflare/workers-types": "4.20260505.1",
+    "@cloudflare/workers-types": "5.20261012.1",
     "@effect/platform": "0.96.1",
     "@hookform/resolvers": "5.2.2",
     "@neondatabase/serverless": "1.0.2",
@@ -60,7 +60,7 @@
     "vite": "7.3.2",
     "vite-bundle-analyzer": "1.3.8",
     "vitest": "4.1.5",
-    "wrangler": "4.87.0",
+    "wrangler": "4.149.0",
     "ws": "8.20.0",
     "wxt": "0.20.25",
     "zod": "4.4.3"
