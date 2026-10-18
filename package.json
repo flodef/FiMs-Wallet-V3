@@ -34,7 +34,7 @@
     "@wallet-standard/ui-registry": "1.1.0",
     "@wxt-dev/browser": "0.1.40",
     "babel-plugin-react-compiler": "1.0.0",
-    "baseline-browser-mapping": "2.10.27",
+    "baseline-browser-mapping": "2.11.28",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "drizzle-kit": "0.31.9",
