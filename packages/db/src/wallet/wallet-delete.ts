@@ -2,6 +2,7 @@ import { AppError } from '@workspace/core/app-error'
 import { tryCatchOrThrow } from '@workspace/core/try-catch-or-throw'
 import { accountFindMany } from '../account/account-find-many.ts'
 import type { DbContext } from '../db-context.ts'
+import { orderedAccounts } from '../session/resolve-session.ts'
 import { settingFindUnique } from '../setting/setting-find-unique.ts'
 import { settingSetValue } from '../setting/setting-set-value.ts'
 import { walletIsExternal } from './wallet-is-external.ts'
@@ -36,9 +37,10 @@ export async function walletDelete(ctx: DbContext, id: string): Promise<void> {
     )
     await tryCatchOrThrow(ctx.db.wallets.delete(id), `Error deleting wallet with id ${id}`)
     if (deletesActive) {
-      // The UI shows accounts sorted by `order` — pick the same fallback the
-      // user would expect, not an arbitrary primary-key order.
-      const remaining = await ctx.db.accounts.orderBy('order').first()
+      // Reassign the same fallback the loader/UI would pick — wallet order
+      // then account order — so the repair doesn't flip twice.
+      const [allAccounts, allWallets] = await Promise.all([ctx.db.accounts.toArray(), ctx.db.wallets.toArray()])
+      const remaining = orderedAccounts(allAccounts, allWallets)[0]
       if (remaining) {
         await settingSetValue(ctx, 'activeAccountId', remaining.id)
       } else {

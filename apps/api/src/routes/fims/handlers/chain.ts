@@ -263,10 +263,12 @@ export const chainTargetAllowed = async (db: Db, signer: string, target: string)
       SELECT ${users.id} AS id FROM ${users} WHERE ${addressLinkedToUser(signer)} LIMIT 1
     ),
     target_member AS (
+      -- no LIMIT: an address can map to several member rows and the EXISTS
+      -- checks below are already set-valued — a LIMIT 1 would evaluate the
+      -- policy against an ARBITRARY row (e.g. hiding a public member).
       SELECT ${users.id} AS id, ${users.isPublic} AS is_public FROM ${users}
       WHERE ${users.address} = ${target}
         OR ${users.id} IN (SELECT ${userAddresses.userId} FROM ${userAddresses} WHERE ${userAddresses.address} = ${target})
-      LIMIT 1
     )
     SELECT
       EXISTS (SELECT 1 FROM me JOIN target_member ON me.id = target_member.id) AS own,

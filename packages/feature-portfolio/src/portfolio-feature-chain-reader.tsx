@@ -112,7 +112,7 @@ export function PortfolioFeatureChainReader({ account, network }: { account: Acc
             <p className="text-muted-foreground">
               {t(($) => $.chainReaderConsentBody, { signer: signerAccount?.name ?? '', target: address })}
             </p>
-            <Button onClick={consent.grant} size="sm" variant="outline">
+            <Button onClick={() => consent.grant(custom || address)} size="sm" variant="outline">
               {t(($) => $.chainReaderConsentAction)}
             </Button>
           </div>

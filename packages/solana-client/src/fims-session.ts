@@ -61,11 +61,17 @@ export async function fimsSessionToken(apiEndpoint: string, signer: MessageParti
     }
     let minting = mintCache.get(key)
     if (!minting) {
-      minting = mintSession(apiEndpoint, signer, storedKey, key).finally(() => mintCache.delete(key))
+      minting = mintSession(apiEndpoint, signer, storedKey, key).finally(() => {
+        // Compare-and-delete: an older mint's finally must not evict the
+        // NEWER mint that a revoke/retry stored in the meantime.
+        if (mintCache.get(key) === minting) mintCache.delete(key)
+      })
       mintCache.set(key, minting)
     }
     return minting
-  })().finally(() => sessionCache.delete(key))
+  })().finally(() => {
+    if (sessionCache.get(key) === promise) sessionCache.delete(key)
+  })
   sessionCache.set(key, promise)
   return promise
 }
@@ -166,11 +172,32 @@ export async function fimsRevokeSession(apiEndpoint: string, address: string): P
 // Wipe every stored bearer session — the database reset path must not leave
 // valid tokens behind for accounts that no longer exist locally.
 export function fimsClearAllSessions(): void {
+  // Bump the epoch of every in-flight mint BEFORE clearing: a mint resolving
+  // after the wipe must self-revoke instead of persisting a live bearer for
+  // a deleted account (the revoke path does the same per key).
+  for (const key of mintCache.keys()) {
+    mintEpoch.set(key, (mintEpoch.get(key) ?? 0) + 1)
+  }
   sessionCache.clear()
   mintCache.clear()
   try {
     const keys = Object.keys(localStorage).filter((key) => key.startsWith('fims.session|'))
     for (const key of keys) {
+      // Best-effort server-side revoke per stored token — localStorage keys
+      // are `fims.session|<apiEndpoint>|<address>`, so the token itself can
+      // be read straight from the entry.
+      try {
+        const stored = JSON.parse(localStorage.getItem(key) ?? 'null') as null | { token: string }
+        const endpoint = key.slice('fims.session|'.length, key.lastIndexOf('|'))
+        if (stored?.token && endpoint) {
+          fetch(`${endpoint.replace(/\/+$/, '')}/fims/session`, {
+            headers: { authorization: `Bearer ${stored.token}` },
+            method: 'DELETE',
+          }).catch(() => {})
+        }
+      } catch {
+        // malformed entry — still removed below
+      }
       localStorage.removeItem(key)
     }
   } catch {
