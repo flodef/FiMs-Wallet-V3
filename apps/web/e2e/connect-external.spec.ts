@@ -43,7 +43,14 @@ test.beforeEach(async ({ page }) => {
 
 test('onboarding - connect an external wallet opens the app', async ({ page }) => {
   await page.goto('/onboarding')
-  await page.getByText('E2E External Wallet').click()
-  await page.getByRole('button', { name: /connect/i }).click()
+  // The "I already have a wallet" card starts collapsed — the wallet list
+  // only mounts once it is expanded.
+  await page.getByRole('button', { name: 'I already have a wallet' }).click()
+  await expect(page.getByText('E2E External Wallet')).toBeVisible()
+  // Only the item's Connect button acts; the name itself is not clickable.
+  await page
+    .locator('div[data-slot="item"], div[role="listitem"], li', { hasText: 'E2E External Wallet' })
+    .getByRole('button')
+    .click()
   await expect(page).toHaveURL(/\/portfolio/)
 })
