@@ -48,17 +48,19 @@ export function FimsPortfolioPricingProvider({ children }: { children: ReactNode
 // member and streams its `transactions` rows + the symbol→mint map so the
 // chain reader can build an exact EUR cost basis for protocol tokens.
 export function FimsPortfolioLedgerProvider({ children }: { children: ReactNode }) {
-  const useLedgerData = useCallback<UsePortfolioLedgerData>((address, signer) => {
+  const useLedgerData = useCallback<UsePortfolioLedgerData>((address, signer, enabled = true) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks -- this IS a hook,
     // invoked unconditionally inside the consumer component's render.
-    const member = useFimsMember(address, signer)
+    // `enabled` carries the reader consent: until granted, NO signed
+    // member/transactions request may leak "signer X reads target Y".
+    const member = useFimsMember(address, signer, enabled)
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const transactions = useFimsTransactions(
       member.member ? { userId: member.member.id } : undefined,
       signer,
       // A watched non-member address must not fold every member's ledger
       // into its P&L — no member, no fetch, no rows.
-      !!member.member,
+      enabled && !!member.member,
     )
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const tokens = useFimsTokens()

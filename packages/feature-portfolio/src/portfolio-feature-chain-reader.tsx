@@ -51,7 +51,7 @@ export function PortfolioFeatureChainReader({ account, network }: { account: Acc
   }, [labels.data])
 
   const pricing = usePortfolioPricing()
-  const ledgerData = usePortfolioLedger()(address, signerAccount)
+  const ledgerData = usePortfolioLedger()(address, signerAccount, !consent.needed)
   const pnl = useMemo(() => {
     if (!history.data) return []
     const prices = new Map<string, number>()

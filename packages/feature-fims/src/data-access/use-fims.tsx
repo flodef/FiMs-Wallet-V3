@@ -83,9 +83,12 @@ export function useFimsSignedGetAll(account: Account | undefined) {
   }
 }
 
-export function useFimsMember(address: string, account?: Account) {
+export function useFimsMember(address: string, account?: Account, enabled = true) {
   const signedGet = useFimsSignedGet(account)
   const users = useQuery({
+    // The query is SIGNED — firing it before the user consented would leak
+    // "signer X reads target Y" to the API for any watched/custom address.
+    enabled,
     queryFn: () => signedGet<FimsUser[]>('/users', { address }),
     queryKey: ['fims', 'users', address, account?.publicKey ?? 'anon'],
   })

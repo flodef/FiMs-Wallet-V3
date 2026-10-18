@@ -34,7 +34,7 @@ export const optionsWallet = {
         const accounts = await ctx.db.accounts.where('walletId').equals(id).toArray()
         await walletDelete(ctx, id)
         for (const account of accounts) {
-          await accountCleanup(ctx, account.publicKey)
+          await accountCleanup(ctx, account.publicKey).catch(() => {})
         }
       },
       onSuccess: () => invalidateWalletGraph(ctx),

@@ -34,7 +34,7 @@ export const optionsAccount = {
         const account = await ctx.db.accounts.get(id)
         await accountDelete(ctx, id)
         if (account) {
-          await accountCleanup(ctx, account.publicKey)
+          await accountCleanup(ctx, account.publicKey).catch(() => {})
         }
       },
       onSuccess: () => invalidateWalletGraph(ctx),

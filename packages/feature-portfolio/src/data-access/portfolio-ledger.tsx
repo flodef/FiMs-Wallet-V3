@@ -20,7 +20,7 @@ export interface PortfolioLedgerData {
   rows: PortfolioLedgerRow[]
 }
 
-export type UsePortfolioLedgerData = (address: string, signer?: Account) => PortfolioLedgerData
+export type UsePortfolioLedgerData = (address: string, signer?: Account, enabled?: boolean) => PortfolioLedgerData
 
 const defaultLedgerData: UsePortfolioLedgerData = () => ({ mintBySymbol: new Map(), rows: [] })
 
