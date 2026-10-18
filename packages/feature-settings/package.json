@@ -23,11 +23,14 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@solana/kit": "catalog:",
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@workspace/config-typescript": "workspace:*",
-    "typescript": "catalog:"
+    "@workspace/config-vitest": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "exports": {
     "./*": "./src/*.tsx"
@@ -40,7 +43,8 @@
   },
   "private": false,
   "scripts": {
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
   },
   "type": "module",
   "version": "0.0.0"

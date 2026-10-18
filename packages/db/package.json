@@ -17,7 +17,8 @@
     "vitest": "catalog:"
   },
   "exports": {
-    "./*": "./src/*.ts"
+    "./*": "./src/*.ts",
+    "./test-helpers": "./test/test-helpers.ts"
   },
   "license": "MIT",
   "name": "@workspace/db",

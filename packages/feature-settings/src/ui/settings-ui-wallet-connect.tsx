@@ -18,6 +18,7 @@ import { ellipsify } from '@workspace/ui/lib/ellipsify'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { useState } from 'react'
+import { findExternalWalletRow } from '../data-access/find-external-wallet-row.ts'
 
 // External wallet connect (Solflare, Phantom, Jupiter…): each detected
 // wallet-standard wallet gets a Connect button. Connected accounts are
@@ -49,19 +50,11 @@ export function SettingsUiWalletConnect({ onConnected }: { onConnected?: () => v
       if (!walletAccounts.length) {
         throw new AppError('noAccountAuthorized', 'No account authorized')
       }
-      // Legacy rows were written before externalWallet was persisted —
-      // recognizable by an empty derivationPath and the wallet name. The
-      // heal match must ALSO require all its accounts to be secret-free (Connected/Watched)
-      // (Connected/Watched): an imported-key wallet that happens to share
-      // the name would otherwise get re-stamped external and lose the
-      // active-wallet delete guard.
-      const allSecretFree = (walletId: string) =>
-        accounts.every((a) => a.walletId !== walletId || a.type === 'Connected' || a.type === 'Watched')
-      const existingWallet =
-        wallets.find((item) => item.externalWallet === wallet.name) ??
-        wallets.find(
-          (item) => item.derivationPath === '' && item.name === wallet.name.slice(0, 20) && allSecretFree(item.id),
-        )
+      // Legacy rows predate the externalWallet marker — matched by empty
+      // derivationPath + truncated name, and only when every account is
+      // secret-free so an imported-key wallet sharing the name is not
+      // re-stamped external (that would bypass the active-delete guard).
+      const existingWallet = findExternalWalletRow(wallets, accounts, wallet.name)
       if (existingWallet && !existingWallet.externalWallet) {
         await updateWallet.mutateAsync({ id: existingWallet.id, input: { externalWallet: wallet.name } })
       }
