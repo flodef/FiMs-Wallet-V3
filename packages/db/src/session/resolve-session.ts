@@ -67,6 +67,9 @@ export function resolveAllowedNetwork({
     return { network: current, repaired: false }
   }
   const mainnet = networks.find((network) => network.type === 'solana:mainnet') ?? null
+  // Degenerate config (no mainnet row at all): keep the current network
+  // rather than null — a non-admin then stays on devnet, but with zero
+  // usable mainnet there is nothing better to switch to.
   return { network: mainnet ?? current ?? null, repaired: mainnet !== null && mainnet.id !== current?.id }
 }
 

@@ -15,7 +15,7 @@ import {
   computeTokenPnl,
   mergeLedgerFlows,
 } from './data-access/chain-pnl.ts'
-import { usePortfolioLedger } from './data-access/portfolio-ledger.tsx'
+import { usePortfolioLedgerData } from './data-access/portfolio-ledger.tsx'
 import { usePortfolioPricing } from './data-access/portfolio-pricing.tsx'
 import {
   useChainAssets,
@@ -51,7 +51,7 @@ export function PortfolioFeatureChainReader({ account, network }: { account: Acc
   }, [labels.data])
 
   const pricing = usePortfolioPricing()
-  const ledgerData = usePortfolioLedger()(address, signerAccount, !consent.needed)
+  const ledgerData = usePortfolioLedgerData(address, signerAccount, !consent.needed)
   const pnl = useMemo(() => {
     if (!history.data) return []
     const prices = new Map<string, number>()

@@ -30,3 +30,10 @@ export const PortfolioLedgerContext = createContext<UsePortfolioLedgerData>(defa
 export function usePortfolioLedger(): UsePortfolioLedgerData {
   return useContext(PortfolioLedgerContext)
 }
+
+// Named-hook sugar over the context so call sites read as a normal hook:
+// `usePortfolioLedgerData(address, signer, enabled)` instead of
+// `usePortfolioLedger()(...)`.
+export function usePortfolioLedgerData(address: string, signer?: Account, enabled?: boolean): PortfolioLedgerData {
+  return usePortfolioLedger()(address, signer, enabled)
+}

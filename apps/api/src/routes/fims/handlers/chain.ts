@@ -33,8 +33,10 @@ export const handleChainHistory = ({
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const signer = yield* verifyWalletRequest(request)
-    yield* consumeChainQuota(request, signer)
+    // Allowlist before quota: a denied target should not burn the signer's
+    // quota (the check is cheaper than the bucket write anyway).
     yield* assertChainAddressAllowed(signer, urlParams.address)
+    yield* consumeChainQuota(request, signer)
     const keys = yield* heliusKeysOrFail
     const limit = Math.min(Math.max(1, Math.floor(urlParams.limit ?? 100)), 100)
     const page = yield* Effect.tryPromise({
@@ -55,8 +57,10 @@ export const handleChainAssets = ({ urlParams }: { urlParams: { address: string 
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest
     const signer = yield* verifyWalletRequest(request)
-    yield* consumeChainQuota(request, signer)
+    // Allowlist before quota: a denied target should not burn the signer's
+    // quota (the check is cheaper than the bucket write anyway).
     yield* assertChainAddressAllowed(signer, urlParams.address)
+    yield* consumeChainQuota(request, signer)
     const keys = yield* heliusKeysOrFail
     const assets = yield* Effect.tryPromise({
       catch: chainUnavailable,
