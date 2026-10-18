@@ -1,7 +1,7 @@
 {
   "catalog": {
     "@base-ui/react": "1.4.1",
-    "@beeman/testcontainers": "1.2.2",
+    "@beeman/testcontainers": "1.2.3",
     "@cloudflare/workers-types": "4.20260505.1",
     "@effect/platform": "0.96.1",
     "@hookform/resolvers": "5.2.2",
