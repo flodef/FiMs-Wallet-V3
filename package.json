@@ -23,7 +23,7 @@
     "@tanstack/query-async-storage-persister": "5.100.9",
     "@tanstack/react-query": "5.100.9",
     "@tanstack/react-query-persist-client": "5.100.9",
-    "@turbo/gen": "2.9.12",
+    "@turbo/gen": "2.11.7",
     "@types/bun": "1.3.13",
     "@types/node": "24.10.1",
     "@types/react": "19.2.14",
@@ -82,7 +82,7 @@
     "pkg-pr-new": "0.0.71",
     "playwright": "catalog:",
     "syncpack": "15.1.2",
-    "turbo": "2.9.12",
+    "turbo": "2.11.7",
     "vitest": "catalog:"
   },
   "engines": {
