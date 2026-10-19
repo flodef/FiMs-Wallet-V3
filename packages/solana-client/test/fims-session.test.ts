@@ -45,10 +45,9 @@ describe('fims-session', () => {
         .mockReturnValueOnce(gateA.promise)
         .mockResolvedValue({ signature: new Uint8Array(64), signedMessage: new Uint8Array(0) })
       const fetchMock = vi.mocked(fetch)
-      fetchMock.mockImplementation(async (input, init) => {
-        const url = String(input)
+      fetchMock.mockImplementation(async (_input, init) => {
         if (init?.method === 'DELETE') return new Response(null, { status: 204 })
-        return new Response(JSON.stringify({ expiresAt: '2099-01-01', token: url.includes('first') ? 'tok' : 'tok' }), {
+        return new Response(JSON.stringify({ expiresAt: '2099-01-01', token: 'tok' }), {
           status: 200,
         })
       })
