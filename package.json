@@ -40,7 +40,7 @@
     "drizzle-kit": "0.31.9",
     "drizzle-orm": "0.45.1",
     "effect": "3.21.2",
-    "firebase": "12.9.0",
+    "firebase": "13.0.0",
     "jsdom": "29.1.1",
     "lucide-react": "1.14.0",
     "playwright": "1.59.1",
