@@ -1,0 +1,128 @@
+// Personal treasury reconciliation for the shared account 58kZBjj…
+// (= FIMS_TREASURY = the admin's own wallet). Run:
+//   cd apps/api && bun --env-file=.env scripts/treasury-reconcile.ts
+//
+// Two independent reports:
+//   1. Personal jlEURC takes: on-chain deltas < 30 jlEURC out of the
+//      shared account's jlEURC ATA (larger outflows are user withdrawals).
+//   2. Outstanding transfer fees: getFimsFeeRate() (0.2%, introduced
+//      2026-10-04 by 11e7ba2) of every outflow ledger row dated
+//      >= FEE_START, EXCLUDING tontine/donation/deposit/cex_in — the fee
+//      is carved in-kind to the treasury (= this same wallet).
+//
+// Both are needed to net out who owes what between the shared pot and
+// the admin's personal balance.
+import { neon } from '@neondatabase/serverless'
+
+import { getFimsFeeRate } from '../src/fee-config.ts'
+
+const RPC_URL = process.env['SOLANA_RPC_URL'] ?? 'https://api.mainnet-beta.solana.com'
+const jlEurcMint = 'GcV9tEj62VncGithz4o4N9x6HWXARxuRgEAYk9zahNA8'
+const jlEurcAta = 'ERW9X2uJYrUsXi2prNmBxruVQFDgeetNYv5MUb5ycjyA' // ATA(treasury, SPL Token, jlEURC)
+const SMALL_TAKE_MAX = 30 // jlEURC — above this, an outflow is a user withdrawal
+const FEE_START = '2026-10-04' // the operating fee was introduced on this date
+const MAX_PAGES = 10
+
+interface SignatureInfo {
+  signature: string
+}
+
+interface TokenBalance {
+  accountIndex: number
+  mint: string
+  uiTokenAmount: { uiAmount: null | number }
+}
+
+interface ParsedTx {
+  blockTime: null | number
+  meta: null | {
+    err: unknown
+    postTokenBalances?: TokenBalance[]
+    preTokenBalances?: TokenBalance[]
+  }
+  transaction: { message: { accountKeys: ({ pubkey: string } | string)[] } }
+}
+
+async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+  const res = await fetch(RPC_URL, {
+    body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error(`RPC HTTP ${res.status} on ${method}`)
+  const json = (await res.json()) as { error?: { message: string }; result?: T }
+  if (json.error) throw new Error(`RPC error on ${method}: ${json.error.message}`)
+  if (json.result === undefined || json.result === null) throw new Error(`RPC ${method}: null result`)
+  return json.result
+}
+
+async function jlEurcTakes() {
+  let all: SignatureInfo[] = []
+  let before: string | undefined
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const batch = await rpc<SignatureInfo[]>('getSignaturesForAddress', [
+      jlEurcAta,
+      { limit: 1000, ...(before ? { before } : {}) },
+    ])
+    if (!batch.length) break
+    all = all.concat(batch)
+    before = batch.at(-1)?.signature
+    if (batch.length < 1000) break
+    if (page === MAX_PAGES - 1) {
+      console.warn(`WARNING: hit ${MAX_PAGES} pages (${all.length} signatures) — history may be truncated`)
+    }
+  }
+  const takes: { amt: number; date: string; sig: string }[] = []
+  for (const s of all) {
+    const t = await rpc<ParsedTx>('getTransaction', [
+      s.signature,
+      { encoding: 'jsonParsed', maxSupportedTransactionVersion: 1 },
+    ])
+    if (!t.meta || t.meta.err != null || !t.blockTime) continue
+    const keys = t.transaction.message.accountKeys.map((k) => (typeof k === 'string' ? k : k.pubkey))
+    const idx = keys.indexOf(jlEurcAta)
+    if (idx < 0) continue
+    const bal = (b: TokenBalance) => b.accountIndex === idx && b.mint === jlEurcMint
+    const pre = (t.meta.preTokenBalances ?? []).find(bal)
+    const post = (t.meta.postTokenBalances ?? []).find(bal)
+    const delta = (post?.uiTokenAmount.uiAmount ?? 0) - (pre?.uiTokenAmount.uiAmount ?? 0)
+    if (delta < 0 && delta > -SMALL_TAKE_MAX) {
+      takes.push({ amt: -delta, date: new Date(t.blockTime * 1000).toISOString().slice(0, 10), sig: s.signature })
+    }
+  }
+  takes.sort((a, b) => a.date.localeCompare(b.date))
+  console.log(`\n== jlEURC personal takes (< ${SMALL_TAKE_MAX}) ==`)
+  for (const t of takes) console.log(`${t.date}  ${t.amt.toFixed(4)} jlEURC  ${t.sig}`)
+  console.log(`TOTAL: ${takes.reduce((a, t) => a + t.amt, 0).toFixed(4)} jlEURC`)
+}
+
+async function transferFees() {
+  const sql = neon(process.env['DATABASE_URL'] as string)
+  // Fee base is the debited units MINUS any carved tontine share — the carve
+  // is deducted from the sent amount before the fee (computeFimsSendSplit).
+  // Units on `conversion` rows are denominated in the DEBITED token here;
+  // the carved fee is actually credited-token units (convert.ts), so treat
+  // that column as approximate for conversions — the EUR column is exact.
+  const rows = await sql`
+    SELECT token, type, COUNT(*) n,
+      SUM((ABS(amount) - COALESCE(donation_amount::numeric, 0)) * ${getFimsFeeRate()}) AS fee_units,
+      SUM(ABS(movement + cost) * ${getFimsFeeRate()}) AS fee_eur
+    FROM transactions
+    WHERE amount < 0 AND date >= ${FEE_START}
+      AND type IN ('withdrawal', 'payment', 'conversion', 'cex_out')
+    GROUP BY token, type ORDER BY token, type`
+  console.log(
+    `\n== transfer fees (${getFimsFeeRate() * 100}% of outflows since ${FEE_START}, excl. tontine/donation) ==`,
+  )
+  let eur = 0
+  for (const r of rows) {
+    console.log(
+      `${r['token']} ${r['type']}  x${r['n']}  ${Number(r['fee_units']).toFixed(4)} units  ${Number(r['fee_eur']).toFixed(2)} EUR`,
+    )
+    eur += Number(r['fee_eur'])
+  }
+  console.log(`TOTAL: ${eur.toFixed(2)} EUR`)
+}
+
+await jlEurcTakes()
+await transferFees()
