@@ -112,23 +112,17 @@ export function useChainReadConsent(signerAccount: Account | undefined, target: 
     signerAccount && target ? consented(signerAccount.publicKey, target) : true,
   )
   const needed = !!signerAccount && !!target && !granted
-  // `override` lets the caller pass the freshest target: clicking "grant"
-  // blurs the custom-address input, and the blur updates `address` AFTER
-  // this callback already captured the old one — consenting for the stale
-  // target would force a second click.
-  const grant = useCallback(
-    (override?: string) => {
-      const resolved = override ?? target
-      if (!signerAccount || !resolved) return
-      try {
-        sessionStorage.setItem(consentKey(signerAccount.publicKey, resolved), '1')
-      } catch {
-        // storage unavailable — consent simply won't persist
-      }
-      for (const listener of consentListeners) listener()
-    },
-    [signerAccount, target],
-  )
+  // The caller grants for `target` — always the value the consent box
+  // displays (never a stale input it might have raced).
+  const grant = useCallback(() => {
+    if (!signerAccount || !target) return
+    try {
+      sessionStorage.setItem(consentKey(signerAccount.publicKey, target), '1')
+    } catch {
+      // storage unavailable — consent simply won't persist
+    }
+    for (const listener of consentListeners) listener()
+  }, [signerAccount, target])
   return { grant, needed }
 }
 

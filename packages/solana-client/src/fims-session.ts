@@ -119,9 +119,6 @@ async function mintSession(
     }
     throw new SessionAuthError(401, 'session revoked')
   }
-  // Epoch check passed — drop our epoch marker so the map stays
-  // bounded to in-flight/revoked sessions
-  mintEpoch.delete(key)
   try {
     localStorage.setItem(storedKey, JSON.stringify({ expiresAt, token }))
   } catch {
