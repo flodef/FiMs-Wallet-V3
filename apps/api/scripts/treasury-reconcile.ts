@@ -60,12 +60,13 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
       method: 'POST',
     }).catch((e: unknown) => ({ ok: false, status: 0, statusText: String(e) }) as never)
     if (!res.ok) {
-      // Rate-limit / transient: back off and retry; other HTTP errors are fatal.
-      if ((res.status === 429 || res.status >= 500) && attempt < MAX_RETRIES) {
+      // Rate-limit / transient / transport (status 0): back off and retry;
+      // other HTTP errors are fatal.
+      if ((res.status === 0 || res.status === 429 || res.status >= 500) && attempt < MAX_RETRIES) {
         await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt))
         continue
       }
-      throw new Error(`RPC HTTP ${res.status} on ${method}`)
+      throw new Error(`RPC HTTP ${res.status} on ${method}${res.status === 0 ? `: ${res.statusText}` : ''}`)
     }
     const json = (await res.json()) as { error?: { message: string }; result?: T }
     if (json.error) throw new Error(`RPC error on ${method}: ${json.error.message}`)
@@ -143,19 +144,25 @@ async function transferFees() {
   const dbUrl = process.env['DATABASE_URL']
   if (!dbUrl) throw new Error('DATABASE_URL required')
   const sql = neon(dbUrl)
-  // Fee base is the debited units MINUS any carved tontine share — the carve
-  // is deducted from the sent amount before the fee (computeFimsSendSplit).
-  // The EUR column applies the same carve share: |movement + cost| prices
-  // the whole |amount|, so it is scaled by (|amount| − donation) / |amount|.
+  // donation_amount is ON TOP of amount (schema.ts) — the ledger row's
+  // |amount| is already the post-carve outflow, so it is the feeable base
+  // exactly. payment rows carry movement ~= cost (both negative), so
+  // |movement + cost| ~= 2x value there — use |movement| as their EUR base.
+  // Zero-valued rows (movement=0/cost=0) carried no feeable value.
   // Units on `conversion` rows are denominated in the DEBITED token here;
   // the carved fee is actually credited-token units (convert.ts), so treat
   // that column as approximate for conversions — the EUR column is exact.
+  // Caveat: assumes every listed outflow carried the fee — carve-exempt
+  // flows (Solana Pay, trigger/limit orders) still write outflow rows.
   const rows = await sql`
     SELECT token, type, COUNT(*) n,
-      SUM((ABS(amount) - COALESCE(donation_amount::numeric, 0)) * ${getFimsFeeRate()}) AS fee_units,
-      SUM(ABS(movement + cost) * (ABS(amount) - COALESCE(donation_amount::numeric, 0)) / ABS(amount) * ${getFimsFeeRate()}) AS fee_eur
+      SUM(ABS(amount) * ${getFimsFeeRate()}) AS fee_units,
+      SUM(
+        CASE WHEN type = 'payment' THEN ABS(movement) ELSE ABS(movement + cost) END * ${getFimsFeeRate()}
+      ) AS fee_eur
     FROM transactions
     WHERE amount < 0 AND date >= ${FEE_START}
+      AND (movement <> 0 OR cost <> 0)
       AND type IN ('withdrawal', 'payment', 'conversion', 'cex_out')
     GROUP BY token, type ORDER BY token, type`
   console.log(
