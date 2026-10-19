@@ -834,7 +834,7 @@
   ],
   "catalog": {
     "@base-ui/react": "1.4.1",
-    "@beeman/testcontainers": "1.2.2",
+    "@beeman/testcontainers": "1.2.3",
     "@cloudflare/workers-types": "4.20260505.1",
     "@effect/platform": "0.96.1",
     "@hookform/resolvers": "5.2.2",
@@ -957,7 +957,7 @@
 
     "@base-ui/utils": ["@base-ui/utils@0.2.8", "", { "dependencies": { "@babel/runtime": "^7.29.2", "@floating-ui/utils": "^0.2.11", "reselect": "^5.1.1", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@types/react": "^17 || ^18 || ^19", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-jvOi+c+ftGlGotNcKnzPVg2IhCaDTB6/6R3JeqdjdXktuAJi3wKH9T7+svuaKh1mmfVU11UWzUZVH74JDfi/wQ=="],
 
-    "@beeman/testcontainers": ["@beeman/testcontainers@1.2.2", "", { "peerDependencies": { "@solana/kit": "^6", "@solana/kit-plugins": "^0.3", "testcontainers": "^11", "typescript": "^5 || ^6" } }, "sha512-Lg2sZsP8E11FEyU6p9DIn9pwoj/6lfdABkHTNP3T/EQAQGg59/YecHUKNjiRqNDEH2XwTIRLtT833Mkwryve3w=="],
+    "@beeman/testcontainers": ["@beeman/testcontainers@1.2.3", "", { "peerDependencies": { "@solana/kit": "^6", "@solana/kit-plugins": "^0.3", "testcontainers": "^11 || ^12", "typescript": "^5 || ^6" } }, "sha512-sSMwOH9OD6Hq1dEVu6tE61M2xHHrUgiM7lombXbTI8APeO2dZyy23MUQ9i+TO6c85S6JjmsPDGOlK4fccoHsWQ=="],
 
     "@biomejs/biome": ["@biomejs/biome@2.4.15", "", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.4.15", "@biomejs/cli-darwin-x64": "2.4.15", "@biomejs/cli-linux-arm64": "2.4.15", "@biomejs/cli-linux-arm64-musl": "2.4.15", "@biomejs/cli-linux-x64": "2.4.15", "@biomejs/cli-linux-x64-musl": "2.4.15", "@biomejs/cli-win32-arm64": "2.4.15", "@biomejs/cli-win32-x64": "2.4.15" }, "bin": { "biome": "bin/biome" } }, "sha512-j5VH3a/h/HXTKBM50MDMxRCzkeLv9S2XJcW2WgnZT1+xyisi+0bISrXR82gCX+8S9lvK0skEvHJRN+3Ktr2hlw=="],
 
