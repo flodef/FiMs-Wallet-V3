@@ -4,7 +4,7 @@
     "@solana-program/token": "catalog:",
     "@solana-program/token-2022": "catalog:",
     "@solana/kit": "catalog:",
-    "@solana/web3.js": "1.99.0",
+    "@solana/web3.js": "3.1.1",
     "@sqds/multisig": "2.1.4",
     "@tanstack/react-query": "catalog:",
     "@workspace/core": "workspace:*",
