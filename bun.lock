@@ -517,11 +517,14 @@
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@solana/kit": "catalog:",
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "@workspace/config-typescript": "workspace:*",
+        "@workspace/config-vitest": "workspace:*",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "react": "catalog:",
@@ -561,7 +564,10 @@
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "@workspace/config-typescript": "workspace:*",
+        "@workspace/config-vitest": "workspace:*",
+        "fake-indexeddb": "6.2.5",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "react": "catalog:",
@@ -875,7 +881,7 @@
     "effect": "3.21.2",
     "firebase": "12.9.0",
     "jsdom": "29.1.1",
-    "lucide-react": "1.14.0",
+    "lucide-react": "1.59.0",
     "playwright": "1.59.1",
     "postgres": "3.4.8",
     "react": "19.2.5",
@@ -2987,7 +2993,7 @@
 
     "lru-cache": ["lru-cache@11.3.6", "", {}, "sha512-Gf/KoL3C/MlI7Bt0PGI9I+TeTC/I6r/csU58N4BSNc4lppLBeKsOdFYkK+dX0ABDUMJNfCHTyPpzwwO21Awd3A=="],
 
-    "lucide-react": ["lucide-react@1.14.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-+1mdWcfSJVUsaTIjN9zoezmUhfXo5l0vP7ekBMPo3jcS/aIkxHnXqAPsByszMZx/Y8oQBRJxJx5xg+RH3urzxA=="],
+    "lucide-react": ["lucide-react@1.59.0", "", { "peerDependencies": { "@types/react": "*", "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" }, "optionalPeers": ["@types/react"] }, "sha512-5qgMyyCPU6OvnKpLS2t693+ZtiqA8oaSweWoUows0BLFKFf6V75m4+CptpmohZHpD5IuOVIBXHBBiv2vpLJmtw=="],
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
