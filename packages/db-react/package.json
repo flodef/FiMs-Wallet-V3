@@ -24,7 +24,7 @@
     "@types/react-dom": "catalog:",
     "@workspace/config-typescript": "workspace:*",
     "@workspace/config-vitest": "workspace:*",
-    "fake-indexeddb": "6.2.5",
+    "fake-indexeddb": "6.2.6",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

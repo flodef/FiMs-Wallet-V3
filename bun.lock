@@ -227,7 +227,7 @@
         "@types/bun": "catalog:",
         "@workspace/config-typescript": "workspace:*",
         "@workspace/config-vitest": "workspace:*",
-        "fake-indexeddb": "6.2.5",
+        "fake-indexeddb": "6.2.6",
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
@@ -260,7 +260,7 @@
         "@types/react-dom": "catalog:",
         "@workspace/config-typescript": "workspace:*",
         "@workspace/config-vitest": "workspace:*",
-        "fake-indexeddb": "6.2.5",
+        "fake-indexeddb": "6.2.6",
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
@@ -416,7 +416,7 @@
         "@workspace/config-typescript": "workspace:*",
         "@workspace/config-vitest": "workspace:*",
         "@workspace/db": "workspace:*",
-        "fake-indexeddb": "6.2.5",
+        "fake-indexeddb": "6.2.6",
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
@@ -517,11 +517,14 @@
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@solana/kit": "catalog:",
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "@workspace/config-typescript": "workspace:*",
+        "@workspace/config-vitest": "workspace:*",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "react": "catalog:",
@@ -561,7 +564,10 @@
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "@workspace/config-typescript": "workspace:*",
+        "@workspace/config-vitest": "workspace:*",
+        "fake-indexeddb": "6.2.6",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "react": "catalog:",
@@ -2599,7 +2605,7 @@
 
     "eyes": ["eyes@0.1.8", "", {}, "sha512-GipyPsXO1anza0AOZdy69Im7hGFCNB7Y/NGjDlZGJ3GJJLtwNSb2vrzYrTYJRrRloVx7pl+bhUaTB8yiccPvFQ=="],
 
-    "fake-indexeddb": ["fake-indexeddb@6.2.5", "", {}, "sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w=="],
+    "fake-indexeddb": ["fake-indexeddb@6.2.6", "", {}, "sha512-ihhmr0KoET51jT8R4YhbUYuLLvr1qqO6INISygtN16i8loR8kAxtAUr4+EKHTSMjL+lggaAn4OC7DRqzrNgnuQ=="],
 
     "fast-check": ["fast-check@3.23.2", "", { "dependencies": { "pure-rand": "^6.1.0" } }, "sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A=="],
 
