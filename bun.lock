@@ -517,11 +517,14 @@
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@solana/kit": "catalog:",
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "@workspace/config-typescript": "workspace:*",
+        "@workspace/config-vitest": "workspace:*",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "react": "catalog:",
@@ -561,7 +564,10 @@
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "@workspace/config-typescript": "workspace:*",
+        "@workspace/config-vitest": "workspace:*",
+        "fake-indexeddb": "6.2.5",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "react": "catalog:",
@@ -867,7 +873,7 @@
     "@wallet-standard/ui-registry": "1.1.0",
     "@wxt-dev/browser": "0.1.40",
     "babel-plugin-react-compiler": "1.0.0",
-    "baseline-browser-mapping": "2.10.27",
+    "baseline-browser-mapping": "2.11.30",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "drizzle-kit": "0.31.9",
@@ -2237,7 +2243,7 @@
 
     "base64-js": ["base64-js@1.5.1", "", {}, "sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA=="],
 
-    "baseline-browser-mapping": ["baseline-browser-mapping@2.10.27", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-zEs/ufmZoUd7WftKpKyXaT6RFxpQ5Qm9xytKRHvJfxFV9DFJkZph9RvJ1LcOUi0Z1ZVijMte65JbILeV+8QQEA=="],
+    "baseline-browser-mapping": ["baseline-browser-mapping@2.11.30", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-YJs6Pz17RMNv8HoyKREtCY38E3BV1nPkWVmIb+XN1uHC1Vqt3KZCH/uJH9ZKRoiKb/icZ6tvehyee6RZNbFfRA=="],
 
     "bcrypt-pbkdf": ["bcrypt-pbkdf@1.0.2", "", { "dependencies": { "tweetnacl": "^0.14.3" } }, "sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w=="],
 
