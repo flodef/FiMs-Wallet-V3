@@ -4,7 +4,7 @@
     "@beeman/testcontainers": "1.2.2",
     "@cloudflare/workers-types": "4.20260505.1",
     "@effect/platform": "0.96.1",
-    "@hookform/resolvers": "5.2.2",
+    "@hookform/resolvers": "6.0.0",
     "@neondatabase/serverless": "1.0.2",
     "@noble/curves": "1.9.7",
     "@playwright/test": "1.59.1",
