@@ -320,10 +320,10 @@ export async function syncChainWebhookAddresses(
   db: Db,
   env: Record<string, string | undefined> = process.env,
 ): Promise<{ webhook: string; watched: number } | null> {
-  const keys = heliusApiKeys(env)
+  // The webhook lives in the dedicated key's project — the shared
+  // HELIUS_API_KEY is a different project and cannot see it.
+  const key = heliusRpcProxyKey(env)
   const webhookUrl = env['HELIUS_WEBHOOK_URL']?.trim() || DEFAULT_WEBHOOK_URL
-  const key = keys[0]
-  if (!key) return null
   const base = `${HELIUS_API_BASE}/webhooks?api-key=${key}`
 
   const list = (await (await fetch(base)).json()) as { authHeader?: string; webhookID: string; webhookURL: string }[]
