@@ -1,20 +1,21 @@
 import { useTranslation } from '@workspace/i18n'
 import { formatNumber } from '@workspace/i18n/format'
-import { Input } from '@workspace/ui/components/input'
-import { Label } from '@workspace/ui/components/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
+import type { TokenMetadata } from '@workspace/solana-client/get-token-metadata-jupiter'
+import { Button } from '@workspace/ui/components/button'
 import { UiCard } from '@workspace/ui/components/ui-card'
+import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { useMemo, useState } from 'react'
 import { useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
-import { formatCurrency } from './fims-format.ts'
+import { FimsUiTokenAmountInput } from './fims-ui-token-amount-input.tsx'
 
-type ConverterUnit = { eurValue: number; symbol: string }
+type ConverterUnit = { address?: null | string; eurValue: number; symbol: string }
 
-// Display-only calculator: converts between FiMs tokens and fiat using the
-// community token prices (EUR values). No transaction is created.
-export function FimsUiConverter() {
+// Display-only calculator on the Exchange page: converts between FiMs tokens
+// and fiat using the community token prices (EUR values). The reverse button
+// swaps the units and keeps the amount — 1 EUR→USD becomes 1 USD→EUR.
+export function FimsUiConverter({ metaByMint }: { metaByMint: Map<string, TokenMetadata> }) {
   const { t } = useTranslation('fims')
   const tokens = useFimsTokens()
   const { rates } = useFimsCurrency()
@@ -26,27 +27,37 @@ export function FimsUiConverter() {
       ...(tokens.data ?? [])
         .filter((token): token is typeof token & { value: number } => token.value != null && token.value > 0)
         .filter((token) => token.symbol !== 'EUR' && token.symbol !== 'USD')
-        .map((token) => ({ eurValue: token.value, symbol: token.symbol })),
+        .map((token) => ({ address: token.address, eurValue: token.value, symbol: token.symbol })),
     ],
     [tokens.data, rates],
+  )
+  const options = useMemo(
+    () =>
+      units.map((unit) => ({
+        icon: unit.address ? (metaByMint.get(unit.address)?.icon ?? null) : null,
+        symbol: unit.symbol,
+        value: unit.symbol,
+      })),
+    [units, metaByMint],
   )
 
   const [amountText, setAmountText] = useState('1')
   const [fromSymbol, setFromSymbol] = useState('EUR')
-  const [toSymbol, setToSymbol] = useState('')
+  const [toSymbol, setToSymbol] = useState('USD')
 
   const from = units.find((unit) => unit.symbol === fromSymbol) ?? units[0]
   const to = units.find((unit) => unit.symbol === toSymbol) ?? units.find((unit) => unit.symbol !== from?.symbol)
 
   const amount = Number.parseFloat(amountText.replace(',', '.'))
   const eurTotal = Number.isFinite(amount) && amount > 0 && from ? amount * from.eurValue : null
+  const result = eurTotal == null || !to ? '' : formatNumber(eurTotal / to.eurValue, { maximumSignificantDigits: 8 })
 
-  const formattedResult =
-    eurTotal == null || !to
-      ? '—'
-      : to.symbol === 'EUR' || to.symbol === 'SOL' || to.symbol === 'USD'
-        ? formatCurrency(eurTotal, to.symbol, rates)
-        : `${formatNumber(eurTotal / to.eurValue, { maximumSignificantDigits: 8 })} ${to.symbol}`
+  const canReverse = Boolean(from?.symbol && to?.symbol)
+  const handleReverse = () => {
+    if (!from || !to) return
+    setFromSymbol(to.symbol)
+    setToSymbol(from.symbol)
+  }
 
   return (
     <UiCard title={t(($) => $.converterTitle)}>
@@ -54,45 +65,36 @@ export function FimsUiConverter() {
         <UiLoader />
       ) : (
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label>{t(($) => $.swapAmount)}</Label>
-              <Input inputMode="decimal" onChange={(e) => setAmountText(e.target.value)} value={amountText} />
+          <div className="space-y-1">
+            <FimsUiTokenAmountInput
+              amount={amountText}
+              label={t(($) => $.swapFrom)}
+              onAmountChange={setAmountText}
+              onTokenChange={setFromSymbol}
+              options={options}
+              tokenValue={from?.symbol ?? ''}
+            />
+            <div className="flex justify-center">
+              <Button
+                aria-label={t(($) => $.swapReverse)}
+                className="rounded-full"
+                disabled={!canReverse}
+                onClick={handleReverse}
+                size="icon"
+                variant="outline"
+              >
+                <UiIcon className="size-4" icon="arrowDown" />
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label>{t(($) => $.swapFrom)}</Label>
-              <Select onValueChange={setFromSymbol} value={from?.symbol ?? ''}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {units.map((unit) => (
-                    <SelectItem key={unit.symbol} value={unit.symbol}>
-                      {unit.symbol}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t(($) => $.swapTo)}</Label>
-              <Select onValueChange={setToSymbol} value={to?.symbol ?? ''}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {units.map((unit) => (
-                    <SelectItem key={unit.symbol} value={unit.symbol}>
-                      {unit.symbol}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FimsUiTokenAmountInput
+              amount={result}
+              label={t(($) => $.swapTo)}
+              onTokenChange={setToSymbol}
+              options={options}
+              readOnly
+              tokenValue={to?.symbol ?? ''}
+            />
           </div>
-          <p aria-live="polite" className="text-center font-semibold text-lg">
-            {amountText || '0'} {from?.symbol ?? ''} = {formattedResult}
-          </p>
           <p className="text-center text-muted-foreground text-xs">{t(($) => $.converterHint)}</p>
         </div>
       )}

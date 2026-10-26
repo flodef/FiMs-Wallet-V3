@@ -3,10 +3,8 @@ import type { Account } from '@workspace/db/account/account'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useGetTokenBalances } from '@workspace/feature-portfolio/data-access/use-get-token-balances'
 import { useTranslation } from '@workspace/i18n'
+import type { TokenMetadata } from '@workspace/solana-client/get-token-metadata-jupiter'
 import { Button } from '@workspace/ui/components/button'
-import { Input } from '@workspace/ui/components/input'
-import { Label } from '@workspace/ui/components/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
@@ -20,9 +18,18 @@ import {
 import type { FimsToken } from './fims-api.ts'
 import { getFimsPlatformFeeBps } from './fims-fee-config.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
+import { FimsUiTokenAmountInput } from './fims-ui-token-amount-input.tsx'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
-export function FimsUiLimitOrders({ account, outputTokens }: { account: Account; outputTokens: FimsToken[] }) {
+export function FimsUiLimitOrders({
+  account,
+  metaByMint,
+  outputTokens,
+}: {
+  account: Account
+  metaByMint: Map<string, TokenMetadata>
+  outputTokens: FimsToken[]
+}) {
   const { t } = useTranslation('fims')
   const network = useNetworkActive()
   const balances = useGetTokenBalances({ address: account.publicKey, network })
@@ -81,49 +88,39 @@ export function FimsUiLimitOrders({ account, outputTokens }: { account: Account;
   return (
     <UiCard title={t(($) => $.limitTitle)}>
       <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>{t(($) => $.swapFrom)}</Label>
-            <Select onValueChange={setInputMint} value={inputMint}>
-              <SelectTrigger>
-                <SelectValue placeholder={t(($) => $.swapFromPlaceholder)} />
-              </SelectTrigger>
-              <SelectContent>
-                {inputBalances.map((token) => (
-                  <SelectItem key={token.mint} value={token.mint}>
-                    {token.metadata?.symbol ?? 'SOL'} — {formatTokenUnits(token.balance, token.decimals)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              inputMode="decimal"
-              onChange={(e) => setSellAmount(e.target.value)}
-              placeholder={t(($) => $.limitSellAmount)}
-              value={sellAmount}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>{t(($) => $.swapTo)}</Label>
-            <Select onValueChange={setOutputMint} value={outputMint}>
-              <SelectTrigger>
-                <SelectValue placeholder={t(($) => $.swapToPlaceholder)} />
-              </SelectTrigger>
-              <SelectContent>
-                {outputTokens.map((token) => (
-                  <SelectItem key={token.address ?? token.symbol} value={token.address ?? ''}>
-                    {token.symbol} — {token.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              inputMode="decimal"
-              onChange={(e) => setReceiveAmount(e.target.value)}
-              placeholder={t(($) => $.limitReceiveAmount)}
-              value={receiveAmount}
-            />
-          </div>
+        <div className="space-y-1">
+          <FimsUiTokenAmountInput
+            amount={sellAmount}
+            balance={inputToken ? formatTokenUnits(inputToken.balance, inputToken.decimals) : null}
+            label={t(($) => $.limitSellAmount)}
+            onAmountChange={setSellAmount}
+            onMax={
+              inputToken ? () => setSellAmount(formatTokenUnits(inputToken.balance, inputToken.decimals)) : undefined
+            }
+            onTokenChange={setInputMint}
+            options={inputBalances.map((token) => ({
+              balance: formatTokenUnits(token.balance, token.decimals),
+              icon: token.metadata?.icon ?? null,
+              symbol: token.metadata?.symbol ?? 'SOL',
+              value: token.mint,
+            }))}
+            tokenPlaceholder={t(($) => $.swapFromPlaceholder)}
+            tokenValue={inputMint}
+          />
+          <FimsUiTokenAmountInput
+            amount={receiveAmount}
+            label={t(($) => $.limitReceiveAmount)}
+            onAmountChange={setReceiveAmount}
+            onTokenChange={setOutputMint}
+            options={outputTokens.map((token) => ({
+              icon: token.address ? (metaByMint.get(token.address)?.icon ?? null) : null,
+              label: token.label,
+              symbol: token.symbol,
+              value: token.address ?? '',
+            }))}
+            tokenPlaceholder={t(($) => $.swapToPlaceholder)}
+            tokenValue={outputMint}
+          />
         </div>
 
         <p className="text-muted-foreground text-xs">

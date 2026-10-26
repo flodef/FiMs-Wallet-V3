@@ -7,7 +7,6 @@ import { useFimsDashboard, useFimsHistoric, useFimsPrices, useFimsTokens } from 
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatPercent } from './fims-format.ts'
 import { computePeriodReturns, computeRealizedAnnualRates, fimsPriceKey } from './fims-performance.ts'
-import { FimsUiConverter } from './fims-ui-converter.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiTokenChart } from './fims-ui-token-chart.tsx'
 
@@ -95,8 +94,6 @@ export function FimsFeatureCommunity() {
       </UiCard>
 
       <FimsUiTokenChart />
-
-      <FimsUiConverter />
     </div>
   )
 }
