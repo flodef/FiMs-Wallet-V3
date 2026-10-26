@@ -210,57 +210,156 @@ function MultisigCreateCard({
     },
   })
 
+  // Step-by-step creation: intro → members → threshold → review, each step
+  // gated on its own validity instead of one dense form.
+  const STEPS = 4
+  const [step, setStep] = useState(0)
+  const stepError = 'error' in parsed ? parsed.error : null
+  const canNext =
+    step === 0 || (step === 1 && stepError !== 'address') || (step === 2 && parsedValid != null) || step === 3
+
+  const stepTitles = [
+    t(($) => $.multisigStepIntroTitle),
+    t(($) => $.multisigStepMembersTitle),
+    t(($) => $.multisigStepThresholdTitle),
+    t(($) => $.multisigStepRecapTitle),
+  ]
+
   return (
     <UiCard title={t(($) => $.multisigCreateTitle)}>
       <form
-        className="space-y-3"
+        className="space-y-4"
         onSubmit={(event: SyntheticEvent) => {
           event.preventDefault()
-          create.mutate()
+          // Enter inside a field acts as "next step"; only the recap submits.
+          if (step === STEPS - 1) create.mutate()
+          else if (canNext) setStep((s) => s + 1)
         }}
       >
-        <div className="space-y-1">
-          <Label htmlFor={idLabel}>{t(($) => $.multisigLabel)}</Label>
-          <Input id={idLabel} onChange={(event) => setLabel(event.target.value)} value={label} />
+        <div className="flex items-center justify-between">
+          <p className="font-medium text-sm">{stepTitles[step]}</p>
+          <p className="text-muted-foreground text-xs">
+            {t(($) => $.multisigStepCount, { current: step + 1, total: STEPS })}
+          </p>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor={idMembers}>{t(($) => $.multisigMembers)}</Label>
-          <Input
-            id={idMembers}
-            onChange={(event) => setMembersInput(event.target.value)}
-            placeholder={t(($) => $.multisigMembersHint)}
-            value={membersInput}
-          />
+        <div className="flex gap-1.5">
+          {stepTitles.map((title, i) => (
+            <span className={`h-1 flex-1 rounded-full ${i <= step ? 'bg-primary' : 'bg-muted'}`} key={title} />
+          ))}
         </div>
-        <div className="space-y-1">
-          <Label htmlFor={idThreshold}>{t(($) => $.multisigThreshold)}</Label>
-          <Input
-            id={idThreshold}
-            min={1}
-            onChange={(event) => setThreshold(event.target.value)}
-            type="number"
-            value={threshold}
-          />
+
+        {step === 0 ? (
+          <div className="space-y-2">
+            <p className="text-muted-foreground text-sm">{t(($) => $.multisigStepIntroBody)}</p>
+            <p className="text-muted-foreground text-xs">{t(($) => $.multisigSelfIncluded)}</p>
+          </div>
+        ) : null}
+
+        {step === 1 ? (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor={idLabel}>{t(($) => $.multisigLabel)}</Label>
+              <Input id={idLabel} onChange={(event) => setLabel(event.target.value)} value={label} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={idMembers}>{t(($) => $.multisigMembers)}</Label>
+              <Input
+                id={idMembers}
+                onChange={(event) => setMembersInput(event.target.value)}
+                placeholder={t(($) => $.multisigMembersHint)}
+                value={membersInput}
+              />
+              {stepError === 'address' ? (
+                <p className="text-destructive text-xs">{t(($) => $.multisigInvalidAddress)}</p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {step === 2 ? (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor={idThreshold}>{t(($) => $.multisigThreshold)}</Label>
+              <Input
+                id={idThreshold}
+                min={1}
+                onChange={(event) => setThreshold(event.target.value)}
+                type="number"
+                value={threshold}
+              />
+            </div>
+            <p className={parsedValid ? 'text-muted-foreground text-xs' : 'text-destructive text-xs'}>
+              {parsedValid
+                ? t(($) => $.multisigStepThresholdHint, {
+                    members: parsedValid.members.length,
+                    threshold: parsedValid.threshold,
+                  })
+                : t(($) => $.multisigInvalidThreshold)}
+            </p>
+          </div>
+        ) : null}
+
+        {step === 3 ? (
+          <div className="space-y-3">
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t(($) => $.multisigLabel)}</span>
+                <span>{label || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t(($) => $.multisigMembers)}</span>
+                <span>{parsedValid?.members.length ?? '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t(($) => $.multisigThreshold)}</span>
+                <span>
+                  {parsedValid
+                    ? t(($) => $.multisigStepThresholdHint, {
+                        members: parsedValid.members.length,
+                        threshold: parsedValid.threshold,
+                      })
+                    : '—'}
+                </span>
+              </div>
+            </div>
+            <SquadsCostPreview
+              buildInstructions={() =>
+                buildCreateMultisigInstructions({
+                  createKey: previewCreateKey,
+                  creator: account.publicKey as Address,
+                  members: parsedValid?.members ?? [],
+                  multisigPda: squadsMultisigPda(previewCreateKey.address),
+                  threshold: parsedValid?.threshold ?? 1,
+                  treasury: config.data?.treasury ?? account.publicKey,
+                })
+              }
+              client={client}
+              inputKey={parsedValid && config.data ? `${parsedValid.threshold}:${parsedValid.members.join(',')}` : ''}
+              payer={account.publicKey as Address}
+              protocolFee={config.data?.multisigCreationFee}
+            />
+          </div>
+        ) : null}
+
+        <div className="flex justify-between">
+          <Button
+            disabled={step === 0}
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            type="button"
+            variant="ghost"
+          >
+            {t(($) => $.multisigBack)}
+          </Button>
+          {step < STEPS - 1 ? (
+            <Button disabled={!canNext} onClick={() => setStep((s) => s + 1)} type="button">
+              {t(($) => $.multisigNext)}
+            </Button>
+          ) : (
+            <Button disabled={create.isPending || config.isLoading || !parsedValid} type="submit">
+              {create.isPending ? <UiLoader /> : t(($) => $.multisigCreateButton)}
+            </Button>
+          )}
         </div>
-        <SquadsCostPreview
-          buildInstructions={() =>
-            buildCreateMultisigInstructions({
-              createKey: previewCreateKey,
-              creator: account.publicKey as Address,
-              members: parsedValid?.members ?? [],
-              multisigPda: squadsMultisigPda(previewCreateKey.address),
-              threshold: parsedValid?.threshold ?? 1,
-              treasury: config.data?.treasury ?? account.publicKey,
-            })
-          }
-          client={client}
-          inputKey={parsedValid && config.data ? `${parsedValid.threshold}:${parsedValid.members.join(',')}` : ''}
-          payer={account.publicKey as Address}
-          protocolFee={config.data?.multisigCreationFee}
-        />
-        <Button disabled={create.isPending || config.isLoading || !parsedValid} type="submit">
-          {create.isPending ? <UiLoader /> : t(($) => $.multisigCreateButton)}
-        </Button>
       </form>
     </UiCard>
   )
