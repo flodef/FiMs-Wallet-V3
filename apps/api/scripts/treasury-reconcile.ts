@@ -21,9 +21,12 @@ import { getFimsFeeRate } from '../src/fee-config.js'
 
 // RPC resolution: configured endpoint → Helius (key already in .env) →
 // public endpoint (aggressively rate-limited — last resort only).
+// HELIUS_API_KEY is a comma-separated list (see src/helius.ts) — use the
+// first key, the joined string is not a valid key.
+const heliusKey = process.env['HELIUS_API_KEY']?.split(',')[0]?.trim()
 const RPC_URL =
   process.env['SOLANA_RPC_URL'] ??
-  (process.env['HELIUS_API_KEY'] ? `https://mainnet.helius-rpc.com/?api-key=${process.env['HELIUS_API_KEY']}` : null) ??
+  (heliusKey ? `https://mainnet.helius-rpc.com/?api-key=${heliusKey}` : null) ??
   'https://api.mainnet-beta.solana.com'
 const jlEurcMint = 'GcV9tEj62VncGithz4o4N9x6HWXARxuRgEAYk9zahNA8'
 const jlEurcAta = 'ERW9X2uJYrUsXi2prNmBxruVQFDgeetNYv5MUb5ycjyA' // ATA(treasury, SPL Token, jlEURC)
