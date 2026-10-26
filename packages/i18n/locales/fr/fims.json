@@ -223,6 +223,8 @@
   "noSolDescription": "Ce portefeuille n’a pas de SOL. Il faut un peu de SOL pour payer les frais de réseau lors des envois de tokens.",
   "noSolTitle": "Pas de SOL pour les frais",
   "positionsTitle": "Positions",
+  "profileAddress": "Adresse du wallet",
+  "profileAddressCopied": "Adresse copiée dans le presse-papiers",
   "profileCooldown": "Prochaine modification possible le {{date}}",
   "profileCooldownHint": "Le profil ne peut être modifié qu’une fois par jour.",
   "profileName": "Pseudo affiché",

@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/al
 import { Button } from '@workspace/ui/components/button'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { useMemo } from 'react'
+import { PortfolioMemberHeader } from './data-access/portfolio-member-header.tsx'
 import { usePortfolioPricing } from './data-access/portfolio-pricing.tsx'
 import { useGetTokenBalancesState } from './data-access/use-get-token-balances.ts'
 import { PortfolioUiAccountButtons } from './ui/portfolio-ui-account-buttons.tsx'
@@ -31,6 +32,8 @@ export function PortfolioFeatureTabTokens({ address, network }: { address: Addre
   return (
     <div className="space-y-2 px-2 md:space-y-6 md:px-0">
       {isLoadingWalletInfo ? <PortfolioUiBalanceSkeleton /> : <PortfolioUiBalance balance={totalBalance} />}
+
+      <PortfolioMemberHeader address={address} />
 
       <PortfolioUiAccountButtons />
 

@@ -1,15 +1,22 @@
+import { useAccountActive } from '@workspace/db-react/use-account-active'
 import {
   PortfolioLedgerContext,
   type PortfolioLedgerRow,
   type PortfolioLedgerSourceProps,
 } from '@workspace/feature-portfolio/data-access/portfolio-ledger'
 import {
+  PortfolioMemberHeaderContext,
+  type PortfolioMemberHeaderProps,
+} from '@workspace/feature-portfolio/data-access/portfolio-member-header'
+import {
   type PortfolioPricing,
   PortfolioPricingContext,
 } from '@workspace/feature-portfolio/data-access/portfolio-pricing'
+import { UiCard } from '@workspace/ui/components/ui-card'
 import { type ReactNode, useMemo } from 'react'
-import { useFimsMember, useFimsTokens, useFimsTransactions } from './data-access/use-fims.tsx'
+import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
+import { FimsUiMemberSummary } from './fims-ui-member-summary.tsx'
 
 // Feeds the portfolio with the protocol's own prices (the `tokens` table,
 // EUR per unit) and the user's display currency: FiMs, FLiP and FiMsSOL have
@@ -73,4 +80,26 @@ function FimsLedgerSource({ address, children, enabled, signer }: PortfolioLedge
 
 export function FimsPortfolioLedgerProvider({ children }: { children: ReactNode }) {
   return <PortfolioLedgerContext.Provider value={FimsLedgerSource}>{children}</PortfolioLedgerContext.Provider>
+}
+
+// Member summary tile injected at the top of the portfolio tokens tab: the
+// member's invested / current value / P&L, shown only for member accounts.
+function FimsMemberHeaderSource({ address }: PortfolioMemberHeaderProps) {
+  const account = useAccountActive()
+  const { member } = useFimsMember(address, account)
+  const historic = useFimsUserHistoric(member?.id, account)
+  if (!member || !historic.data?.length) return null
+  return (
+    <UiCard title={member.name}>
+      <FimsUiMemberSummary historic={historic.data} />
+    </UiCard>
+  )
+}
+
+export function FimsPortfolioMemberHeaderProvider({ children }: { children: ReactNode }) {
+  return (
+    <PortfolioMemberHeaderContext.Provider value={FimsMemberHeaderSource}>
+      {children}
+    </PortfolioMemberHeaderContext.Provider>
+  )
 }

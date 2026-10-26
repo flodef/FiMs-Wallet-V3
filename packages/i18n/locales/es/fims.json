@@ -223,6 +223,8 @@
   "noSolDescription": "Este monedero no tiene SOL. Necesitas una pequeña cantidad de SOL para pagar las comisiones de red al enviar tokens.",
   "noSolTitle": "Sin SOL para comisiones",
   "positionsTitle": "Posiciones",
+  "profileAddress": "Dirección del wallet",
+  "profileAddressCopied": "Dirección copiada al portapapeles",
   "profileCooldown": "Próxima modificación posible el {{date}}",
   "profileCooldownHint": "El perfil solo puede modificarse una vez al día.",
   "profileName": "Nombre visible",

@@ -13,6 +13,7 @@ import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
+import { UiTextCopyIcon } from '@workspace/ui/components/ui-text-copy-icon'
 import { useMemo } from 'react'
 import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
@@ -21,7 +22,6 @@ import { useSnsDomain } from './data-access/use-sns-domain.tsx'
 import type { FimsTransaction, FimsTransactionType } from './fims-api.ts'
 import { getFimsTontineRate } from './fims-fee-config.ts'
 import { formatDate, formatPercent } from './fims-format.ts'
-import { annualizedRate } from './fims-performance.ts'
 import { computeFimsPositions } from './fims-positions.ts'
 import { getFimsTransactionType } from './fims-transaction-type.ts'
 import { groupFimsTransactions } from './fims-tx-groups.ts'
@@ -29,8 +29,8 @@ import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiMemberClaim } from './fims-ui-member-claim.tsx'
+import { FimsUiMemberSummary } from './fims-ui-member-summary.tsx'
 import { FimsUiProfileEdit } from './fims-ui-profile-edit.tsx'
-import { FimsUiRatioBadges } from './fims-ui-ratio-badges.tsx'
 import { FimsUiRebalance } from './fims-ui-rebalance.tsx'
 
 export function FimsFeatureMember({ account }: { account: Account }) {
@@ -59,22 +59,6 @@ export function FimsFeatureMember({ account }: { account: Account }) {
     return <FimsUiMemberClaim account={account} />
   }
 
-  const latest = historic.data?.at(-1)
-  const previous = historic.data?.at(-2)
-  const first = historic.data?.at(0)
-  const pnl = latest?.total != null ? latest.total - latest.invested : null
-  const pnlRatio = latest && latest.invested > 0 && pnl != null ? pnl / latest.invested : null
-  const dayRatio =
-    latest?.total != null && previous?.total != null && previous.total > 0
-      ? (latest.total - previous.total) / previous.total
-      : null
-  // Realized rate: what the position actually earned, annualized over the
-  // real holding period — unlike a projected current rate. The whole invested
-  // amount is treated as held since the first historic entry.
-  const realRate =
-    first && latest
-      ? annualizedRate({ date: first.date, value: latest.invested }, { date: latest.date, value: latest.total ?? 0 })
-      : undefined
   return (
     <div className="space-y-4">
       <PortfolioUiAccountButtons />
@@ -89,31 +73,11 @@ export function FimsFeatureMember({ account }: { account: Account }) {
         }
         title={member.name}
       >
-        <p className="mb-3 font-mono text-muted-foreground text-xs" title={address}>
+        <p className="mb-3 flex items-center gap-1 break-all font-mono text-muted-foreground text-xs" title={address}>
           {snsDomain.data ?? address}
+          <UiTextCopyIcon text={address} toast={t(($) => $.profileAddressCopied)} />
         </p>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <div className="text-muted-foreground text-xs">{t(($) => $.labelInvested)}</div>
-            <div className="font-semibold">{latest ? format(latest.invested) : '—'}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground text-xs">{t(($) => $.labelCurrentValue)}</div>
-            <div className="font-semibold">{latest?.total != null ? format(latest.total) : '—'}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground text-xs">{t(($) => $.labelPnl)}</div>
-            <div className={pnl != null && pnl < 0 ? 'font-semibold text-red-500' : 'font-semibold text-green-500'}>
-              {pnl != null ? format(pnl) : '—'}
-            </div>
-            <FimsUiRatioBadges dayRatio={dayRatio} pnlRatio={pnlRatio} />
-            {realRate != null ? (
-              <div className="text-muted-foreground text-xs">
-                {t(($) => $.labelRealRate)}: {formatPercent(realRate)}
-              </div>
-            ) : null}
-          </div>
-        </div>
+        <FimsUiMemberSummary historic={historic.data ?? []} />
       </UiCard>
 
       {positions.length ? (

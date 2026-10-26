@@ -6,6 +6,7 @@ import { Label } from '@workspace/ui/components/label'
 import { Switch } from '@workspace/ui/components/switch'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
+import { UiTextCopyIcon } from '@workspace/ui/components/ui-text-copy-icon'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { useState } from 'react'
@@ -48,6 +49,13 @@ export function FimsUiProfileEdit({ account, member }: { account: Account; membe
   return (
     <UiCard title={t(($) => $.profileTitle)}>
       <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>{t(($) => $.profileAddress)}</Label>
+          <div className="flex items-center gap-2">
+            <span className="break-all font-mono text-muted-foreground text-xs">{account.publicKey}</span>
+            <UiTextCopyIcon text={account.publicKey} toast={t(($) => $.profileAddressCopied)} />
+          </div>
+        </div>
         <div className="space-y-2">
           <Label>{t(($) => $.profileName)}</Label>
           <Input disabled={coolingDown || !canEdit} onChange={(e) => setName(e.target.value)} value={name} />

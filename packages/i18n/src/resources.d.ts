@@ -288,6 +288,8 @@ export default interface Resources {
     noSolDescription: 'This wallet has no SOL. You need a small amount of SOL to pay network fees when sending tokens.'
     noSolTitle: 'No SOL for fees'
     positionsTitle: 'Positions'
+    profileAddress: 'Wallet address'
+    profileAddressCopied: 'Address copied to clipboard'
     profileCooldown: 'Next edit available on {{date}}'
     profileCooldownHint: 'The profile can only be edited once a day.'
     profileName: 'Display name'

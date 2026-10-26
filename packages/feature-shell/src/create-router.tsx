@@ -7,6 +7,7 @@ import { queryClient } from '@workspace/db-react/query-client'
 import { getEntrypoint } from '@workspace/env/get-entrypoint'
 import {
   FimsPortfolioLedgerProvider,
+  FimsPortfolioMemberHeaderProvider,
   FimsPortfolioPricingProvider,
 } from '@workspace/feature-fims/fims-portfolio-pricing-provider'
 import { DemoTour } from '@workspace/feature-onboarding/demo/demo-tour'
@@ -48,8 +49,10 @@ export function createRouter(ctx: AppContext) {
       element: (
         <FimsPortfolioLedgerProvider>
           <FimsPortfolioPricingProvider>
-            <Outlet />
-            <DemoTour />
+            <FimsPortfolioMemberHeaderProvider>
+              <Outlet />
+              <DemoTour />
+            </FimsPortfolioMemberHeaderProvider>
           </FimsPortfolioPricingProvider>
         </FimsPortfolioLedgerProvider>
       ),
