@@ -4,7 +4,7 @@ import { UiIcon } from '@workspace/ui/components/ui-icon'
 import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
 import { getFimsFeeRate, getFimsTontineRate } from './fims-fee-config.ts'
 
-type LearnEntry = { body: string; href?: string; term: string }
+type LearnEntry = { body: string; href?: string; sponsored?: boolean; term: string }
 type LearnSection = { description: string; entries: LearnEntry[]; icon: UiIconName; title: string }
 
 // Educational page: explains the figures shown in the app, the crypto basics
@@ -71,29 +71,28 @@ export function FimsFeatureLearn() {
       description: t(($) => $.learnServicesDesc),
       entries: [
         {
-          body: t(($) => $.learnMultisigBody),
-          href: 'https://squads.xyz',
-          term: t(($) => $.learnMultisigTerm),
+          body: t(($) => $.learnJupiterBody),
+          href: 'https://jupiter.go.link/fAUD1',
+          sponsored: true,
+          term: t(($) => $.learnJupiterTerm),
         },
         {
           body: t(($) => $.learnCoinbaseBody),
           href: 'https://coinbase.com/join/TVFNWB5?src=android-link',
+          sponsored: true,
           term: t(($) => $.learnCoinbaseTerm),
         },
         {
           body: t(($) => $.learnNexoBody),
-          href: 'https://nexo.com',
+          href: 'https://nexo.com/ref/wgbxwj7bli?src=web-link',
+          sponsored: true,
           term: t(($) => $.learnNexoTerm),
         },
         {
-          body: t(($) => $.learnBitpandaBody),
-          href: 'https://www.bitpanda.com',
-          term: t(($) => $.learnBitpandaTerm),
-        },
-        {
-          body: t(($) => $.learnJupiterBody),
-          href: 'https://jupiter.go.link/fAUD1',
-          term: t(($) => $.learnJupiterTerm),
+          body: t(($) => $.learnMultisigBody),
+          href: 'https://squads.xyz',
+          sponsored: false,
+          term: t(($) => $.learnMultisigTerm),
         },
       ],
       icon: 'tools',
@@ -119,7 +118,12 @@ export function FimsFeatureLearn() {
               <div key={entry.term}>
                 <dt className="font-medium text-sm">
                   {entry.href ? (
-                    <a className="text-primary underline" href={entry.href} rel="noreferrer" target="_blank">
+                    <a
+                      className="text-primary underline"
+                      href={entry.href}
+                      rel={entry.sponsored ? 'sponsored noreferrer' : 'noreferrer'}
+                      target="_blank"
+                    >
                       {entry.term}
                     </a>
                   ) : (
