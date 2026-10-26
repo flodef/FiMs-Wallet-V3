@@ -18,7 +18,7 @@ import {
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { toastError } from '@workspace/ui/lib/toast-error'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
+import { useFimsStrategyState, useFimsStrategySwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import { FIMS_FSOL_MINT, FIMS_SOL_GAS_RESERVE } from './fims-constants.ts'
 import { getFimsPlatformFeeBps } from './fims-fee-config.ts'
 import { solExcessAboveReserve } from './fims-gas.ts'
@@ -35,38 +35,55 @@ export function FimsFeatureSolExcess() {
   const network = useNetworkActive()
   const queryClient = useQueryClient()
   const balances = useGetTokenBalances({ address: account.publicKey, network })
-  const swap = useFimsSwap({ account, network })
 
   const solBalance = useMemo(() => balances.find((b) => b.mint === NATIVE_MINT)?.balance ?? 0n, [balances])
   const excess = solExcessAboveReserve(solBalance)
+
+  // Share tokens (FSOL…) are issued by the strategy vault, not bought on a
+  // market: Jupiter has no route for them. The conversion means swapping the
+  // SOL into the strategy's collateral mint, then a program `deposit` in the
+  // same transaction — the same route the swap page takes. No deployed
+  // strategy, no proposal: the tile stays silent instead of erroring.
+  const strategyState = useFimsStrategyState({ network })
+  const strategyIndex = useMemo(
+    () => (strategyState.data?.strategies ?? []).findIndex((s) => s.shareMint === FIMS_FSOL_MINT),
+    [strategyState.data],
+  )
+  const strategy = strategyIndex >= 0 ? strategyState.data?.strategies[strategyIndex] : null
+  const swap = useFimsStrategySwap({ account, network })
 
   const [open, setOpen] = useState(false)
   const prompted = useRef(false)
   useEffect(() => {
     // Only propose a meaningful excess (above ~10% of the reserve) and only
     // once per session — the user can always convert manually later.
-    if (!prompted.current && excess > FIMS_SOL_GAS_RESERVE / 10n && account.type !== 'Watched') {
+    if (!prompted.current && excess > FIMS_SOL_GAS_RESERVE / 10n && account.type !== 'Watched' && strategy) {
       prompted.current = true
       setOpen(true)
     }
-  }, [excess, account.type])
+  }, [excess, account.type, strategy])
 
   const quote = useJupiterQuote({
     account,
     amount: excess,
-    inputMint: open ? NATIVE_MINT : undefined,
+    inputMint: open && strategy ? NATIVE_MINT : undefined,
     network,
-    outputMint: FIMS_FSOL_MINT,
+    outputMint: strategy?.collateralMint,
     platformFeeBps: getFimsPlatformFeeBps(),
   })
   const [signature, setSignature] = useState('')
 
   const handleConvert = async () => {
-    if (!quote.data) {
+    if (!quote.data || !strategyState.data) {
       return
     }
     try {
-      const sig = await swap.mutateAsync({ feeMint: FIMS_FSOL_MINT as Address, quote: quote.data })
+      const sig = await swap.mutateAsync({
+        feeMint: FIMS_FSOL_MINT as Address,
+        quote: quote.data,
+        state: strategyState.data,
+        strategyIndex,
+      })
       setSignature(sig)
       await queryClient.invalidateQueries()
       setOpen(false)
