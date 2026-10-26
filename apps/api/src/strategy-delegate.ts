@@ -734,6 +734,19 @@ export async function strategyHealth(db: Db): Promise<StrategyHealth> {
     issues.push(`user_historic stale: last ${latestHistoric?.date.toISOString().slice(0, 10) ?? 'never'}`)
   }
 
+  // Jupiter quote probe: a retired swap endpoint used to break every
+  // conversion silently (the /swap/v2/build 404). One unauthenticated quote
+  // ping is the canary — the monitor sees it before members do.
+  try {
+    const quote = await fetch(
+      'https://api.jup.ag/swap/v2/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=1000000&slippageBps=50',
+      { signal: AbortSignal.timeout(10_000) },
+    )
+    if (!quote.ok) issues.push(`jupiter quote failed: HTTP ${quote.status}`)
+  } catch (error) {
+    issues.push(`jupiter quote unreachable: ${error instanceof Error ? error.message : error}`)
+  }
+
   return {
     delegate,
     delegateLamports,
