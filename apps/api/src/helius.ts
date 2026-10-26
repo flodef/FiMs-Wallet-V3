@@ -301,3 +301,50 @@ export async function fetchHeliusAssets(keys: string[], address: string): Promis
   }
   return assets
 }
+
+// ─── Webhook watch list ────────────────────────────────────────────────────
+// Helius has no "add address" endpoint — updating watches means rewriting
+// the whole config. We find our webhook by URL, keep every existing field
+// (auth header included) and PUT the full address list back: protocol
+// constants + every member canonical address and alias. Called after a
+// member links/unlinks a wallet; best-effort — a failed sync logs but never
+// blocks the request.
+import { userAddresses, users } from './db/schema.js'
+import type { Db } from './db/service.js'
+import { FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS } from './fims-constants.js'
+
+const HELIUS_API_BASE = 'https://api.helius.xyz/v0'
+const DEFAULT_WEBHOOK_URL = 'https://wallet-v3.fims.fi/api/fims/chain/webhook'
+
+export async function syncChainWebhookAddresses(
+  db: Db,
+  env: Record<string, string | undefined> = process.env,
+): Promise<{ webhook: string; watched: number } | null> {
+  const keys = heliusApiKeys(env)
+  const webhookUrl = env['HELIUS_WEBHOOK_URL']?.trim() || DEFAULT_WEBHOOK_URL
+  const key = keys[0]
+  if (!key) return null
+  const base = `${HELIUS_API_BASE}/webhooks?api-key=${key}`
+
+  const list = (await (await fetch(base)).json()) as { authHeader?: string; webhookID: string; webhookURL: string }[]
+  const mine = list.find((w) => w.webhookURL === webhookUrl)
+  if (!mine) throw new Error(`no Helius webhook points at ${webhookUrl}`)
+
+  const canonical = (await db.select({ address: users.address }).from(users)).map((r) => r.address)
+  const aliases = (await db.select({ address: userAddresses.address }).from(userAddresses)).map((r) => r.address)
+  const addresses = [...new Set([FIMS_TREASURY_ADDRESS, FIMS_TONTINE_ADDRESS, ...canonical, ...aliases])]
+
+  const res = await fetch(`${HELIUS_API_BASE}/webhooks/${mine.webhookID}?api-key=${key}`, {
+    body: JSON.stringify({
+      accountAddresses: addresses,
+      authHeader: mine.authHeader,
+      transactionTypes: ['Any'],
+      webhookType: 'enhanced',
+      webhookURL: webhookUrl,
+    }),
+    headers: { 'content-type': 'application/json' },
+    method: 'PUT',
+  })
+  if (!res.ok) throw new Error(`helius webhook update: HTTP ${res.status}`)
+  return { watched: addresses.length, webhook: mine.webhookID }
+}

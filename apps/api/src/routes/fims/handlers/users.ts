@@ -3,6 +3,7 @@ import { and, asc, eq, getTableColumns, ilike, sql } from 'drizzle-orm'
 import { Effect, Option, type Schema } from 'effect'
 import { userAddresses, users } from '../../../db/schema.js'
 import { withDb } from '../../../db/service.js'
+import { syncChainWebhookAddresses } from '../../../helius.js'
 import {
   AuthForbidden,
   isAdminAddress,
@@ -270,6 +271,11 @@ export const handleAddUserAddress = ({
     const created = rows[0]
     if (!created) return yield* Effect.fail(insertFailed())
     yield* auditAdmin(signer, 'link_user_address', `${path.id}/${payload.address}`, payload)
+    // Best-effort: keep the Helius webhook watching every member wallet —
+    // a failed sync logs but never rolls back the link.
+    yield* withDb((db) => syncChainWebhookAddresses(db)).pipe(
+      Effect.catchAll((error) => Effect.logWarning('chain webhook sync failed', error)),
+    )
     return created
   })
 
@@ -287,5 +293,8 @@ export const handleRemoveUserAddress = ({ path }: { path: { address: string; id:
     )
     if (!rows[0]) return yield* Effect.fail(notFound(`linked address ${path.address}`))
     yield* auditAdmin(signer, 'unlink_user_address', `${path.id}/${path.address}`)
+    yield* withDb((db) => syncChainWebhookAddresses(db)).pipe(
+      Effect.catchAll((error) => Effect.logWarning('chain webhook sync failed', error)),
+    )
     return `unlinked address ${path.address} from user ${path.id}`
   })

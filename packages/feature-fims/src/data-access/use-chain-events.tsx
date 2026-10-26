@@ -21,6 +21,9 @@ export function useChainEvents() {
   useEffect(() => {
     let cancelled = false
     const tick = async () => {
+      // A background tab polls nothing: 24h parked would burn 1.9k requests a
+      // day for zero benefit. Visibility change fires a catch-up tick anyway.
+      if (document.visibilityState === 'hidden') return
       try {
         const res = await fetch(`${endpoint}/chain/events?after=${cursor.current}`, {
           signal: AbortSignal.timeout(15_000),
@@ -42,9 +45,11 @@ export function useChainEvents() {
     }
     void tick()
     const timer = setInterval(tick, POLL_MS)
+    document.addEventListener('visibilitychange', tick)
     return () => {
       cancelled = true
       clearInterval(timer)
+      document.removeEventListener('visibilitychange', tick)
     }
   }, [endpoint, queryClient])
 }
