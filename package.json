@@ -74,7 +74,7 @@
     "@cspell/dict-fr-fr": "2.3.2",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
-    "bundlemon": "3.1.0",
+    "bundlemon": "3.2.0",
     "cspell": "10.0.0",
     "drizzle-kit": "catalog:",
     "editorconfig-checker": "7.0.0",
