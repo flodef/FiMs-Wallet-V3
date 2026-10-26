@@ -34,8 +34,8 @@ import {
   type TransactionSigner,
 } from '@solana/kit'
 import { fetchMint, getCreateAssociatedTokenIdempotentInstruction } from '@solana-program/token'
-import { and, eq, isNotNull, sql } from 'drizzle-orm'
-import { keeperLocks, strategyOps } from './db/schema.js'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
+import { keeperLocks, prices, strategyOps, userHistoric } from './db/schema.js'
 import type { Db } from './db/service.js'
 import { envInt } from './env.js'
 import { createBackendSigner } from './signer.js'
@@ -716,6 +716,23 @@ export async function strategyHealth(db: Db): Promise<StrategyHealth> {
 
   const failedOps = await db.query.strategyOps.findMany({ where: eq(strategyOps.status, 'failed') })
   if (failedOps.length > 0) issues.push(`${failedOps.length} failed op(s)`)
+
+  // Data freshness: the community page and member P&L read `prices` and
+  // `user_historic` — a silent ingest failure used to freeze them for weeks.
+  // Both are fed ~daily (price sync twice a day, historic once); anything
+  // older than two days means the feed is broken, not just late.
+  const FRESHNESS_MS = 2 * 24 * 60 * 60 * 1000
+  const now = Date.now()
+  const [latestPrice, latestHistoric] = await Promise.all([
+    db.query.prices.findFirst({ orderBy: desc(prices.date) }),
+    db.query.userHistoric.findFirst({ orderBy: desc(userHistoric.date) }),
+  ])
+  if (!latestPrice || now - latestPrice.date.getTime() > FRESHNESS_MS) {
+    issues.push(`prices stale: last ${latestPrice?.date.toISOString().slice(0, 10) ?? 'never'}`)
+  }
+  if (!latestHistoric || now - latestHistoric.date.getTime() > FRESHNESS_MS) {
+    issues.push(`user_historic stale: last ${latestHistoric?.date.toISOString().slice(0, 10) ?? 'never'}`)
+  }
 
   return {
     delegate,

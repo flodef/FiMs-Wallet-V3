@@ -87,5 +87,21 @@ describe('locales', () => {
         expect(missing, `${locale}: ${missing.join(', ')}`).toHaveLength(0)
       }
     })
+
+    it('should mention Jupiter only in learn/help keys of the fims namespace', () => {
+      // ARRANGE — members should not need to know the swap backend: the name
+      // is welcome in the Learn page and the card top-up guide, nowhere else.
+      expect.assertions(locales.length)
+      const allowed = /^(learn|sendDestGuide)/
+
+      // ACT & ASSERT
+      for (const locale of locales) {
+        const fims = load(locale)['fims']
+        const bad = Object.entries(fims)
+          .filter(([key, value]) => !allowed.test(key) && /jupiter|jup\.ag/i.test(value))
+          .map(([key]) => key)
+        expect(bad, `${locale}: ${bad.join(', ')}`).toHaveLength(0)
+      }
+    })
   })
 })
