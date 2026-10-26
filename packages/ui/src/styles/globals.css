@@ -150,3 +150,65 @@
       radial-gradient(ellipse 60% 40% at 90% 100%, oklch(0.3 0.15 300 / 0.25), transparent);
   }
 }
+
+/* FiMs loading dots (ported from the v1 wallet): the middle dots slide
+  right while the end dots grow/shrink back — a continuous conveyor. */
+@keyframes ui-loader-move {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(45px);
+  }
+}
+@keyframes ui-loader-grow {
+  from {
+    transform: scale(0, 0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1, 1);
+    opacity: 1;
+  }
+}
+.ui-loader-track {
+  position: relative;
+  display: flex;
+  width: 7rem;
+  height: 1rem;
+}
+.ui-loader-track-inline {
+  transform: scale(0.35);
+}
+.ui-loader-dot {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 30px;
+  background: var(--primary);
+  border-radius: 9999px;
+}
+.ui-loader-move {
+  animation: ui-loader-move 500ms linear infinite;
+}
+.ui-loader-grow,
+.ui-loader-grow-reverse {
+  position: absolute;
+  top: 0;
+  margin-right: 0;
+  animation: ui-loader-grow 500ms linear infinite;
+}
+.ui-loader-grow {
+  left: 0;
+}
+.ui-loader-grow-reverse {
+  right: 0;
+  animation-direction: reverse;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-loader-move,
+  .ui-loader-grow,
+  .ui-loader-grow-reverse {
+    opacity: 0.6;
+    animation: none;
+  }
+}
