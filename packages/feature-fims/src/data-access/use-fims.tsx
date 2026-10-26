@@ -23,6 +23,7 @@ import type {
 } from '../fims-api.ts'
 import {
   FimsApiError,
+  fimsBallotMessage,
   fimsGet,
   fimsGetAll,
   fimsLinkAddressMessage,
@@ -228,9 +229,26 @@ export function useFimsRecordDonation(account: Account) {
 
 export function useFimsCastBallot(account: Account, voteId: number) {
   const signedFetch = useFimsSignedFetch(account)
+  const messageSigner = useAccountMessageSigner()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (optionId: number) => signedFetch<FimsVote>('POST', `/votes/${voteId}/ballot`, { optionId }),
+    // Every ballot is a signed message: free for the member, non-replayable
+    // for the community — the API verifies it against the canonical text.
+    mutationFn: async (optionId: number) => {
+      const ts = Date.now()
+      const nonce = crypto.randomUUID()
+      const signed = await fimsSignContent(
+        await messageSigner(account),
+        fimsBallotMessage(voteId, optionId, account.publicKey, ts, nonce),
+      )
+      return signedFetch<FimsVote>('POST', `/votes/${voteId}/ballot`, {
+        nonce,
+        optionId,
+        signature: signed.signature,
+        signedMessage: signed.signedMessage,
+        ts,
+      })
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'votes'] }),
   })
 }

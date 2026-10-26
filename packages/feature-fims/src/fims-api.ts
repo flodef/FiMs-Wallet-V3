@@ -287,6 +287,12 @@ export async function fimsSignedGetAll<T>(
 export const fimsLinkAddressMessage = (userId: number, address: string) =>
   new TextEncoder().encode(`fims-wallet-v3\nlink-address\n${userId}\n${address}`)
 
+// Canonical ballot message (must match the server-side builder in
+// routes/fims/helpers.ts): each vote is a free ed25519-signed message the
+// API verifies and stores — non-replayable without an on-chain cost.
+export const fimsBallotMessage = (voteId: number, optionId: number, address: string, ts: number, nonce: string) =>
+  new TextEncoder().encode(`fims-wallet-v3\nvote\n${voteId}\n${optionId}\n${address}\n${ts}\n${nonce}`)
+
 // Sign `content` for API auth: returns the base64 signature plus — only when
 // the wallet modified the bytes (wallet-standard signMessage may prepend its
 // own preamble) — the base64 signedMessage the signature actually covers.

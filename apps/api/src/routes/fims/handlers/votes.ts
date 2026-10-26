@@ -1,7 +1,7 @@
 import { HttpServerRequest } from '@effect/platform'
 import { and, eq, sql } from 'drizzle-orm'
 import { Effect, Option, type Schema } from 'effect'
-import { fimsSettings, voteBallots, voteOptions, votes } from '../../../db/schema.js'
+import { fimsSettings, usedSignatures, voteBallots, voteOptions, votes } from '../../../db/schema.js'
 import { withDb, withTransaction } from '../../../db/service.js'
 import {
   AuthForbidden,
@@ -9,6 +9,7 @@ import {
   optionalWalletRequest,
   requireAdmin,
   requireNotDemo,
+  verifyAddressSignature,
   verifyWalletRequest,
 } from '../../../services/auth/service.js'
 import { ballotChangeRetryAt } from '../../../vote-ballot-rules.js'
@@ -21,6 +22,8 @@ import {
 } from '../api.js'
 import {
   auditAdmin,
+  BALLOT_SIGNATURE_MAX_AGE_MS,
+  ballotMessage,
   insertFailed,
   loadFimsConfig,
   loadVotesWithResults,
@@ -129,11 +132,28 @@ export const handleCastBallot = ({
     )
     if (!optionRows.some((o) => o.id === payload.optionId))
       return yield* Effect.fail(new BadRequest({ reason: `option ${payload.optionId} is not part of this vote` }))
+    // The ballot itself is a signed message — verified against the member's
+    // address over the canonical text (the server rebuilds it; client text
+    // is never trusted). Freshness bounds the replay window even before the
+    // used_signatures claim below.
+    if (Math.abs(Date.now() - payload.ts) > BALLOT_SIGNATURE_MAX_AGE_MS)
+      return yield* Effect.fail(new BadRequest({ reason: 'ballot signature expired' }))
+    const canonical = ballotMessage(path.id, payload.optionId, signer, payload.ts, payload.nonce)
+    if (!verifyAddressSignature(signer, canonical, payload.signature, payload.signedMessage))
+      return yield* Effect.fail(new BadRequest({ reason: 'invalid ballot signature' }))
     // A decision can be changed once per 24 h — re-selecting the same
     // option is a no-op, not a change. The member lock serializes
     // concurrent casts so the cooldown cannot be double-passed.
     const ballotOutcome = yield* withTransaction(async (tx) => {
       await tx.execute(sql`SELECT id FROM users WHERE id = ${member.id} FOR UPDATE`)
+      // Replay guard: one signature casts once, and the claim doubles as the
+      // audit record of who signed what.
+      const claim = await tx
+        .insert(usedSignatures)
+        .values({ signature: `vote:${payload.signature}` })
+        .onConflictDoNothing()
+        .returning()
+      if (!claim.length) return { replay: true } as const
       const existingBallots = await tx
         .select({ optionId: voteBallots.optionId, updatedAt: voteBallots.updatedAt })
         .from(voteBallots)
@@ -149,6 +169,8 @@ export const handleCastBallot = ({
         })
       return { cast: true } as const
     })
+    if ('replay' in ballotOutcome)
+      return yield* Effect.fail(new BadRequest({ reason: 'ballot signature already used' }))
     if ('retryAt' in ballotOutcome) {
       return yield* Effect.fail(
         new BadRequest({

@@ -382,8 +382,16 @@ export const UpdateVoteBody = Schema.Struct({
   status: VoteStatus,
 })
 
+// Ballot cast: the member signs `fims-wallet-v3\nvote\n{voteId}\n{optionId}\n
+// {address}\n{ts}\n{nonce}` — a free message (no on-chain tx) verified
+// server-side and replay-protected via used_signatures. `signedMessage`
+// carries the exact bytes when the wallet wrapped them (see canonicalWithin).
 export const CastBallotBody = Schema.Struct({
+  nonce: Schema.String.pipe(Schema.minLength(8), Schema.maxLength(64)),
   optionId: Schema.Number,
+  signature: Schema.String,
+  signedMessage: Schema.optional(Schema.String),
+  ts: Schema.Number,
 })
 
 export const WrappedTxBody = Schema.Struct({

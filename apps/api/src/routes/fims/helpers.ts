@@ -101,6 +101,16 @@ export const normalizeName = (name: string) => name.normalize('NFKC').replace(/\
 export const linkAddressMessage = (userId: number, address: string) =>
   new TextEncoder().encode(`fims-wallet-v3\nlink-address\n${userId}\n${address}`)
 
+// Canonical ballot message the member signs to cast a vote (must match the
+// client-side builder in fims-api.ts). Binding vote, option, address,
+// timestamp and nonce makes each ballot non-replayable and non-replayable.
+export const ballotMessage = (voteId: number, optionId: number, address: string, ts: number, nonce: string) =>
+  new TextEncoder().encode(`fims-wallet-v3\nvote\n${voteId}\n${optionId}\n${address}\n${ts}\n${nonce}`)
+
+// Ballot signatures stay fresh for a short window — long enough for a wallet
+// prompt, short enough that a captured signature cannot be replayed later.
+export const BALLOT_SIGNATURE_MAX_AGE_MS = 10 * 60 * 1000
+
 // A non-public user's data is only visible to that user (signed) or an admin.
 // Any other signer is just a keypair — same visibility as anonymous.
 // The filter lives in the WHERE clause: filtering after LIMIT/OFFSET would

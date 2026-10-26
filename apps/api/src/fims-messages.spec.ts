@@ -79,5 +79,15 @@ describe('fims-messages', () => {
       expect(CLIENT_FIMS_API).toContain(linkShape)
       expect(`${SERVER_AUTH}${SERVER_HELPERS}`).toContain(linkShape)
     })
+
+    it('should keep the ballot message shape identical on both sides', () => {
+      // ARRANGE
+      expect.assertions(2)
+
+      // ACT & ASSERT
+      const voteShape = `fims-wallet-v3\\nvote\\n${interpolate('voteId')}\\n${interpolate('optionId')}\\n${interpolate('address')}\\n${interpolate('ts')}\\n${interpolate('nonce')}`
+      expect(CLIENT_FIMS_API).toContain(voteShape)
+      expect(`${SERVER_AUTH}${SERVER_HELPERS}`).toContain(voteShape)
+    })
   })
 })

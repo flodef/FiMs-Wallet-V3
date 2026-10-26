@@ -1,6 +1,16 @@
 import type { Account } from '@workspace/db/account/account'
 import { useIsAdmin } from '@workspace/db-react/use-is-admin'
 import { useTranslation } from '@workspace/i18n'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@workspace/ui/components/alert-dialog'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
@@ -84,13 +94,25 @@ function FimsVoteCard({
   const cast = useFimsCastBallot(account, vote.id)
   const update = useFimsVoteUpdate(account, vote.id)
   const isOpen = vote.status === 'open' && (!vote.closesAt || new Date(vote.closesAt).getTime() > Date.now())
+  // Confirm-before-sign: the ballot is a signed message — the member should
+  // see what they are approving before the wallet prompt appears (external
+  // wallet) or the local key signs (FiMs Wallet).
+  const [confirmOption, setConfirmOption] = useState<null | number>(null)
+  // One-change-per-day errors surface as a dialog, not an error toast.
+  const [retryAt, setRetryAt] = useState<Date | null>(null)
+  const external = account.type === 'Connected'
 
   const handleVote = async (optionId: number) => {
     try {
       await cast.mutateAsync(optionId)
       toastSuccess(t(($) => $.votesCasted))
     } catch (error) {
-      toastError(error)
+      const retry = error instanceof Error ? /retry at (\S+)/.exec(error.message)?.[1] : undefined
+      if (retry) {
+        setRetryAt(new Date(retry))
+      } else {
+        toastError(error)
+      }
     }
   }
 
@@ -145,7 +167,7 @@ function FimsVoteCard({
                 } ${isOpen && canSign ? 'cursor-pointer' : 'cursor-default'}`}
                 disabled={!isOpen || !canSign || cast.isPending}
                 key={option.id}
-                onClick={() => isOpen && canSign && handleVote(option.id)}
+                onClick={() => isOpen && canSign && setConfirmOption(option.id)}
                 type="button"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -164,6 +186,45 @@ function FimsVoteCard({
             )
           })}
         </div>
+
+        <AlertDialog onOpenChange={(next) => !next && setConfirmOption(null)} open={confirmOption != null}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t(($) => $.votesConfirmTitle)}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t(($) => $.votesConfirmBody, {
+                  option: vote.options.find((o) => o.id === confirmOption)?.label ?? '',
+                })}{' '}
+                {external ? t(($) => $.votesConfirmSignExternal) : t(($) => $.votesConfirmSignLocal)}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t(($) => $.votesConfirmCancel)}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const optionId = confirmOption
+                  setConfirmOption(null)
+                  if (optionId != null) void handleVote(optionId)
+                }}
+              >
+                {t(($) => $.votesConfirmAction)}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog onOpenChange={(next) => !next && setRetryAt(null)} open={retryAt != null}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t(($) => $.votesRetryTitle)}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t(($) => $.votesRetryBody, { date: retryAt ? formatDateTime(retryAt.toISOString()) : '' })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setRetryAt(null)}>{t(($) => $.votesConfirmCancel)}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {isAdmin ? (
           <div className="flex justify-end gap-2 pt-1">
