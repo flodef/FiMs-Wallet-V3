@@ -132,25 +132,39 @@ async function fetchJupiterBuild({
   taker: string
   transactionVersion: 0 | 1
 }): Promise<JupiterBuild> {
-  const url = new URL(`${JUPITER_API}/swap/v2/build`)
+  // /swap/v2/build is retired: the flow is now GET /swap/v2/quote then POST
+  // /swap/v2/swap-instructions, merged back into the same JupiterBuild shape —
+  // instructions stay raw so we can append ours (tontine carve, deposit).
+  const url = new URL(`${JUPITER_API}/swap/v2/quote`)
   url.searchParams.set('inputMint', inputMint)
   url.searchParams.set('outputMint', outputMint)
   url.searchParams.set('amount', String(amount))
-  url.searchParams.set('taker', taker)
   url.searchParams.set('slippageBps', String(slippageBps))
   url.searchParams.set('transactionVersion', String(transactionVersion))
   if (platformFeeBps && feeAccount) {
     url.searchParams.set('platformFeeBps', String(platformFeeBps))
     url.searchParams.set('feeAccount', feeAccount)
   }
-  if (destinationTokenAccount) {
-    url.searchParams.set('destinationTokenAccount', destinationTokenAccount)
+  const quoteRes = await fetch(url)
+  if (!quoteRes.ok) {
+    throw new Error(`Jupiter quote failed: ${quoteRes.status}`)
   }
-  const res = await fetch(url)
-  if (!res.ok) {
-    throw new Error(`Jupiter build failed: ${res.status}`)
+  const quoteResponse = (await quoteRes.json()) as Record<string, unknown>
+  const swapRes = await fetch(`${JUPITER_API}/swap/v2/swap-instructions`, {
+    body: JSON.stringify({
+      ...(destinationTokenAccount ? { destinationTokenAccount } : {}),
+      ...(platformFeeBps && feeAccount ? { feeAccount } : {}),
+      quoteResponse,
+      taker,
+    }),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  })
+  if (!swapRes.ok) {
+    throw new Error(`Jupiter swap-instructions failed: ${swapRes.status}`)
   }
-  return jupiterBuildSchema.parse(await res.json())
+  const instructions = (await swapRes.json()) as Record<string, unknown>
+  return jupiterBuildSchema.parse({ ...quoteResponse, ...instructions })
 }
 
 export function useJupiterQuote({
