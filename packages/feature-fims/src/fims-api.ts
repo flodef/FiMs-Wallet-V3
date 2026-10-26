@@ -44,6 +44,9 @@ export interface FimsTransaction {
   donationTarget: null | string
   id: number
   movement: number
+  // Dedup key of conversions/rebalance pairs — the credit leg carries
+  // `<id>:credit`. Null on imported/legacy rows.
+  requestId?: null | string | undefined
   signature: null | string
   token: null | string
   type: FimsTransactionType | null
