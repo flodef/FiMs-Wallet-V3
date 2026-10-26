@@ -393,6 +393,7 @@ export default interface Resources {
     tokenChartHint: 'Each token is rebased to 100 at its first recorded price — slopes are comparable. Badges: 1-day / total variation.'
     tokenChartTitle: 'Markets'
     tokensTitle: 'FiMs tokens'
+    tontineDonateAll: 'Give all'
     tontineDonateAmount: 'Amount'
     tontineDonateFreeNote: 'Free donation, whenever you want — no FiMs fee on donations, your gift arrives in full.'
     tontineDonateSubmit: 'Donate to the tontine'

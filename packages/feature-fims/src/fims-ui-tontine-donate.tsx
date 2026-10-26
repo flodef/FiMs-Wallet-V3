@@ -20,8 +20,16 @@ import { toastError } from '@workspace/ui/lib/toast-error'
 import { toastSuccess } from '@workspace/ui/lib/toast-success'
 import { useMemo, useState } from 'react'
 import { useFimsMember, useFimsRecordDonation } from './data-access/use-fims.tsx'
-import { FIMS_TONTINE_ADDRESS } from './fims-constants.ts'
-import { parseTokenUnits } from './fims-units.ts'
+import { FIMS_KNOWN_MINTS, FIMS_TONTINE_ADDRESS } from './fims-constants.ts'
+import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
+
+// FiMs-family tokens first in the donation picker — they are the pot's
+// natural assets (mint order follows the pinned list).
+const PRIORITY_MINTS = [FIMS_KNOWN_MINTS['FiMs'], FIMS_KNOWN_MINTS['FSOL'], FIMS_KNOWN_MINTS['FLiP']] as const
+const priorityOf = (mint: string) => {
+  const index = PRIORITY_MINTS.indexOf(mint as (typeof PRIORITY_MINTS)[number])
+  return index === -1 ? PRIORITY_MINTS.length : index
+}
 
 // Free tontine donation: any member can send any token to the shared pot at
 // any time — the send itself is exempt from the operating fee. After the
@@ -38,7 +46,10 @@ export function FimsUiTontineDonate({ account }: { account: Account }) {
   const [mint, setMint] = useState<string>('')
   const [amount, setAmount] = useState('')
 
-  const available = useMemo(() => balances.filter((item) => item.balance > 0n), [balances])
+  const available = useMemo(
+    () => balances.filter((item) => item.balance > 0n).sort((a, b) => priorityOf(a.mint) - priorityOf(b.mint)),
+    [balances],
+  )
   const selected = available.find((item) => item.mint === mint)
   const canSign = account.type !== 'Watched'
 
@@ -118,7 +129,16 @@ export function FimsUiTontineDonate({ account }: { account: Account }) {
           </div>
           <div className="space-y-2">
             <Label>{t(($) => $.tontineDonateAmount)}</Label>
-            <Input inputMode="decimal" onChange={(e) => setAmount(e.target.value)} placeholder="0.0" value={amount} />
+            <div className="flex gap-2">
+              <Input inputMode="decimal" onChange={(e) => setAmount(e.target.value)} placeholder="0.0" value={amount} />
+              <Button
+                disabled={!selected}
+                onClick={() => selected && setAmount(formatTokenUnits(selected.balance, selected.decimals))}
+                variant="outline"
+              >
+                {t(($) => $.tontineDonateAll)}
+              </Button>
+            </div>
           </div>
         </div>
         <div className="flex justify-end">
