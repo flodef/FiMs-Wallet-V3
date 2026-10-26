@@ -4,7 +4,7 @@
 // balances, which is more reliable than parsed tokenTransfers. The API key(s)
 // stay server-side: clients call /fims/chain/* and never see HELIUS_API_KEY.
 
-const HELIUS_RPC_URL = 'https://mainnet.helius-rpc.com/'
+export const HELIUS_RPC_URL = 'https://mainnet.helius-rpc.com/'
 const LAMPORTS_PER_SOL = 1_000_000_000
 
 // Comma-separated keys: HELIUS_API_KEY="key1,key2". The list is tried in
@@ -14,6 +14,15 @@ export function heliusApiKeys(env: Record<string, string | undefined> = process.
     .split(',')
     .map((key) => key.trim())
     .filter(Boolean)
+}
+
+// Dedicated key for the public /fims/chain/rpc relay — separately rotatable
+// and rate-tracked from the history/assets readers. Falls back to the first
+// shared key so a missing value never silently disables the endpoint.
+export function heliusRpcProxyKey(env: Record<string, string | undefined> = process.env): string {
+  const key = env['HELIUS_RPC_API_KEY']?.trim() || heliusApiKeys(env)[0]
+  if (!key) throw new Error('no Helius key configured')
+  return key
 }
 
 async function heliusRpc<T>(keys: string[], method: string, params: unknown): Promise<T> {

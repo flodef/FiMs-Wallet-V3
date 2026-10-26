@@ -9,12 +9,14 @@ import {
   chainSymbolForMint,
   fetchHeliusAssets,
   fetchHeliusTransactions,
+  HELIUS_RPC_URL,
   heliusApiKeys,
+  heliusRpcProxyKey,
   normalizeGtfaTransaction,
 } from '../../../helius.js'
 import { firstForwardedIp, rateLimitIpHeader } from '../../../rate-limit.js'
 import { AuthForbidden, isAdminAddress, verifyWalletRequest } from '../../../services/auth/service.js'
-import { ChainUnavailable, RateLimited } from '../api.js'
+import { BadRequest, ChainUnavailable, RateLimited } from '../api.js'
 import { addressLinkedToUser } from '../helpers.js'
 
 export const handleChainLabels = () =>
@@ -300,3 +302,111 @@ const heliusKeysOrFail = Effect.gen(function* () {
   if (!keys.length) return yield* Effect.fail(new ChainUnavailable({ reason: 'HELIUS_API_KEY is not configured' }))
   return keys
 })
+
+// ─── Public JSON-RPC relay ─────────────────────────────────────────────────
+// The browser points its Solana client here instead of embedding an API key
+// in the bundle (audit: the /fims/chain/* readers already prove the pattern).
+// Anonymous by design — watched wallets read without signing — so the paid
+// Helius budget is protected by a strict method allowlist plus IP + global
+// quotas. getProgramAccounts stays out: scans are the classic quota-killer.
+const CHAIN_RPC_METHODS = new Set([
+  'getAccountInfo',
+  'getBalance',
+  'getBlock',
+  'getBlockCommitment',
+  'getBlockHeight',
+  'getBlockProduction',
+  'getBlockTime',
+  'getBlocks',
+  'getBlocksWithLimit',
+  'getClusterNodes',
+  'getEpochInfo',
+  'getEpochSchedule',
+  'getFeeForMessage',
+  'getFirstAvailableBlock',
+  'getGenesisHash',
+  'getHealth',
+  'getHighestSnapshotSlot',
+  'getIdentity',
+  'getInflationGovernor',
+  'getInflationRate',
+  'getInflationReward',
+  'getLargestAccounts',
+  'getLatestBlockhash',
+  'getLeaderSchedule',
+  'getMaxRetransmitSlot',
+  'getMaxShredInsertSlot',
+  'getMinimumBalanceForRentExemption',
+  'getMultipleAccounts',
+  'getRecentPerformanceSamples',
+  'getRecentPrioritizationFees',
+  'getSignatureStatuses',
+  'getSignaturesForAddress',
+  'getSlot',
+  'getSlotLeader',
+  'getSlotLeaders',
+  'getStakeActivation',
+  'getStakeMinimumDelegation',
+  'getSupply',
+  'getTokenAccountBalance',
+  'getTokenAccountsByDelegate',
+  'getTokenAccountsByOwner',
+  'getTokenLargestAccounts',
+  'getTokenSupply',
+  'getTransaction',
+  'getTransactionCount',
+  'getVersion',
+  'getVoteAccounts',
+  'isBlockhashValid',
+  'minimumLedgerSlot',
+  'simulateTransaction',
+  'sendTransaction',
+  'getAsset',
+  'getAssetProof',
+  'getAssets',
+  'getAssetsByOwner',
+])
+const CHAIN_RPC_BATCH_MAX = 20
+const CHAIN_RPC_TIMEOUT_MS = 25_000
+
+const isRpcCall = (call: unknown): call is { id?: unknown; method: string; params?: unknown } =>
+  typeof call === 'object' &&
+  call !== null &&
+  typeof (call as { method?: unknown }).method === 'string' &&
+  CHAIN_RPC_METHODS.has((call as { method: string }).method)
+
+export const handleChainRpc = ({ payload }: { payload: unknown }) =>
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest
+    const quotas = chainQuotas()
+    const [byIp, global] = yield* Effect.all(
+      [bumpBucket(`chain:rpc:ip:${chainClientIp(request)}`), bumpBucket('chain:global')],
+      { concurrency: 'unbounded' },
+    )
+    if (byIp > quotas.ip || global > quotas.global) {
+      return yield* Effect.fail(new RateLimited({ reason: 'chain read quota exceeded — retry in a few minutes' }))
+    }
+
+    const calls = Array.isArray(payload) ? payload : [payload]
+    if (!calls.length || calls.length > CHAIN_RPC_BATCH_MAX || !calls.every(isRpcCall)) {
+      return yield* Effect.fail(new BadRequest({ reason: 'unsupported JSON-RPC payload' }))
+    }
+
+    const key = yield* Effect.try({
+      catch: () => new ChainUnavailable({ reason: 'rpc relay is not configured' }),
+      try: () => heliusRpcProxyKey(),
+    })
+    return yield* Effect.tryPromise({
+      catch: () => new ChainUnavailable({ reason: 'upstream rpc failed' }),
+      try: async () => {
+        const res = await fetch(`${HELIUS_RPC_URL}?api-key=${key}`, {
+          body: JSON.stringify(payload),
+          headers: { 'content-type': 'application/json' },
+          method: 'POST',
+          signal: AbortSignal.timeout(CHAIN_RPC_TIMEOUT_MS),
+        })
+        if (!res.ok) throw new Error(`upstream ${res.status}`)
+        return (await res.json()) as unknown
+      },
+    })
+  })

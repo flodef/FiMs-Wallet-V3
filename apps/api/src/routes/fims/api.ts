@@ -447,6 +447,17 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addError(DatabaseNotConfigured, { status: 503 }),
   )
   .add(
+    // Anonymous JSON-RPC relay: the browser's Solana client points here so no
+    // API key ships in the bundle. Method allowlist + IP/global quotas inside.
+    HttpApiEndpoint.post('chainRpc', '/fims/chain/rpc')
+      .annotate(OpenApi.Summary, 'JSON-RPC relay to the upstream provider (key stays server-side)')
+      .setPayload(Schema.Unknown)
+      .addSuccess(Schema.Unknown)
+      .addError(BadRequest, { status: 400 })
+      .addError(RateLimited, { status: 429 })
+      .addError(ChainUnavailable, { status: 503 }),
+  )
+  .add(
     // Keeper endpoints: shared-secret auth (x-strategy-secret), called by
     // cron-job.org. `status` returns 503 whenever the vault needs attention —
     // that is what makes the monitor alert. `delegate-run` executes one pass.
