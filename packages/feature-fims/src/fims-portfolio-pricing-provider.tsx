@@ -1,13 +1,13 @@
 import {
   PortfolioLedgerContext,
   type PortfolioLedgerRow,
-  type UsePortfolioLedgerData,
+  type PortfolioLedgerSourceProps,
 } from '@workspace/feature-portfolio/data-access/portfolio-ledger'
 import {
   type PortfolioPricing,
   PortfolioPricingContext,
 } from '@workspace/feature-portfolio/data-access/portfolio-pricing'
-import { type ReactNode, useCallback, useMemo } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { useFimsMember, useFimsTokens, useFimsTransactions } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 
@@ -47,33 +47,30 @@ export function FimsPortfolioPricingProvider({ children }: { children: ReactNode
 // Ledger side of the portfolio injection: resolves the watched address to a
 // member and streams its `transactions` rows + the symbol→mint map so the
 // chain reader can build an exact EUR cost basis for protocol tokens.
-export function FimsPortfolioLedgerProvider({ children }: { children: ReactNode }) {
-  const useLedgerData = useCallback<UsePortfolioLedgerData>((address, signer, enabled = true) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks -- this IS a hook,
-    // invoked unconditionally inside the consumer component's render.
-    // `enabled` carries the reader consent: until granted, NO signed
-    // member/transactions request may leak "signer X reads target Y".
-    const member = useFimsMember(address, signer, enabled)
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const transactions = useFimsTransactions(
-      member.member ? { userId: member.member.id } : undefined,
-      signer,
-      // A watched non-member address must not fold every member's ledger
-      // into its P&L — no member, no fetch, no rows.
-      enabled && !!member.member,
-    )
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const tokens = useFimsTokens()
-    return useMemo(
-      () => ({
-        mintBySymbol: new Map(
-          (tokens.data ?? []).flatMap((token) => (token.address ? [[token.symbol, token.address]] : [])),
-        ),
-        rows: (transactions.data ?? []) as PortfolioLedgerRow[],
-      }),
-      [tokens.data, transactions.data],
-    )
-  }, [])
+function FimsLedgerSource({ address, children, enabled, signer }: PortfolioLedgerSourceProps) {
+  // `enabled` carries the reader consent: until granted, NO signed
+  // member/transactions request may leak "signer X reads target Y".
+  const member = useFimsMember(address, signer, enabled)
+  const transactions = useFimsTransactions(
+    member.member ? { userId: member.member.id } : undefined,
+    signer,
+    // A watched non-member address must not fold every member's ledger
+    // into its P&L — no member, no fetch, no rows.
+    enabled && !!member.member,
+  )
+  const tokens = useFimsTokens()
+  const data = useMemo(
+    () => ({
+      mintBySymbol: new Map(
+        (tokens.data ?? []).flatMap((token) => (token.address ? [[token.symbol, token.address] as const] : [])),
+      ),
+      rows: (transactions.data ?? []) as PortfolioLedgerRow[],
+    }),
+    [tokens.data, transactions.data],
+  )
+  return <>{children(data)}</>
+}
 
-  return <PortfolioLedgerContext.Provider value={useLedgerData}>{children}</PortfolioLedgerContext.Provider>
+export function FimsPortfolioLedgerProvider({ children }: { children: ReactNode }) {
+  return <PortfolioLedgerContext.Provider value={FimsLedgerSource}>{children}</PortfolioLedgerContext.Provider>
 }

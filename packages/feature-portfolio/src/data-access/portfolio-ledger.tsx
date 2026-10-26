@@ -1,5 +1,5 @@
 import type { Account } from '@workspace/db/account/account'
-import { createContext, useContext } from 'react'
+import { type ComponentType, createContext, type ReactNode, useContext } from 'react'
 
 // Protocol-ledger overlay for the chain P&L, injected by the shell like
 // PortfolioPricingContext: feature-fims — which depends on this package —
@@ -20,20 +20,30 @@ export interface PortfolioLedgerData {
   rows: PortfolioLedgerRow[]
 }
 
-export type UsePortfolioLedgerData = (address: string, signer?: Account, enabled?: boolean) => PortfolioLedgerData
-
-const defaultLedgerData: UsePortfolioLedgerData = () => ({ mintBySymbol: new Map(), rows: [] })
-
-export const PortfolioLedgerContext = createContext<UsePortfolioLedgerData>(defaultLedgerData)
-
-// Returns the injected hook — always call it unconditionally in the consumer.
-export function usePortfolioLedger(): UsePortfolioLedgerData {
-  return useContext(PortfolioLedgerContext)
+export interface PortfolioLedgerSourceProps {
+  address: string
+  children: (data: PortfolioLedgerData) => ReactNode
+  // Reader consent: until granted, the source must not fire a signed
+  // request that reveals "signer X reads target Y".
+  enabled: boolean
+  signer?: Account | undefined
 }
 
-// Named-hook sugar over the context so call sites read as a normal hook:
-// `usePortfolioLedgerData(address, signer, enabled)` instead of
-// `usePortfolioLedger()(...)`.
-export function usePortfolioLedgerData(address: string, signer?: Account, enabled?: boolean): PortfolioLedgerData {
-  return usePortfolioLedger()(address, signer, enabled)
+// The injected value is a COMPONENT, not a hook: React Compiler memoizes
+// calls of functions not named like hooks, so a hook handed through context
+// and invoked as `ctx()(…)` got skipped on re-render (React error #300).
+// A component owns its hooks; data flows back through the render prop.
+export type PortfolioLedgerSource = ComponentType<PortfolioLedgerSourceProps>
+
+const EMPTY_LEDGER: PortfolioLedgerData = { mintBySymbol: new Map(), rows: [] }
+
+function DefaultLedgerSource({ children }: PortfolioLedgerSourceProps) {
+  return <>{children(EMPTY_LEDGER)}</>
+}
+
+export const PortfolioLedgerContext = createContext<PortfolioLedgerSource>(DefaultLedgerSource)
+
+export function PortfolioLedger(props: PortfolioLedgerSourceProps) {
+  const Source = useContext(PortfolioLedgerContext)
+  return <Source {...props} />
 }

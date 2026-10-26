@@ -9,13 +9,14 @@ import { Spinner } from '@workspace/ui/components/spinner'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { useMemo, useState } from 'react'
+import type { ChainAsset, ChainTransaction } from './data-access/chain-api.ts'
 import {
   aggregateFimsLedgerFlows,
   aggregateTokenFlows,
   computeTokenPnl,
   mergeLedgerFlows,
 } from './data-access/chain-pnl.ts'
-import { usePortfolioLedgerData } from './data-access/portfolio-ledger.tsx'
+import { PortfolioLedger, type PortfolioLedgerData } from './data-access/portfolio-ledger.tsx'
 import { usePortfolioPricing } from './data-access/portfolio-pricing.tsx'
 import {
   useChainAssets,
@@ -49,19 +50,6 @@ export function PortfolioFeatureChainReader({ account, network }: { account: Acc
     const rows = (labels.data ?? []).slice().sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9))
     return rows
   }, [labels.data])
-
-  const pricing = usePortfolioPricing()
-  const ledgerData = usePortfolioLedgerData(address, signerAccount, !consent.needed)
-  const pnl = useMemo(() => {
-    if (!history.data) return []
-    const prices = new Map<string, number>()
-    for (const asset of assets.data ?? []) {
-      if (asset.usdPrice !== null) prices.set(asset.mint ?? 'SOL', asset.usdPrice)
-    }
-    const chainFlows = aggregateTokenFlows(history.data.transactions)
-    const ledgerFlows = aggregateFimsLedgerFlows(ledgerData.rows, ledgerData.mintBySymbol, pricing.usdPerEur)
-    return computeTokenPnl(mergeLedgerFlows(chainFlows, ledgerFlows), prices)
-  }, [history.data, assets.data, ledgerData, pricing])
 
   const signable = !!signerAccount
 
@@ -132,11 +120,37 @@ export function PortfolioFeatureChainReader({ account, network }: { account: Acc
         ) : null}
         {history.data ? (
           <>
-            <PortfolioUiChainPnl rows={pnl} />
+            <PortfolioLedger address={address} enabled={!consent.needed} signer={signerAccount}>
+              {(ledger) => <ChainPnl assets={assets.data} ledger={ledger} transactions={history.data.transactions} />}
+            </PortfolioLedger>
             <PortfolioUiChainTxList from="/portfolio" network={network} transactions={history.data.transactions} />
           </>
         ) : null}
       </div>
     </UiCard>
   )
+}
+
+// P&L block: merges on-chain flows with the injected protocol ledger. Lives
+// in its own component so the ledger arrives through a render prop.
+function ChainPnl({
+  assets,
+  ledger,
+  transactions,
+}: {
+  assets: ChainAsset[] | undefined
+  ledger: PortfolioLedgerData
+  transactions: ChainTransaction[]
+}) {
+  const pricing = usePortfolioPricing()
+  const pnl = useMemo(() => {
+    const prices = new Map<string, number>()
+    for (const asset of assets ?? []) {
+      if (asset.usdPrice !== null) prices.set(asset.mint ?? 'SOL', asset.usdPrice)
+    }
+    const chainFlows = aggregateTokenFlows(transactions)
+    const ledgerFlows = aggregateFimsLedgerFlows(ledger.rows, ledger.mintBySymbol, pricing.usdPerEur)
+    return computeTokenPnl(mergeLedgerFlows(chainFlows, ledgerFlows), prices)
+  }, [assets, ledger, pricing, transactions])
+  return <PortfolioUiChainPnl rows={pnl} />
 }
