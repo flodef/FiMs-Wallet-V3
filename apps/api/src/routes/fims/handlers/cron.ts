@@ -3,6 +3,7 @@ import { Effect } from 'effect'
 import { custodialBackingStatus, custodialSweep } from '../../../custodial.js'
 import { tokens } from '../../../db/schema.js'
 import { DatabaseError, DatabaseService } from '../../../db/service.js'
+import { syncPrices } from '../../../price-sync.js'
 import { AuthUnauthorized } from '../../../services/auth/service.js'
 import { cronAuthorized, runStrategyPass, strategyHealth } from '../../../strategy-delegate.js'
 import { reconcileTontineDonations } from '../../../tontine-reconcile.js'
@@ -54,6 +55,12 @@ export const handleStrategyDelegateRun = () =>
       catch: () => new ChainUnavailable({ reason: 'queued redeem failed' }),
       try: () => processQueuedRedeems(db),
     }).pipe(Effect.catchAll((error) => Effect.logWarning('queued redeem settle failed', error)))
+    // Price history for the community perf/real-rate — throttled to twice
+    // a day inside syncPrices. Best-effort, like the reconcile above.
+    yield* Effect.tryPromise({
+      catch: (cause) => new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'price sync failed' }),
+      try: () => syncPrices(db),
+    }).pipe(Effect.catchAll((error) => Effect.logWarning('price sync failed', error)))
     // Surface per-deposit failures as 503 so cron-job.org alerts —
     // the full detail stays in the strategy_ops table.
     const failed = report.deposits.filter((d) => d.error)

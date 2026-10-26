@@ -6,7 +6,7 @@ import { useMemo } from 'react'
 import { useFimsDashboard, useFimsHistoric, useFimsPrices, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatPercent } from './fims-format.ts'
-import { computePeriodReturns, computeRealizedAnnualRates } from './fims-performance.ts'
+import { computePeriodReturns, computeRealizedAnnualRates, fimsPriceKey } from './fims-performance.ts'
 import { FimsUiConverter } from './fims-ui-converter.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiTokenChart } from './fims-ui-token-chart.tsx'
@@ -20,6 +20,7 @@ export function FimsFeatureCommunity() {
   const latest = historic.data?.at(-1)
   const prices = useFimsPrices()
   const perf30d = useMemo(() => computePeriodReturns(prices.data ?? [], 30), [prices.data])
+  const perf1y = useMemo(() => computePeriodReturns(prices.data ?? [], 365), [prices.data])
   const realRates = useMemo(() => computeRealizedAnnualRates(prices.data ?? []), [prices.data])
 
   return (
@@ -60,6 +61,7 @@ export function FimsFeatureCommunity() {
                   <TableHead>{t(($) => $.columnToken)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnValue)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnPerf)}</TableHead>
+                  <TableHead className="text-right">{t(($) => $.columnPerfYear)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnYield)}</TableHead>
                   <TableHead className="text-right">{t(($) => $.columnRealRate)}</TableHead>
                 </TableRow>
@@ -73,31 +75,16 @@ export function FimsFeatureCommunity() {
                     </TableCell>
                     <TableCell className="text-right">{token.value != null ? format(token.value) : '—'}</TableCell>
                     <TableCell className="text-right">
-                      {(() => {
-                        const perf = perf30d.get(token.symbol)
-                        return perf != null ? (
-                          <span className={perf >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>
-                            {formatPercent(perf)}
-                          </span>
-                        ) : (
-                          '—'
-                        )
-                      })()}
+                      <SignedPercent value={perf30d.get(fimsPriceKey(token))} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <SignedPercent value={perf1y.get(fimsPriceKey(token))} />
                     </TableCell>
                     <TableCell className="text-right">
                       {token.yearlyYield != null ? formatPercent(token.yearlyYield) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {(() => {
-                        const rate = realRates.get(token.symbol)
-                        return rate != null ? (
-                          <span className={rate >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>
-                            {formatPercent(rate)}
-                          </span>
-                        ) : (
-                          '—'
-                        )
-                      })()}
+                      <SignedPercent value={realRates.get(fimsPriceKey(token))} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -111,5 +98,12 @@ export function FimsFeatureCommunity() {
 
       <FimsUiConverter />
     </div>
+  )
+}
+
+function SignedPercent({ value }: { value: number | undefined }) {
+  if (value == null) return '—'
+  return (
+    <span className={value >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>{formatPercent(value)}</span>
   )
 }

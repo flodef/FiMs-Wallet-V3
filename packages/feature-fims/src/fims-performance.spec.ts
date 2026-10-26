@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { annualizedRate, computePeriodReturns, computeRealizedAnnualRates } from './fims-performance.ts'
+import { annualizedRate, computePeriodReturns, computeRealizedAnnualRates, fimsPriceKey } from './fims-performance.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -21,6 +21,31 @@ describe('compute-period-returns', () => {
       // ASSERT
       expect(result.get('SOL')).toBeCloseTo(130 / 90 - 1, 10)
       expect(result.size).toBe(1)
+    })
+
+    it('should anchor the window on the latest point when the feed is stale', async () => {
+      // ARRANGE — the feed stopped 26 days ago: a 30-day perf must still
+      // span 30 days back from the last point, not shrink to 4 days.
+      expect.assertions(1)
+      const points = [point('FiMs', 70, 100), point('FiMs', 56, 110), point('FiMs', 30, 120), point('FiMs', 26, 132)]
+
+      // ACT
+      const result = computePeriodReturns(points, 30)
+
+      // ASSERT
+      expect(result.get('FiMs')).toBeCloseTo(132 / 110 - 1, 10)
+    })
+
+    it('should compute a one-year return over a 365-day window', async () => {
+      // ARRANGE
+      expect.assertions(1)
+      const points = [point('FSOL', 400, 50), point('FSOL', 370, 80), point('FSOL', 100, 90), point('FSOL', 0, 120)]
+
+      // ACT
+      const result = computePeriodReturns(points, 365)
+
+      // ASSERT
+      expect(result.get('FSOL')).toBeCloseTo(120 / 80 - 1, 10)
     })
 
     it('should omit tokens without a price point older than the window', async () => {
@@ -131,6 +156,23 @@ describe('compute-realized-annual-rates', () => {
 
       // ASSERT
       expect(result.get('BAD')).toBeCloseTo(-0.5, 2)
+    })
+  })
+})
+
+describe('fims-price-key', () => {
+  describe('expected behavior', () => {
+    it('should build the Price sheet series key from label and symbol', () => {
+      // ARRANGE
+      expect.assertions(2)
+
+      // ACT
+      const result = fimsPriceKey({ label: 'FiMs Token', symbol: 'FiMs' })
+      const result1 = fimsPriceKey({ label: 'Euro Circle', symbol: 'EURC' })
+
+      // ASSERT
+      expect(result).toBe('FiMs Token (FiMs)')
+      expect(result1).toBe('Euro Circle (EURC)')
     })
   })
 })

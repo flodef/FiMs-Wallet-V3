@@ -99,6 +99,7 @@ export default interface Resources {
     columnDate: 'Date'
     columnMember: 'Member'
     columnPerf: '30-day perf.'
+    columnPerfYear: '1-year perf.'
     columnPnl: 'P&L'
     columnRealRate: 'Real rate'
     columnToken: 'Token'
