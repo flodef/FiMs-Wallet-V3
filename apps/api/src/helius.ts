@@ -5,6 +5,9 @@
 // stay server-side: clients call /fims/chain/* and never see HELIUS_API_KEY.
 
 export const HELIUS_RPC_URL = 'https://mainnet.helius-rpc.com/'
+// Gatekeeper removes Cloudflare from the read path — same key, same methods,
+// tens-to-hundreds of ms shaved per request. Writes keep the stable endpoint.
+export const HELIUS_GATEKEEPER_URL = 'https://beta.helius-rpc.com/'
 const LAMPORTS_PER_SOL = 1_000_000_000
 
 // Comma-separated keys: HELIUS_API_KEY="key1,key2". The list is tried in
@@ -28,7 +31,7 @@ export function heliusRpcProxyKey(env: Record<string, string | undefined> = proc
 async function heliusRpc<T>(keys: string[], method: string, params: unknown): Promise<T> {
   let lastError: unknown = null
   for (const key of keys) {
-    const res = await fetch(`${HELIUS_RPC_URL}?api-key=${key}`, {
+    const res = await fetch(`${HELIUS_GATEKEEPER_URL}?api-key=${key}`, {
       body: JSON.stringify({ id: 'fims-chain', jsonrpc: '2.0', method, params }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',

@@ -9,6 +9,7 @@ import {
   chainSymbolForMint,
   fetchHeliusAssets,
   fetchHeliusTransactions,
+  HELIUS_GATEKEEPER_URL,
   HELIUS_RPC_URL,
   heliusApiKeys,
   heliusRpcProxyKey,
@@ -396,10 +397,17 @@ export const handleChainRpc = ({ payload }: { payload: unknown }) =>
       catch: () => new ChainUnavailable({ reason: 'rpc relay is not configured' }),
       try: () => heliusRpcProxyKey(),
     })
+    // Reads take the low-latency Gatekeeper path. Signed sends go to the stable
+    // endpoint with MEV Protect — member swaps never route through validators
+    // statistically linked to sandwich attacks.
+    const sends = calls.some((c) => c.method === 'sendTransaction')
+    const target = sends
+      ? `${HELIUS_RPC_URL}?api-key=${key}&mev-protect=true`
+      : `${HELIUS_GATEKEEPER_URL}?api-key=${key}`
     return yield* Effect.tryPromise({
       catch: () => new ChainUnavailable({ reason: 'upstream rpc failed' }),
       try: async () => {
-        const res = await fetch(`${HELIUS_RPC_URL}?api-key=${key}`, {
+        const res = await fetch(target, {
           body: JSON.stringify(payload),
           headers: { 'content-type': 'application/json' },
           method: 'POST',
