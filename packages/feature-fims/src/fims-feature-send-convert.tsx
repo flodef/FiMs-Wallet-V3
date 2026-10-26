@@ -19,13 +19,13 @@ import { toastError } from '@workspace/ui/lib/toast-error'
 import { useNavigate } from 'react-router'
 import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
-import { useFimsDebt } from './data-access/use-fims-debt.tsx'
+import { useFimsRealized } from './data-access/use-fims-realized.tsx'
 import { useFimsSwapTo, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import type { WithdrawalTarget } from './data-access/use-withdrawal-targets.tsx'
 import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT, FIMS_MINT_DECIMALS } from './fims-constants.ts'
-import { computeFimsTontineCarve } from './fims-debt.ts'
 import { getFimsPlatformFeeBps, getFimsTontineRate } from './fims-fee-config.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
+import { computeFimsRealizedCarve, fimsBasisKey } from './fims-realized.ts'
 
 // Confirmation screen shown when the picked destination does not accept the
 // outgoing token (e.g. sending JUP to a Jupiter Spend address that only takes
@@ -52,26 +52,24 @@ export function FimsFeatureSendConvert({
   const outputSymbol = target.acceptedSymbols[0]
   const outputMint = outputSymbol ? (FIMS_KNOWN_MINTS[outputSymbol] as Address) : undefined
   const inputAmount = mint.mint === NATIVE_MINT ? uiAmountToBigInt(amount, 9) : uiAmountToBigInt(amount, mint.decimals)
-  // Tontine carve: while the member owes the tontine, tontineRate of the sent
-  // units goes to the pot inside the same transaction — the swap converts
-  // what remains and delivers it to the destination.
+  // Tontine carve: the member's share of the gain realized by this exit
+  // goes to the pot inside the same transaction — the swap converts what
+  // remains and delivers it to the destination.
   const { rates } = useFimsCurrency()
   const fimsTokens = useFimsTokens()
   const { member } = useFimsMember(account.publicKey, account)
-  const { debt, position } = useFimsDebt(member, account)
+  const { basis } = useFimsRealized(member, account, network)
   const priceEur = (() => {
     const fimsPrice = fimsTokens.data?.find((token) => token.address === mint.mint)?.value
     if (fimsPrice) return fimsPrice
     const usd = mint.mint === NATIVE_MINT ? undefined : mint.metadata?.usdPrice
     return usd && usd > 0 && rates.usd > 0 ? usd / rates.usd : null
   })()
-  const tontineAmount = computeFimsTontineCarve({
+  const tontineAmount = computeFimsRealizedCarve({
     amount: inputAmount,
-    debt,
-    decimals: mint.mint === NATIVE_MINT ? 9 : mint.decimals,
-    positionEur: position,
+    avgBuyEur: member ? (basis.get(fimsBasisKey(mint.mint)) ?? null) : null,
     priceEur,
-    tontineRate: getFimsTontineRate(),
+    tontineRate: member ? getFimsTontineRate() : 0,
   })
   const quote = useJupiterQuote({
     account,

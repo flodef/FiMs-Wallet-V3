@@ -69,9 +69,6 @@ export function FimsFeatureMember({ account }: { account: Account }) {
     first && latest
       ? annualizedRate({ date: first.date, value: latest.invested }, { date: latest.date, value: latest.total ?? 0 })
       : undefined
-  const tontineRate = getFimsTontineRate()
-  const remainingToDonate = pnl != null && pnl > 0 ? Math.max(0, pnl * tontineRate - donations.total) : null
-
   return (
     <div className="space-y-4">
       <PortfolioUiAccountButtons />
@@ -153,9 +150,9 @@ export function FimsFeatureMember({ account }: { account: Account }) {
 
       <FimsUiAddressBook account={account} userId={member.id} />
 
-      {donations.count > 0 || remainingToDonate ? (
+      {donations.count > 0 ? (
         <UiCard title={t(($) => $.donationsTitle)}>
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-2 gap-4 text-center">
             <div>
               <div className="text-muted-foreground text-xs">{t(($) => $.donationsTotal)}</div>
               <div className="font-semibold text-pink-500">{format(donations.total)}</div>
@@ -163,32 +160,10 @@ export function FimsFeatureMember({ account }: { account: Account }) {
             <div>
               <div className="font-semibold">{t(($) => $.donationsCount, { count: donations.count })}</div>
             </div>
-            <div>
-              <div className="text-muted-foreground text-xs">{t(($) => $.donationsRemaining)}</div>
-              <div className="font-semibold">{remainingToDonate ? format(remainingToDonate) : '—'}</div>
-            </div>
           </div>
-          {pnl != null && pnl > 0 ? (
-            <div className="mt-4">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-pink-500 transition-all"
-                  style={{ width: `${Math.min(100, (donations.total / (pnl * tontineRate)) * 100)}%` }}
-                />
-              </div>
-              <p className="mt-1 text-center text-muted-foreground text-xs">
-                {t(($) => $.donationsProgress, {
-                  rate: tontineRate * 100,
-                  ratio: formatPercent(donations.total / (pnl * tontineRate)),
-                })}
-              </p>
-            </div>
-          ) : null}
-          {remainingToDonate ? (
-            <p className="mt-3 text-muted-foreground text-xs">
-              {t(($) => $.donationsRemainingHint, { rate: tontineRate * 100 })}
-            </p>
-          ) : null}
+          <p className="mt-3 text-muted-foreground text-xs">
+            {t(($) => $.donationsCarveHint, { rate: getFimsTontineRate() * 100 })}
+          </p>
         </UiCard>
       ) : null}
 

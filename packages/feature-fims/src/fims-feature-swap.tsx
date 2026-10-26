@@ -17,13 +17,13 @@ import { useMemo, useState } from 'react'
 import type { FimsStrategyState } from './data-access/fims-strategy.ts'
 import { useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
-import { useFimsDebt } from './data-access/use-fims-debt.tsx'
+import { useFimsRealized } from './data-access/use-fims-realized.tsx'
 import { useFimsStrategyState, useFimsStrategySwap, useFimsSwap, useJupiterQuote } from './data-access/use-jupiter.tsx'
 import { FIMS_KNOWN_MINTS, FIMS_MAX_PRICE_IMPACT } from './fims-constants.ts'
-import { computeFimsTontineCarve } from './fims-debt.ts'
 import { getFimsPlatformFeeBps, getFimsTontineRate } from './fims-fee-config.ts'
 import { fimsSwappableMints, isSolGasMint } from './fims-gas.ts'
 import { reportGasTopupError } from './fims-gas-topup-store.ts'
+import { computeFimsRealizedCarve, fimsBasisKey } from './fims-realized.ts'
 import { FimsUiLimitOrders } from './fims-ui-limit-orders.tsx'
 import { formatTokenUnits, parseTokenUnits } from './fims-units.ts'
 
@@ -34,8 +34,7 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
   const fimsTokens = useFimsTokens()
   const { format, rates } = useFimsCurrency()
   const { member } = useFimsMember(account.publicKey, account)
-  const { debt } = useFimsDebt(member, account)
-  const debtOwed = debt != null && debt > 0
+  const { basis, isLoading: basisLoading } = useFimsRealized(member, account, network)
 
   const [inputMint, setInputMint] = useState<string>('')
   const [outputMint, setOutputMint] = useState<string>('')
@@ -68,26 +67,31 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
     }
   }, [amountText, inputToken])
 
-  // Tontine carve: while the member owes the tontine, tontineRate of the
-  // sent units is diverted to the pot — the quote below runs on what
-  // remains. EUR price: FiMs token list first, Jupiter USD price as a
-  // fallback for non-listed mints.
+  // Tontine carve: the member's share is taken on the gain realized by THIS
+  // exit — units out × (current price − cost basis) — and the quote below
+  // runs on what remains. EUR price: FiMs token list first, Jupiter USD
+  // price as a fallback for non-listed mints.
   const inputPriceEur = useMemo(() => {
     const fimsPrice = fimsTokens.data?.find((token) => token.address === inputMint)?.value
     if (fimsPrice) return fimsPrice
     const usd = inputToken?.metadata?.usdPrice
     return usd && usd > 0 && rates.usd > 0 ? usd / rates.usd : null
   }, [fimsTokens.data, inputMint, inputToken, rates.usd])
-  // Swaps convert in place — the value stays in the position, so only the
-  // rate share applies (the position − debt exit rule is for actual sends).
-  const tontineAmount = computeFimsTontineCarve({
+  const avgBuyEur = member ? (basis.get(fimsBasisKey(inputMint || null)) ?? null) : null
+  const tontineAmount = computeFimsRealizedCarve({
     amount,
-    debt,
-    decimals: inputToken?.decimals ?? 9,
+    avgBuyEur,
     priceEur: inputPriceEur,
-    tontineRate: getFimsTontineRate(),
+    tontineRate: member ? getFimsTontineRate() : 0,
   })
   const swapAmount = amount - tontineAmount
+  // Estimated gain on the outgoing units — shown next to the carve so the
+  // member sees what the share is computed on. Null when unpriced.
+  const gainEur = useMemo(() => {
+    if (!inputToken || inputPriceEur == null) return null
+    const units = Number(amount) / 10 ** inputToken.decimals
+    return units * Math.max(0, inputPriceEur - (avgBuyEur ?? 0))
+  }, [amount, avgBuyEur, inputPriceEur, inputToken])
 
   // Share tokens (FSOL, FLiP…) are issued by the strategy vault, not bought
   // on a market: the quote targets the strategy's collateral mint and the
@@ -147,12 +151,11 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
 
   return (
     <div className="space-y-4">
-      {debtOwed ? (
-        <UiCard title={t(($) => $.debtBlockedTitle)}>
-          <p className="text-muted-foreground text-sm">
-            {t(($) => $.debtCarveBody, { amount: format(debt), rate: getFimsTontineRate() * 100 })}
-          </p>
-        </UiCard>
+      {member && basisLoading ? (
+        <p className="text-muted-foreground text-sm">
+          <UiLoader className="mr-1 inline size-4" />
+          {t(($) => $.gainCheckPending)}
+        </p>
       ) : null}
       <UiCard title={t(($) => $.swapTitle)}>
         <div className="space-y-4">
@@ -257,6 +260,11 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
               <div>
                 {t(($) => $.swapPlatformFee)}: {(getFimsPlatformFeeBps() / 100).toFixed(2)}%
               </div>
+              {member && gainEur != null ? (
+                <div>
+                  {t(($) => $.swapGainEstimate)}: {format(gainEur)}
+                </div>
+              ) : null}
               <div>
                 {t(($) => $.swapTontineFee)}:{' '}
                 {tontineAmount > 0n && inputToken
@@ -287,7 +295,14 @@ export function FimsFeatureSwap({ account }: { account: Account }) {
 
           <div className="flex justify-end">
             <Button
-              disabled={!canSign || !quote.data || swap.isPending || strategySwap.isPending || swapBlocked}
+              disabled={
+                !canSign ||
+                !quote.data ||
+                swap.isPending ||
+                strategySwap.isPending ||
+                swapBlocked ||
+                (member != null && basisLoading)
+              }
               onClick={handleSwap}
             >
               {swap.isPending || strategySwap.isPending ? <UiLoader className="size-4" /> : null}

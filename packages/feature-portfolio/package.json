@@ -29,6 +29,9 @@
   },
   "exports": {
     "./*": "./src/*.tsx",
+    "./data-access/chain-api": "./src/data-access/chain-api.ts",
+    "./data-access/chain-pnl": "./src/data-access/chain-pnl.ts",
+    "./data-access/use-chain-reader": "./src/data-access/use-chain-reader.ts",
     "./data-access/use-get-token-balances": "./src/data-access/use-get-token-balances.ts"
   },
   "license": "MIT",

@@ -17,13 +17,13 @@ import type { UiGroupedComboboxInputGroup } from '@workspace/ui/components/ui-gr
 import { useMemo } from 'react'
 import { useFimsAddressBook, useFimsMember, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
-import { useFimsDebt } from './data-access/use-fims-debt.tsx'
+import { useFimsRealized } from './data-access/use-fims-realized.tsx'
 import { useWithdrawalTargets } from './data-access/use-withdrawal-targets.tsx'
 import { FIMS_DEMO_ADDRESS, FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS } from './fims-constants.ts'
-import { computeFimsSendSplit } from './fims-debt.ts'
 import { FimsFeatureSendConvert } from './fims-feature-send-convert.tsx'
 import { FimsFeatureSendDestination } from './fims-feature-send-destination.tsx'
 import { getFimsFeeRate, getFimsTontineRate } from './fims-fee-config.ts'
+import { computeFimsSendSplit, fimsBasisKey } from './fims-realized.ts'
 
 // Wraps the portfolio send/receive modals and injects the member's FiMs address
 // book as an extra destination group.
@@ -34,7 +34,7 @@ export default function FimsModals() {
   const network = useNetworkActive()
   const { member } = useFimsMember(account.publicKey, account)
   const entries = useFimsAddressBook(member?.id, account)
-  const { debt, isLoading: debtLoading, position } = useFimsDebt(member, account)
+  const { basis, isLoading: basisLoading } = useFimsRealized(member, account, network)
   const [sendCapSetting] = useSetting('sendCapEur')
   const tokens = useFimsTokens()
   const withdrawalTargets = useWithdrawalTargets()
@@ -68,11 +68,12 @@ export default function FimsModals() {
     return result
   }, [entries.data, withdrawalTargets, t])
 
-  // Outgoing send guards. The tontine share is carved out of every send while
-  // a debt remains — no blocking anymore, the carve below collects it.
+  // Outgoing send guards. The tontine share of the realized gain is carved
+  // out of every member send — no blocking, the carve below collects it.
   // 0. Demo guard: the demo account's keys are public — it must never send.
-  // 1. Debt-loading guard: while the member's debt is unknown we cannot size
-  //    the carve — fail closed rather than skip the collection.
+  // 1. Basis-loading guard: while the member's cost basis is incomplete the
+  //    realized gain cannot be sized — hold the send rather than carve on a
+  //    worst-case guess.
   // 2. Send cap: optional EUR limit (Settings → Send limit). The token's EUR
   //    price comes from the FiMs token list; unpriced tokens are not capped —
   //    this is a convenience guard, not a custody policy.
@@ -80,11 +81,11 @@ export default function FimsModals() {
   const getSendBlock = useMemo(() => {
     const cap = Number.parseFloat(sendCapSetting ?? '')
     const hasCap = Number.isFinite(cap) && cap > 0
-    // While a member's debt position is still loading we cannot prove the send
-    // is allowed — fail closed rather than open a bypass window on slow
+    // While a member's gain basis is still loading we cannot prove the send
+    // is priced right — fail closed rather than open a bypass window on slow
     // networks. Non-members never trigger this (their queries stay disabled).
-    const checkingDebt = Boolean(member) && debtLoading
-    if (!isDemo && !hasCap && !checkingDebt) {
+    const checkingGain = Boolean(member) && basisLoading
+    if (!isDemo && !hasCap && !checkingGain) {
       return undefined
     }
     return (send: SendBlockContext): null | string => {
@@ -94,8 +95,8 @@ export default function FimsModals() {
       if (send.destination === FIMS_TREASURY_ADDRESS) {
         return null
       }
-      if (checkingDebt) {
-        return t(($) => $.debtCheckPending)
+      if (checkingGain) {
+        return t(($) => $.gainCheckPending)
       }
       if (hasCap) {
         const price = tokens.data?.find((token) => token.address === send.mint)?.value
@@ -106,14 +107,14 @@ export default function FimsModals() {
       }
       return null
     }
-  }, [debtLoading, isDemo, member, sendCapSetting, tokens.data, t, format])
+  }, [basisLoading, isDemo, member, sendCapSetting, tokens.data, t, format])
 
-  // Split of a plain send: the operating fee AND the tontine share (while the
-  // member still owes it, capped at the debt — and beyond it when the send
-  // exceeds position − debt) are deducted from the entered amount as extra
+  // Split of a plain send: the operating fee AND the tontine share of the
+  // realized gain (member only — the send counts as a realization priced at
+  // the current market value) are deducted from the entered amount as extra
   // recipients in the sent mint itself — in-kind, so no SOL is ever required.
-  // Sends to the treasury or the tontine are exempt: a debt settlement or a
-  // donation is not a paid operation. Mainnet only.
+  // Sends to the treasury or the tontine are exempt: a donation is not a
+  // paid operation. Mainnet only.
   const getSendExtraRecipients = useMemo(() => {
     if (network.type !== 'solana:mainnet') {
       return undefined
@@ -128,12 +129,11 @@ export default function FimsModals() {
       const priceEur = fimsToken?.value ?? (usdPrice && usdPrice > 0 && rates.usd > 0 ? usdPrice / rates.usd : null)
       const split = computeFimsSendSplit({
         amount: uiAmountToBigInt(send.amount, decimals),
-        debt: member ? debt : null,
-        decimals,
+        avgBuyEur: member ? (basis.get(fimsBasisKey(send.mint.mint)) ?? null) : null,
         feeRate: getFimsFeeRate(),
-        positionEur: member ? position : null,
         priceEur,
-        tontineRate: getFimsTontineRate(),
+        // Non-members owe nothing — a zero rate never carves.
+        tontineRate: member ? getFimsTontineRate() : 0,
       })
       const extras: SendExtraRecipient[] = []
       if (split.tontine > 0n) {
@@ -144,7 +144,7 @@ export default function FimsModals() {
       }
       return extras.length ? extras : null
     }
-  }, [debt, member, network.type, position, rates.usd, solUsdPrice, tokens.data])
+  }, [basis, member, network.type, rates.usd, solUsdPrice, tokens.data])
 
   // Sends to a configured off-ramp (exchange / Jupiter Spend) whose outgoing
   // token is not accepted get routed to the auto-conversion confirm screen:
