@@ -447,6 +447,34 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .addError(DatabaseNotConfigured, { status: 503 }),
   )
   .add(
+    // Helius webhook delivery: shared-secret auth in x-helius-auth, deduped
+    // via used_signatures, recorded into chain_events.
+    HttpApiEndpoint.post('chainWebhook', '/fims/chain/webhook')
+      .annotate(OpenApi.Summary, 'Helius webhook intake — records chain events for watched addresses')
+      .setPayload(Schema.Unknown)
+      .addSuccess(Schema.Unknown)
+      .addError(AuthForbidden, { status: 403 })
+      .addError(ChainUnavailable, { status: 503 })
+      .addError(DatabaseError, { status: 500 }),
+  )
+  .add(
+    // Cursor feed for realtime updates: events with id > after.
+    HttpApiEndpoint.get('chainEvents', '/fims/chain/events')
+      .annotate(OpenApi.Summary, 'Chain events cursor feed (after=id, oldest first)')
+      .setUrlParams(Schema.Struct({ after: Schema.optional(Schema.NumberFromString) }))
+      .addSuccess(
+        Schema.Array(
+          Schema.Struct({
+            address: Schema.String,
+            id: Schema.Number,
+            signature: Schema.String,
+          }),
+        ),
+      )
+      .addError(RateLimited, { status: 429 })
+      .addError(ChainUnavailable, { status: 503 }),
+  )
+  .add(
     // Anonymous JSON-RPC relay: the browser's Solana client points here so no
     // API key ships in the bundle. Method allowlist + IP/global quotas inside.
     HttpApiEndpoint.post('chainRpc', '/fims/chain/rpc')

@@ -10,7 +10,14 @@ import {
   handleDeleteAddressBookEntry,
   handleUpdateAddressBookEntry,
 } from './handlers/book.js'
-import { handleChainAssets, handleChainHistory, handleChainLabels, handleChainRpc } from './handlers/chain.js'
+import {
+  handleChainAssets,
+  handleChainEvents,
+  handleChainHistory,
+  handleChainLabels,
+  handleChainRpc,
+  handleChainWebhook,
+} from './handlers/chain.js'
 import { handleConvertPosition } from './handlers/convert.js'
 import {
   handleCustodialBackingStatus,
@@ -90,6 +97,8 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
       .handle('chainHistory', handleChainHistory)
       .handle('chainAssets', handleChainAssets)
       .handle('chainRpc', handleChainRpc)
+      .handle('chainWebhook', handleChainWebhook)
+      .handle('chainEvents', handleChainEvents)
       .handle('strategyStatus', handleStrategyStatus)
       .handle('strategyDelegateRun', handleStrategyDelegateRun)
       .handle('custodialBackingStatus', handleCustodialBackingStatus)

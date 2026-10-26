@@ -133,6 +133,13 @@
       "tag": "0018_wrapped_claim_caps",
       "version": "7",
       "when": 1791673447365
+    },
+    {
+      "breakpoints": true,
+      "idx": 19,
+      "tag": "0019_chain_events",
+      "version": "7",
+      "when": 1793037156727
     }
   ],
   "version": "7"

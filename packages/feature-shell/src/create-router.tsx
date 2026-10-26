@@ -5,6 +5,7 @@ import { optionsSetting } from '@workspace/db-react/options-setting'
 import { optionsWallet } from '@workspace/db-react/options-wallet'
 import { queryClient } from '@workspace/db-react/query-client'
 import { getEntrypoint } from '@workspace/env/get-entrypoint'
+import { FimsChainEvents } from '@workspace/feature-fims/data-access/use-chain-events'
 import {
   FimsPortfolioLedgerProvider,
   FimsPortfolioMemberHeaderProvider,
@@ -52,6 +53,7 @@ export function createRouter(ctx: AppContext) {
             <FimsPortfolioMemberHeaderProvider>
               <Outlet />
               <DemoTour />
+              <FimsChainEvents />
             </FimsPortfolioMemberHeaderProvider>
           </FimsPortfolioPricingProvider>
         </FimsPortfolioLedgerProvider>

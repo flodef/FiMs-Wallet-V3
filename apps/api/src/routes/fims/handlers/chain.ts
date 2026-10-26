@@ -1,7 +1,7 @@
 import { Headers, HttpServerRequest } from '@effect/platform'
-import { eq, or, sql } from 'drizzle-orm'
+import { asc, eq, gt, or, sql } from 'drizzle-orm'
 import { Effect, Option } from 'effect'
-import { addressBook, tokens, userAddresses, users } from '../../../db/schema.js'
+import { addressBook, chainEvents, tokens, usedSignatures, userAddresses, users } from '../../../db/schema.js'
 import { DatabaseService, type Db, withDb } from '../../../db/service.js'
 import { envInt } from '../../../env.js'
 import { FIMS_TONTINE_ADDRESS, FIMS_TREASURY_ADDRESS } from '../../../fims-constants.js'
@@ -409,4 +409,86 @@ export const handleChainRpc = ({ payload }: { payload: unknown }) =>
         return (await res.json()) as unknown
       },
     })
+  })
+
+// ─── Helius webhook → realtime events ──────────────────────────────────────
+// Helius POSTs enhanced transactions for the watched protocol addresses.
+// Auth: shared secret in x-helius-auth (configured when the webhook was
+// created) — fail closed: no secret configured means the endpoint stays off.
+// Each tx inserts one chain_events row per watched address; signatures are
+// deduped via used_signatures so a retried delivery is a no-op.
+const webhookSecret = () => {
+  const secret = process.env['HELIUS_WEBHOOK_SECRET']?.trim()
+  if (!secret) throw new Error('webhook not configured')
+  return secret
+}
+
+export const handleChainWebhook = ({ payload }: { payload: unknown }) =>
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest
+    const secret = yield* Effect.try({
+      catch: () => new ChainUnavailable({ reason: 'webhook not configured' }),
+      try: webhookSecret,
+    })
+    // Helius delivers its authHeader as `Authorization` — accept x-helius-auth
+    // too so a manual curl replay works for debugging.
+    const given =
+      Option.getOrElse(Headers.get(request.headers, 'authorization'), () => '') ||
+      Option.getOrElse(Headers.get(request.headers, 'x-helius-auth'), () => '')
+    if (given !== secret) return yield* Effect.fail(new AuthForbidden({ address: 'webhook' }))
+
+    const txs = Array.isArray(payload) ? payload : []
+    const rows = txs.flatMap((tx) => {
+      const signature =
+        typeof (tx as { signature?: unknown })?.signature === 'string' ? (tx as { signature: string }).signature : null
+      if (!signature) return []
+      const accounts = Array.isArray((tx as { accountData?: unknown })?.accountData)
+        ? (tx as { accountData: { account?: string }[] }).accountData
+        : []
+      return [...new Set(accounts.map((a) => a.account).filter((a): a is string => typeof a === 'string'))].map(
+        (address) => ({ address, signature }),
+      )
+    })
+    yield* withDb(async (db) => {
+      for (const tx of txs) {
+        const signature = (tx as { signature?: string }).signature
+        if (!signature) continue
+        const claim = await db
+          .insert(usedSignatures)
+          .values({ signature: `webhook:${signature}` })
+          .onConflictDoNothing()
+          .returning()
+        if (!claim.length) continue // redelivery — already recorded
+        const mine = rows.filter((row) => row.signature === signature)
+        if (mine.length) await db.insert(chainEvents).values(mine)
+      }
+    })
+    return { recorded: rows.length }
+  })
+
+// Cursor feed polled by the client: events with id > `after`, oldest first.
+// Anonymous + IP-quota'd — watched addresses are public on-chain data anyway.
+export const handleChainEvents = ({ urlParams }: { urlParams: { after?: number | undefined } }) =>
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest
+    const quotas = chainQuotas()
+    const [byIp, global] = yield* Effect.all(
+      [bumpBucket(`chain:events:ip:${chainClientIp(request)}`), bumpBucket('chain:global')],
+      { concurrency: 'unbounded' },
+    )
+    if (byIp > quotas.ip || global > quotas.global) {
+      return yield* Effect.fail(new RateLimited({ reason: 'chain read quota exceeded — retry in a few minutes' }))
+    }
+    const { db } = yield* DatabaseService
+    const events = yield* Effect.tryPromise({
+      catch: () => new RateLimited({ reason: 'events unavailable' }),
+      try: () =>
+        db
+          .select({ address: chainEvents.address, id: chainEvents.id, signature: chainEvents.signature })
+          .from(chainEvents)
+          .where(gt(chainEvents.id, urlParams.after ?? 0))
+          .orderBy(asc(chainEvents.id))
+          .limit(100),
+    })
+    return events
   })

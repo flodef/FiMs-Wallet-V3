@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   numeric,
   pgEnum,
@@ -307,3 +308,18 @@ export const strategyOps = pgTable('strategy_ops', {
   strategyIndex: integer('strategy_index').notNull(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
+
+// Realtime chain events fed by the Helius webhook: one row per watched
+// address touched by a transaction. Clients poll `GET /fims/chain/events`
+// with an `after` cursor — the serial id IS the cursor (monotonic, cheap
+// index-only range scans).
+export const chainEvents = pgTable(
+  'chain_events',
+  {
+    address: text('address').notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    id: serial('id').primaryKey(),
+    signature: text('signature').notNull(),
+  },
+  (t) => [index('chain_events_address_idx').on(t.address)],
+)
