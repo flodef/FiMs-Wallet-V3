@@ -15,6 +15,7 @@
   "actionSelectToken": "Selecciona token",
   "actionSend": "Enviar",
   "actionUseFaucet": "Usa faucet",
+  "activityLoadMore": "Cargar más",
   "balancesErrorBody": "No se pudo contactar con la red para leer este monedero. Tus fondos no se ven afectados.",
   "balancesErrorTitle": "Saldos no disponibles",
   "balancesPartialBody": "Algunos tokens no se pudieron leer — la lista y el total pueden estar incompletos.",

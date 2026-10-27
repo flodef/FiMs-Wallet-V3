@@ -1,5 +1,5 @@
 import type { MessagePartialSigner } from '@solana/kit'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { type QueryClient, queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppContext } from '@workspace/context-react/use-app-context'
 import type { Account } from '@workspace/db/account/account'
 import type { Database } from '@workspace/db/database'
@@ -12,6 +12,11 @@ const PAGE_SIZE = 100
 // Per-run page budget shared by the newest pass and the backfill — the next
 // refetch resumes where this run stopped instead of leaving gaps forever.
 const MAX_PAGES = 10
+// Stale-while-revalidate: cached Dexie rows render instantly and the chain
+// sync runs in the background, throttled so a refetch triggered by the sync
+// itself does not fire another sync (loop guard).
+const SYNC_THROTTLE_MS = 30 * 1000
+const lastSyncAt = new Map<string, number>()
 
 // Incremental sync in two phases over the same page walk:
 //  1. newest → stop at the first signature already cached;
@@ -154,30 +159,60 @@ export function useChainLabels({ account }: { account: Account }) {
 function chainHistoryQueryOptions({
   address,
   db,
+  queryClient,
   signerFor,
   signerAccount,
 }: {
   address: string
   db: Database
+  queryClient: QueryClient
   signerFor: (account: Account) => Promise<MessagePartialSigner>
   signerAccount: Account | undefined
 }) {
+  const readCached = async () => {
+    const rows = await db.chainTransactions.where('address').equals(address).sortBy('timestamp')
+    return rows.reverse() // newest first
+  }
+  const syncState = async () => (await db.chainSyncState.get(address))?.complete ?? false
   return queryOptions({
     queryFn: async () => {
       if (!signerAccount) throw new Error('No signing-capable account')
+      const cached = await readCached()
+      const due = (lastSyncAt.get(address) ?? 0) < Date.now() - SYNC_THROTTLE_MS
+      if (cached.length && !due) {
+        // Recently synced — the cache is fresh enough, skip the network work.
+        return { complete: await syncState(), transactions: cached }
+      }
       const signer = await signerFor(signerAccount)
+      if (cached.length && due) {
+        // Stale-while-revalidate: serve the cache NOW, sync in the
+        // background, then invalidate so the new rows paint. A signing
+        // prompt or a slow sync never blocks the first render again.
+        lastSyncAt.set(address, Date.now())
+        void (async () => {
+          try {
+            await syncChainHistory(db, signer, address)
+          } catch {
+            // Sync failure must not blank the cache — it stays as-is.
+          }
+          queryClient.invalidateQueries({ queryKey: ['chainHistory', address] })
+        })()
+        return { complete: await syncState(), transactions: cached }
+      }
+      // Empty cache: the sync IS the data — it has to be awaited.
+      lastSyncAt.set(address, Date.now())
       // Sync failure (API down, rate limit) must not blank cached history —
       // that's the point of the local store. Empty cache → error surfaces.
       let complete: boolean
       try {
         complete = await syncChainHistory(db, signer, address)
       } catch (error) {
-        const cached = await db.chainTransactions.where('address').equals(address).count()
-        if (!cached) throw error
-        complete = (await db.chainSyncState.get(address))?.complete ?? false
+        const count = await db.chainTransactions.where('address').equals(address).count()
+        if (!count) throw error
+        complete = await syncState()
       }
-      const rows = await db.chainTransactions.where('address').equals(address).sortBy('timestamp')
-      return { complete, transactions: rows.reverse() } // newest first
+      const rows = await readCached()
+      return { complete, transactions: rows }
     },
     queryKey: ['chainHistory', address],
   })
@@ -193,10 +228,11 @@ export function useChainHistory({
   enabled?: boolean
 }) {
   const ctx = useAppContext()
+  const queryClient = useQueryClient()
   const signerFor = useAccountMessageSigner()
   const signerAccount = useChainSignerAccount(account)
   return useQuery({
-    ...chainHistoryQueryOptions({ address: address ?? '', db: ctx.db, signerAccount, signerFor }),
+    ...chainHistoryQueryOptions({ address: address ?? '', db: ctx.db, queryClient, signerAccount, signerFor }),
     enabled: enabled && Boolean(address) && !!signerAccount,
   })
 }

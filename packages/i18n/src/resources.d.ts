@@ -572,6 +572,7 @@ export default interface Resources {
     actionSelectToken: 'Select token'
     actionSend: 'Send'
     actionUseFaucet: 'Use faucet'
+    activityLoadMore: 'Load more'
     balancesErrorBody: 'The network could not be reached to read this wallet. Your funds are not affected.'
     balancesErrorTitle: 'Balances unavailable'
     balancesPartialBody: 'Some tokens could not be read — the list and total may be incomplete.'

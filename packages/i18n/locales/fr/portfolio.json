@@ -15,6 +15,7 @@
   "actionSelectToken": "Choisir le token",
   "actionSend": "Envoyer",
   "actionUseFaucet": "Utiliser le faucet",
+  "activityLoadMore": "Charger plus",
   "balancesErrorBody": "Le réseau n'a pas pu être joint pour lire ce wallet. Vos fonds ne sont pas affectés.",
   "balancesErrorTitle": "Soldes indisponibles",
   "balancesPartialBody": "Certains jetons n'ont pas pu être lus — la liste et le total peuvent être incomplets.",
