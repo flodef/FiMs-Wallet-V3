@@ -42,6 +42,7 @@ const config: CSpellSettings = {
   ],
   useGitignore: true,
   words: [
+    'Mseurs',
     'borsh',
     'deployables',
     'ellipsified',

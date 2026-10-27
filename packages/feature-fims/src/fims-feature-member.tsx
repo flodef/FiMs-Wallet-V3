@@ -29,6 +29,7 @@ import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiMemberClaim } from './fims-ui-member-claim.tsx'
+import { FimsUiMemberDirectory } from './fims-ui-member-directory.tsx'
 import { FimsUiMemberSummary } from './fims-ui-member-summary.tsx'
 import { FimsUiProfileEdit } from './fims-ui-profile-edit.tsx'
 import { FimsUiRebalance } from './fims-ui-rebalance.tsx'
@@ -119,6 +120,8 @@ export function FimsFeatureMember({ account }: { account: Account }) {
       <FimsUiProfileEdit account={account} member={member} />
 
       <FimsUiAddressBook account={account} userId={member.id} />
+
+      <FimsUiMemberDirectory member={member} />
 
       {donations.count > 0 ? (
         <UiCard title={t(($) => $.donationsTitle)}>
