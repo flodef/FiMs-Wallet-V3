@@ -92,6 +92,8 @@
   "donationsCount_other": "{{count}} donations",
   "donationsTitle": "Donations",
   "donationsTotal": "Total given",
+  "emptyWalletBody": "Check the protocol tokens to get started: {{tokens}} — head to the Swap tab.",
+  "emptyWalletTitle": "No FiMs positions",
   "gainCheckPending": "Operations temporarily held: computing your realized-gain basis — retry in a moment.",
   "gasTopupAction": "Refill gas",
   "gasTopupBody": "Solana charges network fees and account rent in SOL — SOL is the gas of this wallet, not an investment. Your SOL balance is too low to send transactions. Convert some of your tokens to refill the {{reserve}} SOL reserve.",

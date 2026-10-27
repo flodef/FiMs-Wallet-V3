@@ -45,10 +45,34 @@ export function FimsFeatureCommunity() {
           </div>
         )}
         {latest ? (
-          <p className="pt-2 text-muted-foreground text-xs">
-            {t(($) => $.treasuryLabel)}: {latest.treasury != null ? format(latest.treasury) : '—'} ·{' '}
-            {t(($) => $.investedLabel)}: {format(latest.invested)}
-          </p>
+          <div className="pt-2">
+            <p className="text-muted-foreground text-xs">
+              {t(($) => $.treasuryLabel)}: {latest.treasury != null ? format(latest.treasury) : '—'} ·{' '}
+              {t(($) => $.investedLabel)}: {format(latest.invested)}
+            </p>
+            {latest.treasury != null && latest.invested > 0 ? (
+              <div className="mt-1 flex h-3 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="bg-muted-foreground/60"
+                  style={{ width: `${(latest.invested / Math.max(latest.treasury, latest.invested)) * 100}%` }}
+                />
+                {latest.treasury > latest.invested ? (
+                  <div
+                    className="bg-green-500"
+                    style={{
+                      width: `${((latest.treasury - latest.invested) / Math.max(latest.treasury, latest.invested)) * 100}%`,
+                    }}
+                  />
+                ) : null}
+                {latest.treasury < latest.invested ? (
+                  <div
+                    className="bg-red-500"
+                    style={{ width: `${((latest.invested - latest.treasury) / latest.invested) * 100}%` }}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         ) : null}
         <p className="pt-2 text-muted-foreground text-xs">{t(($) => $.communityDisclaimer)}</p>
       </UiCard>

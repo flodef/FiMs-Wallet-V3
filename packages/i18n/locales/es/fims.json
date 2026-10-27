@@ -93,6 +93,8 @@
   "donationsCount_other": "{{count}} donaciones",
   "donationsTitle": "Donaciones",
   "donationsTotal": "Total donado",
+  "emptyWalletBody": "Descubre los tokens del protocolo para empezar: {{tokens}} — ve a la pestaña Intercambio.",
+  "emptyWalletTitle": "Sin posiciones FiMs",
   "gainCheckPending": "Operaciones en espera: calculando tu base de ganancia realizada — inténtalo de nuevo en un momento.",
   "gasTopupAction": "Rellenar gas",
   "gasTopupBody": "Solana cobra las comisiones de red y el alquiler de cuentas en SOL — SOL es el gas de esta billetera, no una inversión. Tu saldo de SOL es demasiado bajo para enviar transacciones. Convierte parte de tus tokens para rellenar la reserva de {{reserve}} SOL.",

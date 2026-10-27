@@ -49,6 +49,21 @@ export function FimsUiPortfolioExtras({
   const loss = Math.min(0, summary.profit)
   const barTotal = invested + gains - loss || 1
 
+  // v1 empty-wallet alert: a member holding no protocol position gets the
+  // FiMs tokens suggested as the entry point.
+  if (heldPositions.length === 0) {
+    return (
+      <div className="border-t pt-4">
+        <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm">
+          <p className="font-medium">{t(($) => $.emptyWalletTitle)}</p>
+          <p className="text-muted-foreground text-xs">
+            {t(($) => $.emptyWalletBody, { tokens: tokens.map((token) => token.symbol).join(', ') })}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 border-t pt-4">
       <div className="flex items-center justify-end">

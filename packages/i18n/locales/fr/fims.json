@@ -93,6 +93,8 @@
   "donationsCount_other": "{{count}} dons",
   "donationsTitle": "Dons",
   "donationsTotal": "Total donné",
+  "emptyWalletBody": "Découvrez les tokens du protocole pour démarrer : {{tokens}} — rendez-vous dans l’onglet Échange.",
+  "emptyWalletTitle": "Aucune position FiMs",
   "gainCheckPending": "Opérations temporairement en attente : calcul de votre base de gain réalisé en cours — réessayez dans un instant.",
   "gasTopupAction": "Recharger le gaz",
   "gasTopupBody": "Solana prélève les frais de réseau et la location des comptes en SOL — SOL est le gaz de ce portefeuille, pas un investissement. Votre solde de SOL est trop faible pour envoyer des transactions. Convertissez une partie de vos tokens pour reconstituer la réserve de {{reserve}} SOL.",
