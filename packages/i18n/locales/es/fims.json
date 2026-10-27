@@ -479,5 +479,9 @@
   "votesWeightInvestment": "Peso proporcional a tu inversión total.",
   "votesWeightTontine": "Peso proporcional a tus aportes a la Tontina.",
   "votesYours": "tu voto",
+  "whatsNewClose": "Cerrar",
+  "whatsNewLess": "Ocultar versiones anteriores",
+  "whatsNewOlder": "Ver versiones anteriores",
+  "whatsNewTitle": "Novedades de FiMs Wallet",
   "withdrawalGroupLabel": "Destinos de retiro"
 }

@@ -11,6 +11,7 @@ import {
   FimsPortfolioMemberHeaderProvider,
   FimsPortfolioPricingProvider,
 } from '@workspace/feature-fims/fims-portfolio-pricing-provider'
+import { FimsUiVersionNotes } from '@workspace/feature-fims/fims-ui-version-notes'
 import { DemoTour } from '@workspace/feature-onboarding/demo/demo-tour'
 import { UiErrorBoundary } from '@workspace/ui/components/ui-error-boundary'
 import { UiLoaderFull } from '@workspace/ui/components/ui-loader-full'
@@ -54,6 +55,7 @@ export function createRouter(ctx: AppContext) {
               <Outlet />
               <DemoTour />
               <FimsChainEvents />
+              <FimsUiVersionNotes />
             </FimsPortfolioMemberHeaderProvider>
           </FimsPortfolioPricingProvider>
         </FimsPortfolioLedgerProvider>

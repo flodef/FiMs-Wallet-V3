@@ -538,6 +538,10 @@ export default interface Resources {
     votesWeightInvestment: 'Weight proportional to your total investment.'
     votesWeightTontine: 'Weight proportional to your Tontine contributions.'
     votesYours: 'your vote'
+    whatsNewClose: 'Close'
+    whatsNewLess: 'Hide older versions'
+    whatsNewOlder: 'Show previous versions'
+    whatsNewTitle: 'FiMs Wallet — what’s new'
     withdrawalGroupLabel: 'Withdrawal destinations'
   }
   onboarding: {
