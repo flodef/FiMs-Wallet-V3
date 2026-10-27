@@ -1,7 +1,6 @@
 import type { Address } from '@solana/kit'
 import type { Account } from '@workspace/db/account/account'
 import { useNetworkActive } from '@workspace/db-react/use-network-active'
-import { ExplorerUiTxExternalLink } from '@workspace/feature-explorer/ui/explorer-ui-tx-external-link'
 import { PortfolioUiAccountButtons } from '@workspace/feature-portfolio/ui/portfolio-ui-account-buttons'
 import { useTranslation } from '@workspace/i18n'
 import { formatNumber } from '@workspace/i18n/format'
@@ -10,8 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/al
 import { Badge } from '@workspace/ui/components/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UiCard } from '@workspace/ui/components/ui-card'
-import { UiIcon } from '@workspace/ui/components/ui-icon'
-import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { UiTextCopyIcon } from '@workspace/ui/components/ui-text-copy-icon'
 import { useMemo } from 'react'
@@ -19,13 +16,11 @@ import { useFimsMember, useFimsMemberSummary, useFimsTokens, useFimsTransactions
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
 import { useSnsDomain } from './data-access/use-sns-domain.tsx'
-import type { FimsTransaction, FimsTransactionType } from './fims-api.ts'
 import { getFimsTontineRate } from './fims-fee-config.ts'
-import { formatDate, formatPercent } from './fims-format.ts'
+import { formatPercent } from './fims-format.ts'
 import { computeFimsPositions } from './fims-positions.ts'
 import { getFimsTransactionType } from './fims-transaction-type.ts'
 import { groupFimsTransactions } from './fims-tx-groups.ts'
-import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 import { FimsUiAddressBook } from './fims-ui-address-book.tsx'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiMemberClaim } from './fims-ui-member-claim.tsx'
@@ -33,6 +28,7 @@ import { FimsUiMemberDirectory } from './fims-ui-member-directory.tsx'
 import { FimsUiMemberSummary } from './fims-ui-member-summary.tsx'
 import { FimsUiProfileEdit } from './fims-ui-profile-edit.tsx'
 import { FimsUiRebalance } from './fims-ui-rebalance.tsx'
+import { FimsUiTxExplorer } from './fims-ui-tx-explorer.tsx'
 
 export function FimsFeatureMember({ account }: { account: Account }) {
   const address = account.publicKey
@@ -146,103 +142,10 @@ export function FimsFeatureMember({ account }: { account: Account }) {
         {transactions.isLoading ? (
           <UiLoader />
         ) : (
-          <div className="max-h-96 overflow-y-auto">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background">
-                <TableRow>
-                  <TableHead>{t(($) => $.columnDate)}</TableHead>
-                  <TableHead>{t(($) => $.columnType)}</TableHead>
-                  <TableHead className="text-right">{t(($) => $.columnAmount)}</TableHead>
-                  <TableHead className="text-right">{t(($) => $.columnValue)}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {txGroups.map((group) => (
-                  <FimsTxRow format={format} group={group} key={group.legs[0].id} />
-                ))}
-                {transactions.data?.length === 0 ? (
-                  <TableRow>
-                    <TableCell className="text-center text-muted-foreground" colSpan={5}>
-                      {t(($) => $.transactionsEmpty)}
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
+          <FimsUiTxExplorer format={format} groups={txGroups} tokens={tokens.data ?? []} />
         )}
       </UiCard>
     </div>
-  )
-}
-
-// Type → icon for the transaction list: in/out arrows for capital flows,
-// refresh for conversions, coins for gifts.
-const TX_ICONS: Record<FimsTransactionType, UiIconName> = {
-  cex_in: 'arrowDown',
-  cex_out: 'arrowUp',
-  conversion: 'refresh',
-  deposit: 'arrowDown',
-  donation: 'handCoins',
-  payment: 'coins',
-  tontine: 'handCoins',
-  withdrawal: 'arrowUp',
-}
-
-const signedUnits = (tx: FimsTransaction): string =>
-  tx.amount == null ? '—' : `${formatNumber(Number(tx.amount), { maximumFractionDigits: 6 })} ${tx.token ?? ''}`
-
-function FimsTxRow({
-  format,
-  group,
-}: {
-  format: (value: number) => string
-  group: { legs: [FimsTransaction, ...FimsTransaction[]] }
-}) {
-  const [first] = group.legs
-  const type = getFimsTransactionType(first)
-  const signature = group.legs.find((leg) => leg.signature)?.signature
-  return (
-    <TableRow>
-      <TableCell className="whitespace-nowrap">{formatDate(first.date)}</TableCell>
-      <TableCell>
-        <span className="inline-flex items-center gap-1">
-          <UiIcon className="size-3 text-muted-foreground" icon={TX_ICONS[type] ?? 'activity'} />
-          <FimsTxTypeLabel transaction={first} />
-        </span>
-        {first.donationTarget ? (
-          <div className="text-muted-foreground text-xs">
-            → {first.donationTarget}
-            {first.donationAmount != null
-              ? ` (${formatNumber(Number(first.donationAmount))} ${first.token ?? ''})`
-              : ''}
-          </div>
-        ) : null}
-      </TableCell>
-      <TableCell className="text-right">
-        {group.legs.map((leg) => (
-          <div className="whitespace-nowrap" key={leg.id}>
-            {signedUnits(leg)}
-          </div>
-        ))}
-      </TableCell>
-      <TableCell className="text-right">
-        {group.legs.map((leg) => (
-          <div className="whitespace-nowrap" key={leg.id}>
-            <span className={leg.movement < 0 ? 'text-red-500' : 'text-green-500'}>{format(leg.movement)}</span>
-            {leg.cost !== 0 ? <div className="text-muted-foreground text-xs">{format(leg.cost)}</div> : null}
-          </div>
-        ))}
-      </TableCell>
-      <TableCell>
-        {signature ? (
-          <ExplorerUiTxExternalLink className="text-muted-foreground" signature={signature}>
-            <UiIcon className="size-3" icon="explorer" />
-          </ExplorerUiTxExternalLink>
-        ) : null}
-      </TableCell>
-    </TableRow>
   )
 }
 
