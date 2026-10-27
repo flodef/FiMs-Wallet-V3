@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { UiTextCopyIcon } from '@workspace/ui/components/ui-text-copy-icon'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useFimsMember, useFimsMemberSummary, useFimsTokens, useFimsTransactions } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
@@ -44,6 +44,8 @@ export function FimsFeatureMember({ account }: { account: Account }) {
     [transactions.data, tokens.data],
   )
   useFimsNewTransactions(member?.id, transactions.data)
+  // Position-row click drills into the matching ledger rows below.
+  const [drillToken, setDrillToken] = useState<null | string>(null)
   const donations = useMemo(() => {
     const list = (transactions.data ?? []).filter((tx) => ['donation', 'tontine'].includes(getFimsTransactionType(tx)))
     return { count: list.length, total: list.reduce((sum, tx) => sum + (tx.movement ?? 0), 0) }
@@ -92,7 +94,12 @@ export function FimsFeatureMember({ account }: { account: Account }) {
               </TableHeader>
               <TableBody>
                 {positions.map((p) => (
-                  <TableRow key={p.symbol}>
+                  <TableRow
+                    className={`cursor-pointer ${drillToken === p.symbol ? 'bg-muted/60' : ''}`}
+                    key={p.symbol}
+                    onClick={() => setDrillToken(drillToken === p.symbol ? null : p.symbol)}
+                    title={t(($) => $.positionsDrillHint)}
+                  >
                     <TableCell className="font-medium">{p.symbol}</TableCell>
                     <TableCell className="text-right">{formatNumber(p.units, { maximumFractionDigits: 4 })}</TableCell>
                     <TableCell className="text-right">{p.avgBuyPrice != null ? format(p.avgBuyPrice) : '—'}</TableCell>
@@ -142,7 +149,13 @@ export function FimsFeatureMember({ account }: { account: Account }) {
         {transactions.isLoading ? (
           <UiLoader />
         ) : (
-          <FimsUiTxExplorer format={format} groups={txGroups} tokens={tokens.data ?? []} />
+          <FimsUiTxExplorer
+            activeToken={drillToken}
+            format={format}
+            groups={txGroups}
+            onTokenFilterChange={setDrillToken}
+            tokens={tokens.data ?? []}
+          />
         )}
       </UiCard>
     </div>

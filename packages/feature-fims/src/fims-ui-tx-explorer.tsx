@@ -18,12 +18,19 @@ import { FimsTxTypeLabel } from './fims-tx-type-label.tsx'
 // price — profit = price_now × amount − movement − cost (0 on
 // donation/payment rows). Click a row to expand rate + profit details.
 export function FimsUiTxExplorer({
+  activeToken,
   format,
   groups,
+  onTokenFilterChange,
   tokens,
 }: {
+  // Optional filter override: when set (e.g. a positions-table row was
+  // clicked) it replaces the internal token filter; clicking a token chip
+  // clears the override.
+  activeToken?: null | string | undefined
   format: (value: number) => string
   groups: FimsTxGroup[]
+  onTokenFilterChange?: ((token: null | string) => void) | undefined
   tokens: FimsToken[]
 }) {
   const { t } = useTranslation('fims')
@@ -58,7 +65,8 @@ export function FimsUiTxExplorer({
   const [years, setYears] = useState<Set<number>>(new Set())
   const [mags, setMags] = useState<Set<number>>(new Set())
   const [types, setTypes] = useState<Set<string>>(new Set())
-  const [tokenFilter, setTokenFilter] = useState<Set<string>>(new Set())
+  const [tokenFilterState, setTokenFilterState] = useState<Set<string>>(new Set())
+  const tokenFilter = activeToken != null ? new Set([activeToken]) : tokenFilterState
   const [sort, setSort] = useState<{ key: 'date' | 'movement' | 'profit' | 'token' | 'type'; dir: 1 | -1 }>({
     dir: -1,
     key: 'date',
@@ -102,7 +110,8 @@ export function FimsUiTxExplorer({
     setYears(new Set())
     setMags(new Set())
     setTypes(new Set())
-    setTokenFilter(new Set())
+    setTokenFilterState(new Set())
+    onTokenFilterChange?.(null)
   }
   const toggle = <V,>(set: Set<V>, value: V, apply: (s: Set<V>) => void) => {
     const next = new Set(set)
@@ -206,7 +215,13 @@ export function FimsUiTxExplorer({
               <Badge
                 className="cursor-pointer"
                 key={token}
-                onClick={() => toggle(tokenFilter, token, setTokenFilter)}
+                onClick={() => {
+                  if (activeToken != null) {
+                    onTokenFilterChange?.(activeToken === token ? null : token)
+                  } else {
+                    toggle(tokenFilterState, token, setTokenFilterState)
+                  }
+                }}
                 variant={tokenFilter.has(token) ? 'default' : 'outline'}
               >
                 {token}

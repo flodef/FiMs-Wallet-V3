@@ -273,6 +273,7 @@
   "noSolDescription": "Este monedero no tiene SOL. Necesitas una pequeña cantidad de SOL para pagar las comisiones de red al enviar tokens.",
   "noSolTitle": "Sin SOL para comisiones",
   "perfTitle": "Rendimiento FiMs",
+  "positionsDrillHint": "Clic para filtrar las transacciones de este token",
   "positionsTitle": "Posiciones",
   "privacyHide": "Ocultar importes",
   "privacyShow": "Mostrar importes",

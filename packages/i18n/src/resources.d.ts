@@ -338,6 +338,7 @@ export default interface Resources {
     noSolDescription: 'This wallet has no SOL. You need a small amount of SOL to pay network fees when sending tokens.'
     noSolTitle: 'No SOL for fees'
     perfTitle: 'FiMs performance'
+    positionsDrillHint: 'Click to filter this token’s transactions'
     positionsTitle: 'Positions'
     privacyHide: 'Hide amounts'
     privacyShow: 'Show amounts'

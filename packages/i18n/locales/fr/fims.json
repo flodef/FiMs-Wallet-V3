@@ -273,6 +273,7 @@
   "noSolDescription": "Ce portefeuille n’a pas de SOL. Il faut un peu de SOL pour payer les frais de réseau lors des envois de tokens.",
   "noSolTitle": "Pas de SOL pour les frais",
   "perfTitle": "Performances FiMs",
+  "positionsDrillHint": "Cliquer pour filtrer les transactions de ce token",
   "positionsTitle": "Positions",
   "privacyHide": "Masquer les montants",
   "privacyShow": "Afficher les montants",
