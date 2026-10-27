@@ -9,12 +9,13 @@ import {
 } from '@workspace/ui/components/dropdown-menu'
 import { UiIcon } from '@workspace/ui/components/ui-icon'
 import { Link, useLocation } from 'react-router'
+import { burnValueAllowed } from '../data-access/burn-rules.ts'
 import type { TokenBalance } from '../data-access/use-get-token-balances.ts'
 
 export function PortfolioUiTokenBalanceItemMenu({ item }: { item: TokenBalance }) {
   const { t } = useTranslation('portfolio')
   const { pathname: from } = useLocation()
-  const canBurn = item.mint !== NATIVE_MINT && item.balance > 0n
+  const canBurn = item.mint !== NATIVE_MINT && item.balance > 0n && burnValueAllowed(item.valueEur)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -34,13 +35,16 @@ export function PortfolioUiTokenBalanceItemMenu({ item }: { item: TokenBalance }
           </Link>
         </DropdownMenuItem>
         {canBurn ? (
-          <DropdownMenuItem asChild className="cursor-pointer">
+          <DropdownMenuItem asChild className="cursor-pointer" variant="destructive">
             <Link state={{ from }} to={`/modals/burn/${item.account}`}>
+              <UiIcon icon="alert" />
               {t(($) => $.burnTokens)}
             </Link>
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem disabled>{t(($) => $.burnTokens)}</DropdownMenuItem>
+          <DropdownMenuItem disabled title={t(($) => $.burnDisabledReason)}>
+            {t(($) => $.burnTokens)}
+          </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
