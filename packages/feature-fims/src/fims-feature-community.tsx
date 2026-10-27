@@ -2,14 +2,16 @@ import { useTranslation } from '@workspace/i18n'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@workspace/ui/components/table'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useFimsDashboard, useFimsHistoric, useFimsPrices, useFimsTokens } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
+import type { FimsToken } from './fims-api.ts'
 import { formatPercent } from './fims-format.ts'
 import { computePeriodReturns, computeRealizedAnnualRates, fimsPriceKey } from './fims-performance.ts'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
 import { FimsUiHistoricChart } from './fims-ui-historic-chart.tsx'
 import { FimsUiTokenChart } from './fims-ui-token-chart.tsx'
+import { FimsUiTokenInfo } from './fims-ui-token-info.tsx'
 
 export function FimsFeatureCommunity() {
   const { t } = useTranslation('fims')
@@ -18,6 +20,7 @@ export function FimsFeatureCommunity() {
   const tokens = useFimsTokens()
   const historic = useFimsHistoric()
   const latest = historic.data?.at(-1)
+  const [selected, setSelected] = useState<FimsToken | null>(null)
   const prices = useFimsPrices()
   const perf30d = useMemo(() => computePeriodReturns(prices.data ?? [], 30), [prices.data])
   const perf1y = useMemo(() => computePeriodReturns(prices.data ?? [], 365), [prices.data])
@@ -81,7 +84,7 @@ export function FimsFeatureCommunity() {
               </TableHeader>
               <TableBody>
                 {(tokens.data ?? []).map((token) => (
-                  <TableRow key={token.symbol}>
+                  <TableRow className="cursor-pointer" key={token.symbol} onClick={() => setSelected(token)}>
                     <TableCell>
                       <div className="font-medium">{token.symbol}</div>
                       <div className="text-muted-foreground text-xs">{token.label}</div>
@@ -108,6 +111,7 @@ export function FimsFeatureCommunity() {
       </UiCard>
 
       <FimsUiTokenChart />
+      <FimsUiTokenInfo onOpenChange={(open) => !open && setSelected(null)} open={selected !== null} token={selected} />
     </div>
   )
 }
