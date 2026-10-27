@@ -18,6 +18,7 @@ import {
   LucideCopyCheck,
   LucideExternalLink,
   LucideEye,
+  LucideEyeOff,
   LucideGlobe,
   LucideHammer,
   LucideHandCoins,
@@ -76,6 +77,7 @@ export type UiIconName =
   | 'edit'
   | 'explorer'
   | 'externalLink'
+  | 'eyeOff'
   | 'hammer'
   | 'handCoins'
   | 'hardware'
@@ -125,6 +127,7 @@ const uiIconMap = new Map<UiIconName, UiIconLucide>()
   .set('edit', LucidePencil)
   .set('explorer', LucideGlobe)
   .set('externalLink', LucideExternalLink)
+  .set('eyeOff', LucideEyeOff)
   .set('hammer', LucideHammer)
   .set('help', LucideLifeBuoy)
   .set('handCoins', LucideHandCoins)

@@ -14,9 +14,16 @@ import {
 } from '@workspace/feature-portfolio/data-access/portfolio-pricing'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { type ReactNode, useMemo } from 'react'
-import { useFimsMember, useFimsMemberSummary, useFimsTokens, useFimsTransactions } from './data-access/use-fims.tsx'
+import {
+  useFimsMember,
+  useFimsMemberSummary,
+  useFimsTokens,
+  useFimsTransactions,
+  useFimsUserHistoric,
+} from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { FimsUiMemberSummary } from './fims-ui-member-summary.tsx'
+import { FimsUiPortfolioExtras } from './fims-ui-portfolio-extras.tsx'
 
 // Feeds the portfolio with the protocol's own prices (the `tokens` table,
 // EUR per unit) and the user's display currency: FiMs, FLiP and FiMsSOL have
@@ -88,10 +95,13 @@ function FimsMemberHeaderSource({ address }: PortfolioMemberHeaderProps) {
   const account = useAccountActive()
   const { member } = useFimsMember(address, account)
   const summary = useFimsMemberSummary(member?.id, account)
+  const historic = useFimsUserHistoric(member?.id, account)
+  const tokens = useFimsTokens()
   if (!member || !summary.data) return null
   return (
     <UiCard title={member.name}>
       <FimsUiMemberSummary summary={summary.data} />
+      <FimsUiPortfolioExtras historic={historic.data ?? []} summary={summary.data} tokens={tokens.data ?? []} />
     </UiCard>
   )
 }
