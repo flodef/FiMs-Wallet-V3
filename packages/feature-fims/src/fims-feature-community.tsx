@@ -8,6 +8,7 @@ import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { formatPercent } from './fims-format.ts'
 import { computePeriodReturns, computeRealizedAnnualRates, fimsPriceKey } from './fims-performance.ts'
 import { FimsUiCurrencySelect } from './fims-ui-currency-select.tsx'
+import { FimsUiHistoricChart } from './fims-ui-historic-chart.tsx'
 import { FimsUiTokenChart } from './fims-ui-token-chart.tsx'
 
 export function FimsFeatureCommunity() {
@@ -48,6 +49,19 @@ export function FimsFeatureCommunity() {
         ) : null}
         <p className="pt-2 text-muted-foreground text-xs">{t(($) => $.communityDisclaimer)}</p>
       </UiCard>
+
+      {historic.data && historic.data.length > 1 ? (
+        <UiCard title={t(($) => $.perfTitle)}>
+          <FimsUiHistoricChart
+            format={format}
+            points={historic.data.map((point) => ({
+              date: point.date,
+              invested: point.invested,
+              total: point.treasury,
+            }))}
+          />
+        </UiCard>
+      ) : null}
 
       <UiCard title={t(($) => $.tokensTitle)}>
         {tokens.isLoading ? (
