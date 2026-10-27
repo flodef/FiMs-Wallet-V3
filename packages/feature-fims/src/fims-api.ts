@@ -86,6 +86,27 @@ export interface FimsUserHistoricPoint {
   userId: number
 }
 
+export interface FimsMemberPosition {
+  price: null | number
+  symbol: string
+  units: number
+  value: number
+}
+
+// Member summary recomputed server-side from the ledger — same formulas the
+// legacy spreadsheet applied (apps/api/src/member-stats.ts).
+export interface FimsMemberSummary {
+  donated: number
+  durationDays: null | number
+  grossDeposits: number
+  invested: number
+  positions: FimsMemberPosition[]
+  profit: number
+  profitRatio: null | number
+  total: number
+  yearlyRate: null | number
+}
+
 export interface FimsPricePoint {
   date: string
   price: number

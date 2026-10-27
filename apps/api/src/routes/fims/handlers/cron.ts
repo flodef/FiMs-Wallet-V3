@@ -3,6 +3,7 @@ import { Effect } from 'effect'
 import { custodialBackingStatus, custodialSweep } from '../../../custodial.js'
 import { tokens } from '../../../db/schema.js'
 import { DatabaseError, DatabaseService } from '../../../db/service.js'
+import { syncUserHistoric } from '../../../member-stats.js'
 import { syncPrices } from '../../../price-sync.js'
 import { AuthUnauthorized } from '../../../services/auth/service.js'
 import { cronAuthorized, runStrategyPass, strategyHealth } from '../../../strategy-delegate.js'
@@ -61,6 +62,14 @@ export const handleStrategyDelegateRun = () =>
       catch: (cause) => new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'price sync failed' }),
       try: () => syncPrices(db),
     }).pipe(Effect.catchAll((error) => Effect.logWarning('price sync failed', error)))
+    // Rebuild the per-member monthly history from the ledger + price feed —
+    // the external ETL that fed user_historic died; this keeps the perf
+    // chart fresh and lets the freshness monitor mean something again.
+    yield* Effect.tryPromise({
+      catch: (cause) =>
+        new ChainUnavailable({ reason: cause instanceof Error ? cause.message : 'user historic sync failed' }),
+      try: () => syncUserHistoric(db),
+    }).pipe(Effect.catchAll((error) => Effect.logWarning('user historic sync failed', error)))
     // Surface per-deposit failures as 503 so cron-job.org alerts —
     // the full detail stays in the strategy_ops table.
     const failed = report.deposits.filter((d) => d.error)

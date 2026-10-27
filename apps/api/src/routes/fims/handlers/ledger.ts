@@ -12,6 +12,7 @@ import {
   users,
 } from '../../../db/schema.js'
 import { withDb } from '../../../db/service.js'
+import { memberSummary } from '../../../member-stats.js'
 import {
   isAdminAddress,
   optionalWalletRequest,
@@ -235,6 +236,24 @@ export const handleUserHistoric = ({
         .offset(offset),
     )
     return rows.map((r) => r.point)
+  })
+
+// Live member summary: recomputed from the ledger on every call (the sheet
+// formulas, see member-stats.ts). Null when the user is unknown or private
+// to the caller — identical visibility to the transactions feed.
+export const handleMemberSummary = ({ urlParams }: { urlParams: { userId: number } }) =>
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest
+    const signer = yield* optionalWalletRequest(request)
+    const privacy = visibilityFilter(signer)
+    const visible = yield* withDb((db) =>
+      db
+        .select({ id: users.id })
+        .from(users)
+        .where(privacy ? and(eq(users.id, urlParams.userId), privacy) : eq(users.id, urlParams.userId)),
+    )
+    if (!visible.length) return null
+    return yield* withDb((db) => memberSummary(db, urlParams.userId))
   })
 
 export const handlePrices = ({

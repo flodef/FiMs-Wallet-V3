@@ -15,7 +15,7 @@ import type { UiIconName } from '@workspace/ui/components/ui-icon-map'
 import { UiLoader } from '@workspace/ui/components/ui-loader'
 import { UiTextCopyIcon } from '@workspace/ui/components/ui-text-copy-icon'
 import { useMemo } from 'react'
-import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
+import { useFimsMember, useFimsMemberSummary, useFimsTokens, useFimsTransactions } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { useFimsNewTransactions } from './data-access/use-fims-new-transactions.tsx'
 import { useSnsDomain } from './data-access/use-sns-domain.tsx'
@@ -39,7 +39,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
   const { format } = useFimsCurrency()
   const { isLoading, member } = useFimsMember(address, account)
   const snsDomain = useSnsDomain(address)
-  const historic = useFimsUserHistoric(member?.id, account)
+  const summary = useFimsMemberSummary(member?.id, account)
   const transactions = useFimsTransactions(member ? { userId: member.id } : undefined, account, !!member)
   const tokens = useFimsTokens()
   const positions = useMemo(
@@ -77,7 +77,7 @@ export function FimsFeatureMember({ account }: { account: Account }) {
           {snsDomain.data ?? address}
           <UiTextCopyIcon text={address} toast={t(($) => $.profileAddressCopied)} />
         </p>
-        <FimsUiMemberSummary historic={historic.data ?? []} />
+        <FimsUiMemberSummary summary={summary.data} />
       </UiCard>
 
       {positions.length ? (

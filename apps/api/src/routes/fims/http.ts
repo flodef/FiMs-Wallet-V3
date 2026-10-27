@@ -31,6 +31,7 @@ import {
   handleDashboard,
   handleDeleteTransaction,
   handleHistoric,
+  handleMemberSummary,
   handlePrices,
   handleTokens,
   handleTransactions,
@@ -76,6 +77,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
       .handle('tokens', handleTokens)
       .handle('historic', handleHistoric)
       .handle('userHistoric', handleUserHistoric)
+      .handle('memberSummary', handleMemberSummary)
       .handle('prices', handlePrices)
       .handle('dashboard', handleDashboard)
       .handle('addressBook', handleAddressBook)

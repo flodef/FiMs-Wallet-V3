@@ -78,6 +78,27 @@ export class UserHistoricPoint extends Schema.Class<UserHistoricPoint>('UserHist
   userId: Schema.Number,
 }) {}
 
+// Member portfolio summary recomputed from the `transactions` ledger (see
+// member-stats.ts) — the same indicators the legacy spreadsheet produced.
+export class MemberSummary extends Schema.Class<MemberSummary>('MemberSummary')({
+  donated: Schema.Number,
+  durationDays: Schema.NullOr(Schema.Number),
+  grossDeposits: Schema.Number,
+  invested: Schema.Number,
+  positions: Schema.Array(
+    Schema.Struct({
+      price: Schema.NullOr(Schema.Number),
+      symbol: Schema.String,
+      units: Schema.Number,
+      value: Schema.Number,
+    }),
+  ),
+  profit: Schema.Number,
+  profitRatio: Schema.NullOr(Schema.Number),
+  total: Schema.Number,
+  yearlyRate: Schema.NullOr(Schema.Number),
+}) {}
+
 export class PricePoint extends Schema.Class<PricePoint>('PricePoint')({
   date: Schema.Date,
   price: Schema.Number,

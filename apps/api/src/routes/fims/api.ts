@@ -24,6 +24,7 @@ import {
   FimsConfig,
   HistoricPoint,
   LinkUserAddressBody,
+  MemberSummary,
   NotFound,
   PaginationParams,
   PricePoint,
@@ -336,6 +337,19 @@ export class FimsApi extends HttpApiGroup.make('Fims')
       .annotate(OpenApi.Summary, 'Per-user portfolio history')
       .setUrlParams(Schema.Struct({ userId: Schema.optional(Schema.NumberFromString), ...PaginationParams }))
       .addSuccess(Schema.Array(UserHistoricPoint))
+      .addError(AuthForbidden, { status: 403 })
+      .addError(AuthUnauthorized, { status: 401 })
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    // Live member summary recomputed from the ledger — replaces the stale
+    // user_historic snapshot for the portfolio tile. Null when the member is
+    // unknown or private to the caller (same visibility as transactions).
+    HttpApiEndpoint.get('memberSummary', '/fims/member-summary')
+      .annotate(OpenApi.Summary, 'Member portfolio summary from the ledger (invested, P&L, rates)')
+      .setUrlParams(Schema.Struct({ userId: Schema.NumberFromString }))
+      .addSuccess(Schema.NullOr(MemberSummary))
       .addError(AuthForbidden, { status: 403 })
       .addError(AuthUnauthorized, { status: 401 })
       .addError(DatabaseError, { status: 500 })

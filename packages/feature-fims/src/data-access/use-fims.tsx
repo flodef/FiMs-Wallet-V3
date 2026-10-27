@@ -11,6 +11,7 @@ import type {
   FimsConfig,
   FimsDashboardMetric,
   FimsHistoricPoint,
+  FimsMemberSummary,
   FimsPricePoint,
   FimsToken,
   FimsTransaction,
@@ -141,6 +142,18 @@ export function useFimsUserHistoric(userId: number | undefined, account?: Accoun
     enabled: userId != null,
     queryFn: () => signedGetAll<FimsUserHistoricPoint>('/user-historic', { userId: String(userId) }),
     queryKey: ['fims', 'user-historic', userId, account?.publicKey ?? 'anon'],
+  })
+}
+
+// Live member summary (invested / current value / P&L / rates) recomputed
+// server-side from the ledger — null when the member is private to the
+// caller or unknown, so callers hide the tile instead of showing zeros.
+export function useFimsMemberSummary(userId: number | undefined, account?: Account) {
+  const signedGet = useFimsSignedGet(account)
+  return useQuery({
+    enabled: userId != null,
+    queryFn: () => signedGet<FimsMemberSummary | null>('/member-summary', { userId: String(userId) }),
+    queryKey: ['fims', 'member-summary', userId, account?.publicKey ?? 'anon'],
   })
 }
 

@@ -14,7 +14,7 @@ import {
 } from '@workspace/feature-portfolio/data-access/portfolio-pricing'
 import { UiCard } from '@workspace/ui/components/ui-card'
 import { type ReactNode, useMemo } from 'react'
-import { useFimsMember, useFimsTokens, useFimsTransactions, useFimsUserHistoric } from './data-access/use-fims.tsx'
+import { useFimsMember, useFimsMemberSummary, useFimsTokens, useFimsTransactions } from './data-access/use-fims.tsx'
 import { useFimsCurrency } from './data-access/use-fims-currency.tsx'
 import { FimsUiMemberSummary } from './fims-ui-member-summary.tsx'
 
@@ -87,11 +87,11 @@ export function FimsPortfolioLedgerProvider({ children }: { children: ReactNode 
 function FimsMemberHeaderSource({ address }: PortfolioMemberHeaderProps) {
   const account = useAccountActive()
   const { member } = useFimsMember(address, account)
-  const historic = useFimsUserHistoric(member?.id, account)
-  if (!member || !historic.data?.length) return null
+  const summary = useFimsMemberSummary(member?.id, account)
+  if (!member || !summary.data) return null
   return (
     <UiCard title={member.name}>
-      <FimsUiMemberSummary historic={historic.data} />
+      <FimsUiMemberSummary summary={summary.data} />
     </UiCard>
   )
 }
