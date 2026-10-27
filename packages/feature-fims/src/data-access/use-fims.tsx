@@ -216,6 +216,86 @@ export function useFimsUserUpdate(account: Account, userId: number) {
   })
 }
 
+// Admin CRUD on members and ledger rows. The API checks the admin allowlist
+// server-side — these hooks only exist so the admin UI can call the same
+// signed endpoints. address/isPro are privileged fields.
+export function useFimsAdminUserCreate(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { address: string; isPublic?: boolean; name: string }) =>
+      signedFetch<FimsUser>('POST', '/users', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'users'] }),
+  })
+}
+
+export function useFimsAdminUserUpdate(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...input
+    }: {
+      address?: string
+      id: number
+      isPro?: boolean
+      isPublic?: boolean
+      name?: string
+    }) => signedFetch<FimsUser>('PATCH', `/users/${id}`, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'users'] }),
+  })
+}
+
+export function useFimsAdminUserDelete(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => signedFetch<unknown>('DELETE', `/users/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'users'] }),
+  })
+}
+
+export interface FimsAdminTxInput {
+  amount?: null | string | undefined
+  cost?: number | undefined
+  date?: string | undefined
+  donationAmount?: null | string | undefined
+  donationTarget?: null | string | undefined
+  movement: number
+  token?: null | string | undefined
+  type?: null | string | undefined
+  userId: number
+}
+
+export function useFimsAdminTransactionCreate(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: FimsAdminTxInput) => signedFetch<FimsTransaction>('POST', '/transactions', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'transactions'] }),
+  })
+}
+
+export function useFimsAdminTransactionUpdate(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: number } & Partial<Omit<FimsAdminTxInput, 'userId'>>) =>
+      signedFetch<FimsTransaction>('PATCH', `/transactions/${id}`, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'transactions'] }),
+  })
+}
+
+export function useFimsAdminTransactionDelete(account: Account) {
+  const signedFetch = useFimsSignedFetch(account)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => signedFetch<unknown>('DELETE', `/transactions/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fims', 'transactions'] }),
+  })
+}
+
 // Signed when possible so the API can answer myOptionId for the caller.
 export function useFimsVotes(account?: Account) {
   const signedGet = useFimsSignedGet(account)

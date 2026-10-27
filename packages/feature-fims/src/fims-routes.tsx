@@ -1,9 +1,12 @@
 import { useAccountActive } from '@workspace/db-react/use-account-active'
+import { useIsAdmin } from '@workspace/db-react/use-is-admin'
+import { useNetworkActive } from '@workspace/db-react/use-network-active'
 import { useTranslation } from '@workspace/i18n'
 import { UiPage } from '@workspace/ui/components/ui-page'
 import { UiTabRoutes } from '@workspace/ui/components/ui-tab-routes'
 import { useSnsResolveDomain } from './data-access/use-sns-domain.tsx'
 import { FIMS_AUDIT_URL, FIMS_TREASURY_ADDRESS, FIMS_TREASURY_DOMAIN } from './fims-constants.ts'
+import { FimsFeatureAdmin } from './fims-feature-admin.tsx'
 import { FimsFeatureCommunity } from './fims-feature-community.tsx'
 import { FimsFeatureLearn } from './fims-feature-learn.tsx'
 import { FimsFeatureMember } from './fims-feature-member.tsx'
@@ -15,6 +18,8 @@ import { FimsFeatureVotes } from './fims-feature-votes.tsx'
 export default function FimsRoutes() {
   const { t } = useTranslation('fims')
   const account = useAccountActive()
+  const network = useNetworkActive()
+  const isAdmin = useIsAdmin()
   return (
     <UiPage>
       <UiTabRoutes
@@ -56,6 +61,17 @@ export default function FimsRoutes() {
             label: t(($) => $.tabLearn),
             path: 'learn',
           },
+          // Admin-only ledger console — the API enforces the allowlist too;
+          // the tab just stays hidden for members.
+          ...(isAdmin
+            ? [
+                {
+                  element: <FimsFeatureAdmin account={account} network={network} />,
+                  label: t(($) => $.tabAdmin),
+                  path: 'admin',
+                },
+              ]
+            : []),
         ]}
       />
       <p className="mt-6 text-center text-muted-foreground text-xs">{t(($) => $.disclaimer)}</p>
