@@ -21,7 +21,7 @@
 //                    ÷ max(1, years since first transaction) — a simple
 //                    annualized rate on average deployed capital
 import { and, asc, eq, isNotNull, ne, sql } from 'drizzle-orm'
-import { fimsSettings, prices, tokens, transactions, userHistoric } from './db/schema.js'
+import { fimsSettings, prices, tokens, transactions, userHistoric, users } from './db/schema.js'
 import type { Db } from './db/service.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -59,6 +59,26 @@ export interface MemberSummary {
   profitRatio: null | number
   total: number
   yearlyRate: null | number
+}
+
+// Aggregate member circulation of the protocol tokens — the ledger-side
+// replacement for the sheet's FiMsData counts. `members` applies the
+// per-member units rule (Σ amount − Σ donation_amount over non-donation
+// rows) excluding the operator 'Flodef' and the 'Tontine' user — the
+// tontine's own holdings follow the reconciliation invariant instead:
+// `tontine` = Σ COALESCE(donation_amount, amount) over rows gifted to
+// donation_target 'tontine'. `total` = members + tontine.
+export interface CirculationBucket {
+  members: number
+  tontine: number
+  total: number
+}
+
+export interface MemberCirculation {
+  computedAt: string
+  FSOL: CirculationBucket
+  FiMs: CirculationBucket
+  FLiP: CirculationBucket
 }
 
 // UTC first-of-month containing `date` — the boundaries the spreadsheet
@@ -173,6 +193,45 @@ export async function memberSummary(db: Db, userId: number, now = new Date()): P
     latestPricesBySymbol(db),
   ])
   return summarizeMember(rows, priceBySymbol, now)
+}
+
+// One aggregate pass over the ledger — cheap enough to run per request, and
+// the result feeds the public /fims/circulation endpoint (Dashboard counts).
+export async function memberCirculation(db: Db): Promise<MemberCirculation> {
+  const result = await db.execute(sql`
+    WITH m AS (
+      SELECT t.token, SUM(t.amount - COALESCE(t.donation_amount, 0)) AS u
+      FROM ${transactions} t
+      JOIN ${users} x ON x.id = t.user_id
+      WHERE t.type IS DISTINCT FROM 'donation'
+        AND t.token IN ('FSOL', 'FiMs', 'FLiP')
+        AND x.name NOT IN ('Flodef', 'Tontine')
+      GROUP BY 1
+    ),
+    tt AS (
+      SELECT token, SUM(COALESCE(donation_amount, amount)) AS u
+      FROM ${transactions}
+      WHERE donation_target = 'tontine' AND token IN ('FSOL', 'FiMs', 'FLiP')
+      GROUP BY 1
+    )
+    SELECT m.token, m.u AS members, COALESCE(tt.u, 0) AS tontine, m.u + COALESCE(tt.u, 0) AS total
+    FROM m LEFT JOIN tt USING (token)
+  `)
+  const buckets = new Map<string, CirculationBucket>()
+  for (const row of result.rows as { members: unknown; token: string; tontine: unknown; total: unknown }[]) {
+    buckets.set(row.token, {
+      members: Number(row.members),
+      tontine: Number(row.tontine),
+      total: Number(row.total),
+    })
+  }
+  const empty = (): CirculationBucket => ({ members: 0, tontine: 0, total: 0 })
+  return {
+    computedAt: new Date().toISOString(),
+    FiMs: buckets.get('FiMs') ?? empty(),
+    FLiP: buckets.get('FLiP') ?? empty(),
+    FSOL: buckets.get('FSOL') ?? empty(),
+  }
 }
 
 // Per-member monthly history (the `user_historic` chart source): for every

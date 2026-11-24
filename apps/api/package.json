@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
+    "@electric-sql/pglite": "0.5.16",
     "@types/bun": "catalog:",
     "@workspace/config-typescript": "workspace:*",
     "@workspace/config-vitest": "workspace:*",

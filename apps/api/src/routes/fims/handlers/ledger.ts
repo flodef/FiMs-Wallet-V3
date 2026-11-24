@@ -12,7 +12,7 @@ import {
   users,
 } from '../../../db/schema.js'
 import { withDb } from '../../../db/service.js'
-import { memberSummary } from '../../../member-stats.js'
+import { memberCirculation, memberSummary } from '../../../member-stats.js'
 import {
   isAdminAddress,
   optionalWalletRequest,
@@ -275,3 +275,7 @@ export const handlePrices = ({
 
 export const handleDashboard = () =>
   withDb((db) => db.select().from(dashboardMetrics).orderBy(asc(dashboardMetrics.label)))
+
+// Public aggregate: member token circulation (FSOL / FiMs / FLiP) — the
+// ledger replacement for the sheet's FiMsData counts the Dashboard reads.
+export const handleCirculation = () => withDb((db) => memberCirculation(db))

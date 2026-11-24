@@ -1,3 +1,4 @@
+// cspell:ignore maxage
 import { HttpApiBuilder, HttpServer } from '@effect/platform'
 import { neon } from '@neondatabase/serverless'
 import { Layer } from 'effect'
@@ -92,9 +93,14 @@ async function isRateLimitedShared(key: string, max: number, databaseUrl: string
 
 // JSON API responses still deserve the baseline headers: no-store keeps
 // member data out of shared caches, nosniff/frame-ancestors cost nothing.
-function withSecurityHeaders(response: Response): Response {
+// Aggregate-only public reads may be CDN-cached briefly instead — the
+// Dashboard polls them on every compute.
+const PUBLIC_CACHEABLE_PATHS = new Set(['/fims/circulation'])
+
+function withSecurityHeaders(response: Response, pathname: string): Response {
   const headers = new Headers(response.headers)
-  headers.set('Cache-Control', 'no-store')
+  const cacheable = response.status === 200 && PUBLIC_CACHEABLE_PATHS.has(pathname)
+  headers.set('Cache-Control', cacheable ? 'public, s-maxage=60' : 'no-store')
   headers.set('X-Content-Type-Options', 'nosniff')
   headers.set('X-Frame-Options', 'DENY')
   return new Response(response.body, { headers, status: response.status, statusText: response.statusText })
@@ -124,7 +130,8 @@ export async function handleRequest(request: Request, env: Record<string, string
   )
 
   const { handler } = HttpApiBuilder.toWebHandler(HttpApiLive)
-  return Promise.resolve(handler(request)).then(withSecurityHeaders)
+  const pathname = new URL(request.url).pathname
+  return Promise.resolve(handler(request)).then((response) => withSecurityHeaders(response, pathname))
 }
 
 export default {

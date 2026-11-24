@@ -24,6 +24,7 @@ import {
   FimsConfig,
   HistoricPoint,
   LinkUserAddressBody,
+  MemberCirculation,
   MemberSummary,
   NotFound,
   PaginationParams,
@@ -367,6 +368,15 @@ export class FimsApi extends HttpApiGroup.make('Fims')
     HttpApiEndpoint.get('dashboard', '/fims/dashboard')
       .annotate(OpenApi.Summary, 'Dashboard metrics')
       .addSuccess(Schema.Array(DashboardMetric))
+      .addError(DatabaseError, { status: 500 })
+      .addError(DatabaseNotConfigured, { status: 503 }),
+  )
+  .add(
+    // Aggregate-only member token counts (FSOL / FiMs / FLiP) recomputed
+    // from the ledger — public, same exposure as /fims/dashboard.
+    HttpApiEndpoint.get('circulation', '/fims/circulation')
+      .annotate(OpenApi.Summary, 'Member token circulation held by members and the tontine')
+      .addSuccess(MemberCirculation)
       .addError(DatabaseError, { status: 500 })
       .addError(DatabaseNotConfigured, { status: 503 }),
   )

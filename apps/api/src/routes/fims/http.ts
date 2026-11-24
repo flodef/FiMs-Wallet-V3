@@ -27,6 +27,7 @@ import {
 } from './handlers/cron.js'
 import { handleRecordDonation } from './handlers/donations.js'
 import {
+  handleCirculation,
   handleCreateTransaction,
   handleDashboard,
   handleDeleteTransaction,
@@ -80,6 +81,7 @@ export const HttpFimsLive = HttpApiBuilder.group(Api, 'Fims', (handlers) =>
       .handle('memberSummary', handleMemberSummary)
       .handle('prices', handlePrices)
       .handle('dashboard', handleDashboard)
+      .handle('circulation', handleCirculation)
       .handle('addressBook', handleAddressBook)
       .handle('createAddressBookEntry', handleCreateAddressBookEntry)
       .handle('updateAddressBookEntry', handleUpdateAddressBookEntry)

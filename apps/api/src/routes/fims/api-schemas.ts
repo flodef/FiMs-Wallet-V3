@@ -111,6 +111,21 @@ export class DashboardMetric extends Schema.Class<DashboardMetric>('DashboardMet
   value: Schema.Number,
 }) {}
 
+// Aggregate member circulation of the protocol tokens (member-stats.ts) —
+// public, same exposure as /fims/dashboard; consumed by the Dashboard app.
+export class CirculationBucket extends Schema.Class<CirculationBucket>('CirculationBucket')({
+  members: Schema.Number,
+  tontine: Schema.Number,
+  total: Schema.Number,
+}) {}
+
+export class MemberCirculation extends Schema.Class<MemberCirculation>('MemberCirculation')({
+  computedAt: Schema.String,
+  FiMs: CirculationBucket,
+  FLiP: CirculationBucket,
+  FSOL: CirculationBucket,
+}) {}
+
 export const AddressBookType = Schema.Literal('nexo', 'coinbase', 'binance', 'fimseur', 'other')
 
 export class AddressBookEntry extends Schema.Class<AddressBookEntry>('AddressBookEntry')({
