@@ -6,7 +6,7 @@
     "@effect/platform": "0.96.1",
     "@hookform/resolvers": "5.2.2",
     "@neondatabase/serverless": "1.0.2",
-    "@noble/curves": "1.9.7",
+    "@noble/curves": "2.4.0",
     "@playwright/test": "1.59.1",
     "@radix-ui/react-select": "2.2.6",
     "@radix-ui/react-slot": "1.2.4",
