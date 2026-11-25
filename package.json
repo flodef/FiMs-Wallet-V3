@@ -63,7 +63,7 @@
     "wrangler": "4.87.0",
     "ws": "8.20.0",
     "wxt": "0.20.25",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
